@@ -1,4 +1,5 @@
 import ctypes
+import ctypes.util
 import logging
 import os
 import re
@@ -6,7 +7,7 @@ import shutil
 import subprocess
 import sys
 import time
-from typing import Dict, List, Literal, Optional, Tuple, cast
+from typing import cast, Dict, List, Literal, Optional, Tuple
 
 from .tmux import is_in_tmux
 
@@ -150,6 +151,212 @@ def _get_windows_tmux() -> List[WindowItem]:
         return []
 
 
+class _DarwinWindowAPI:
+    _instance = None
+
+    def __init__(self):
+        self._cf = ctypes.cdll.LoadLibrary(ctypes.util.find_library("CoreFoundation"))
+        self._ax = ctypes.cdll.LoadLibrary(
+            "/System/Library/Frameworks/ApplicationServices.framework"
+            "/ApplicationServices"
+        )
+        _objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
+
+        _objc.objc_getClass.restype = ctypes.c_void_p
+        _objc.objc_getClass.argtypes = [ctypes.c_char_p]
+        _objc.sel_registerName.restype = ctypes.c_void_p
+        _objc.sel_registerName.argtypes = [ctypes.c_char_p]
+
+        self._msg = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(
+            ("objc_msgSend", _objc)
+        )
+        self._msg_ulong = ctypes.CFUNCTYPE(
+            ctypes.c_ulong, ctypes.c_void_p, ctypes.c_void_p
+        )(("objc_msgSend", _objc))
+        self._msg_int = ctypes.CFUNCTYPE(
+            ctypes.c_int32, ctypes.c_void_p, ctypes.c_void_p
+        )(("objc_msgSend", _objc))
+        self._msg_long = ctypes.CFUNCTYPE(
+            ctypes.c_long, ctypes.c_void_p, ctypes.c_void_p
+        )(("objc_msgSend", _objc))
+        self._msg_idx = ctypes.CFUNCTYPE(
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong
+        )(("objc_msgSend", _objc))
+
+        self._cf.CFStringGetCStringPtr.restype = ctypes.c_char_p
+        self._cf.CFStringGetCStringPtr.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        self._cf.CFStringGetLength.restype = ctypes.c_long
+        self._cf.CFStringGetLength.argtypes = [ctypes.c_void_p]
+        self._cf.CFStringGetCString.restype = ctypes.c_bool
+        self._cf.CFStringGetCString.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_long,
+            ctypes.c_uint32,
+        ]
+        self._cf.CFStringCreateWithCString.restype = ctypes.c_void_p
+        self._cf.CFStringCreateWithCString.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_uint32,
+        ]
+        self._cf.CFArrayGetCount.restype = ctypes.c_long
+        self._cf.CFArrayGetCount.argtypes = [ctypes.c_void_p]
+        self._cf.CFArrayGetValueAtIndex.restype = ctypes.c_void_p
+        self._cf.CFArrayGetValueAtIndex.argtypes = [ctypes.c_void_p, ctypes.c_long]
+        self._cf.CFRelease.argtypes = [ctypes.c_void_p]
+
+        self._ax.AXUIElementCreateApplication.restype = ctypes.c_void_p
+        self._ax.AXUIElementCreateApplication.argtypes = [ctypes.c_int32]
+        self._ax.AXUIElementCopyAttributeValue.restype = ctypes.c_int32
+        self._ax.AXUIElementCopyAttributeValue.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_void_p),
+        ]
+        self._ax.AXUIElementPerformAction.restype = ctypes.c_int32
+        self._ax.AXUIElementPerformAction.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+        ]
+
+        self._msg_bool_ulong = ctypes.CFUNCTYPE(
+            ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong
+        )(("objc_msgSend", _objc))
+        self._msg_ptr = ctypes.CFUNCTYPE(
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p
+        )(("objc_msgSend", _objc))
+        self._msg_ptr_int = ctypes.CFUNCTYPE(
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int32
+        )(("objc_msgSend", _objc))
+
+        self._sel = lambda s: _objc.sel_registerName(s.encode())
+        self._cls = lambda s: _objc.objc_getClass(s.encode())
+        self._kAXWindows = self._cfstr("AXWindows")
+        self._kAXTitle = self._cfstr("AXTitle")
+        self._kAXRaise = self._cfstr("AXRaise")
+        self._kAXClose = self._cfstr("AXPress")
+        self._kAXCloseButton = self._cfstr("AXCloseButton")
+
+        ctypes.cdll.LoadLibrary("/System/Library/Frameworks/AppKit.framework/AppKit")
+        self._msg(self._cls("NSApplication"), self._sel("sharedApplication"))
+
+    @classmethod
+    def get(cls) -> "_DarwinWindowAPI":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def _cfstr(self, s):
+        return self._cf.CFStringCreateWithCString(None, s.encode(), 0x08000100)
+
+    def _pystr(self, ref):
+        if not ref:
+            return ""
+        p = self._cf.CFStringGetCStringPtr(ref, 0x08000100)
+        if p:
+            return p.decode("utf-8")
+        length = self._cf.CFStringGetLength(ref)
+        buf = ctypes.create_string_buffer(length * 4 + 1)
+        if self._cf.CFStringGetCString(ref, buf, length * 4 + 1, 0x08000100):
+            return buf.value.decode("utf-8")
+        return ""
+
+    def _run_loop_tick(self):
+        run_loop = self._msg(self._cls("NSRunLoop"), self._sel("currentRunLoop"))
+        date = self._msg(self._cls("NSDate"), self._sel("date"))
+        self._msg_ptr(run_loop, self._sel("runUntilDate:"), date)
+
+    def _iter_windows(self):
+        # Without this, runningApplications returns a stale cache missing newly launched apps.
+        self._run_loop_tick()
+        workspace = self._msg(self._cls("NSWorkspace"), self._sel("sharedWorkspace"))
+        apps = self._msg(workspace, self._sel("runningApplications"))
+        app_count = self._msg_ulong(apps, self._sel("count"))
+
+        for i in range(app_count):
+            app = self._msg_idx(apps, self._sel("objectAtIndex:"), i)
+            if self._msg_long(app, self._sel("activationPolicy")) != 0:
+                continue
+            pid = self._msg_int(app, self._sel("processIdentifier"))
+
+            ax_app = self._ax.AXUIElementCreateApplication(pid)
+            if not ax_app:
+                continue
+
+            wins_ref = ctypes.c_void_p()
+            err = self._ax.AXUIElementCopyAttributeValue(
+                ax_app, self._kAXWindows, ctypes.byref(wins_ref)
+            )
+            if err != 0 or not wins_ref.value:
+                self._cf.CFRelease(ax_app)
+                continue
+
+            try:
+                win_count = self._cf.CFArrayGetCount(wins_ref)
+                for j in range(win_count):
+                    win = self._cf.CFArrayGetValueAtIndex(wins_ref, j)
+                    title_ref = ctypes.c_void_p()
+                    err = self._ax.AXUIElementCopyAttributeValue(
+                        win, self._kAXTitle, ctypes.byref(title_ref)
+                    )
+                    if err != 0 or not title_ref.value:
+                        continue
+                    title = self._pystr(title_ref.value)
+                    self._cf.CFRelease(title_ref)
+                    if title:
+                        yield app, ax_app, wins_ref, win, title, pid, j + 1
+            finally:
+                self._cf.CFRelease(wins_ref)
+                self._cf.CFRelease(ax_app)
+
+    def get_windows(self) -> List[WindowItem]:
+        windows: List[WindowItem] = []
+        for _, _, _, _, title, pid, win_index in self._iter_windows():
+            if not title.startswith("WinSwitcher"):
+                windows.append(WindowItem(id=f"darwin:{pid}:{win_index}", title=title))
+        return windows
+
+    def _activate_ax_window(self, app, win):
+        self._ax.AXUIElementPerformAction(win, self._kAXRaise)
+        self._msg_bool_ulong(app, self._sel("activateWithOptions:"), 1 << 1)
+
+    def activate_window(self, pid: int, win_index: int) -> Optional[str]:
+        for app, _, _, win, _, w_pid, w_idx in self._iter_windows():
+            if w_pid == pid and w_idx == win_index:
+                self._activate_ax_window(app, win)
+                return None
+        return f"Window not found: {pid}:{win_index}"
+
+    def activate_window_by_title(self, match_fn) -> bool:
+        for app, _, _, win, title, _, _ in self._iter_windows():
+            if match_fn(title):
+                self._activate_ax_window(app, win)
+                return True
+        return False
+
+    def close_window(self, pid: int, win_index: int) -> Optional[str]:
+        for _, _, _, win, _, w_pid, w_idx in self._iter_windows():
+            if w_pid == pid and w_idx == win_index:
+                close_btn_ref = ctypes.c_void_p()
+                err = self._ax.AXUIElementCopyAttributeValue(
+                    win, self._kAXCloseButton, ctypes.byref(close_btn_ref)
+                )
+                if err == 0 and close_btn_ref.value:
+                    self._ax.AXUIElementPerformAction(close_btn_ref, self._kAXClose)
+                    self._cf.CFRelease(close_btn_ref)
+                    return None
+                return f"No close button for: {pid}:{win_index}"
+        return f"Window not found: {pid}:{win_index}"
+
+
+def _get_windows_darwin() -> List[WindowItem]:
+    try:
+        return _DarwinWindowAPI.get().get_windows()
+    except Exception:
+        return []
+
+
 def get_windows(
     sort_by_title: bool = True, script_status: Optional[Dict[str, str]] = None
 ) -> List[WindowItem]:
@@ -157,6 +364,8 @@ def get_windows(
         windows = _get_windows_linux()
     elif sys.platform == "win32":
         windows = _get_windows_win(sort_by_title=sort_by_title)
+    elif sys.platform == "darwin":
+        windows = _get_windows_darwin()
     elif is_in_tmux():
         windows = _get_windows_tmux()
     else:
@@ -199,6 +408,12 @@ def activate_window(win_id) -> Optional[str]:
         )
         if cp.returncode != 0:
             return cp.stderr.splitlines()[0] if cp.stderr else "Error"
+    elif isinstance(win_id, str) and win_id.startswith("darwin:"):
+        _, pid_str, win_index = win_id.split(":", 2)
+        try:
+            return _DarwinWindowAPI.get().activate_window(int(pid_str), int(win_index))
+        except Exception as e:
+            return str(e)
     return None
 
 
@@ -219,6 +434,12 @@ def close_window(win_id) -> Optional[str]:
             ["wmctrl", "-i", "-c", win_id], capture_output=True, text=True
         )
         return cp.stderr.splitlines()[0] if cp.returncode != 0 and cp.stderr else None
+    elif isinstance(win_id, str) and win_id.startswith("darwin:"):
+        _, pid_str, win_index = win_id.split(":", 2)
+        try:
+            return _DarwinWindowAPI.get().close_window(int(pid_str), int(win_index))
+        except Exception as e:
+            return str(e)
     return None
 
 
@@ -253,6 +474,30 @@ def _activate_window_win(hwnd):
 
     # Set the window to the foreground
     SetForegroundWindow(hwnd)
+
+
+def _activate_window_darwin(
+    name: str,
+    match_mode: int = TITLE_MATCH_MODE_DEFAULT,
+) -> bool:
+    if match_mode == TITLE_MATCH_MODE_REGEX:
+        patt = re.compile(name)
+
+    def _matches(title: str) -> bool:
+        if match_mode == TITLE_MATCH_MODE_EXACT:
+            return title == name
+        elif match_mode == TITLE_MATCH_MODE_START_WITH:
+            return title.startswith(name)
+        elif match_mode == TITLE_MATCH_MODE_REGEX:
+            return bool(re.search(patt, title))
+        else:
+            return name in title
+
+    try:
+        return _DarwinWindowAPI.get().activate_window_by_title(_matches)
+    except Exception:
+        pass
+    return False
 
 
 def _control_window(
@@ -364,29 +609,7 @@ def _control_window(
 
     elif sys.platform == "darwin":
         if cmd == "activate":
-            return 0 == subprocess.call(
-                [
-                    "osascript",
-                    "-e",
-                    f"""set theTitle to "{name}"
-
-tell application "System Events"
-	set theProcesses to every process where background only is false
-	repeat with theProcess in theProcesses
-		tell theProcess
-			repeat with theWindow in windows
-				if name of theWindow contains theTitle then
-					tell theWindow to perform action "AXRaise"
-					set frontmost of theProcess to true
-					return
-				end if
-			end repeat
-		end tell
-	end repeat
-    error "not found"
-end tell""",
-                ]
-            )
+            return _activate_window_darwin(name=name, match_mode=match_mode)
         elif cmd == "close":
             logging.warning("Cannot close window on macos")
         else:

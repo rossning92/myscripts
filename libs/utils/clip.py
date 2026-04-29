@@ -217,6 +217,12 @@ def get_clip() -> str:
     elif sys.platform == "win32":
         return _get_clip_win()
 
+    elif sys.platform == "darwin":
+        return subprocess.check_output(
+            ["pbpaste"],
+            universal_newlines=True,
+        )
+
     elif sys.platform == "linux":
         try:
             return subprocess.check_output(
@@ -334,6 +340,13 @@ def set_clip(text: str):
             close_fds=True,
             # make sure that xclip is not killed so other apps can paste the content
             start_new_session=True,
+        )
+        p.communicate(input=text.encode("utf-8"))
+    elif sys.platform == "darwin":
+        p = subprocess.Popen(
+            ["pbcopy"],
+            stdin=subprocess.PIPE,
+            close_fds=True,
         )
         p.communicate(input=text.encode("utf-8"))
     elif sys.platform == "win32":

@@ -474,6 +474,12 @@ local clientkeys = gears.table.join(
         description = "close",
         group = "client"
     }),
+    awful.key({ "Mod1" }, "q", function(c)
+        c:kill()
+    end, {
+        description = "close",
+        group = "client"
+    }),
     awful.key({ modkey, "Control" }, "space", awful.client.floating.toggle, {
         description = "toggle floating",
         group = "client"

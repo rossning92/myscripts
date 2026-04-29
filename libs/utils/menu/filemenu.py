@@ -173,7 +173,7 @@ class FileMenu(Menu[_File]):
         self.add_command(self._reveal_in_file_explorer, hotkey="ctrl+o")
         self.add_command(self._open_with_script)
         self.add_command(self._duplicate_file, hotkey="ctrl+d")
-        self.add_command(self._preview_image, hotkey="alt+i")
+        self.add_command(self._preview_image)
         self.add_command(lambda: self.sort_by("name"), name="sort_by_name")
         self.add_command(lambda: self.sort_by("mtime"), name="sort_by_mtime")
 

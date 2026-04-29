@@ -61,6 +61,8 @@ def wrap_args_alacritty(
             "window.dimensions.columns=0",
             "window.dimensions.lines=0",
         ]
+    if font_size is None and sys.platform == "darwin":
+        font_size = 14
     if font_size is not None:
         options += [
             f"font.size={font_size}",

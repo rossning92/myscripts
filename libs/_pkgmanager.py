@@ -371,11 +371,19 @@ def _flatpak_install(pkg: str, upgrade=False, force_install=True):
     require_package("flatpak")
     packages = get_packages()
     for p in packages[pkg]["flatpak"]["packages"]:
-        if not _flatpak_is_package_installed(p) or force_install:
-            args = [
-                "flatpak",
-                "install",
-                "-y",
-                p,
-            ]
+        is_installed = _flatpak_is_package_installed(p)
+        if not is_installed or upgrade or force_install:
+            if upgrade and is_installed:
+                logging.info(f"Upgrading flatpak package: {p}...")
+            elif is_installed and force_install:
+                logging.info(f"Reinstalling flatpak package: {p}...")
+            else:
+                logging.info(f"Installing flatpak package: {p}...")
+
+            args = ["flatpak", "install", "-y"]
+            if upgrade:
+                args.append("--or-update")
+            elif force_install and is_installed:
+                args.append("--reinstall")
+            args.append(p)
             subprocess.check_call(args)

@@ -775,6 +775,9 @@
     "apt": {
       "packages": ["screen"]
     },
+    "brew": {
+      "brew": ["screen"]
+    },
     "choco": {
       "packages": ["screen"]
     },
@@ -868,6 +871,9 @@
     }
   },
   "syncthing": {
+    "brew": {
+      "packages": ["syncthing"]
+    },
     "pacman": {
       "packages": ["syncthing"]
     },

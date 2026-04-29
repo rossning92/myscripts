@@ -11,6 +11,12 @@ fi
 
 cd "${ANDROID_NDK_HOME}/simpleperf"
 
+if [[ "${SIMPLEPERF_CLEAN_BINARY_CACHE}" == "1" ]]; then
+    echo "Cleaning binary_cache..."
+    rm -rf binary_cache
+    echo "Done."
+fi
+
 duration="${SIMPLEPERF_DURATION_SEC}"
 if [[ -z "$duration" ]]; then
     duration=5
