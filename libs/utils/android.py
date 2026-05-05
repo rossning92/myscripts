@@ -492,6 +492,8 @@ def setup_android_env(
 
     # ANDROID_HOME
     if android_home is None:
+        android_home = os.environ.get("ANDROID_HOME")
+    if android_home is None:
         android_home = get_adk_path()
     if android_home is None:
         raise Exception("Cannot find ANDROID_HOME")

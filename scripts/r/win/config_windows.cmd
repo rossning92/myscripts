@@ -108,6 +108,12 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" /v CABCOption /t
 echo Disable SmartScreen
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v SmartScreenEnabled /t REG_SZ /d Off /f >NUL
 
+echo Disable Snap Bar at top of screen
+reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced /v EnableSnapBar /t REG_DWORD /d 0 /f >NUL
+
+echo Disable Aero Snap (drag-to-edge window arrangement)
+reg add "HKCU\Control Panel\Desktop" /v WindowArrangementActive /t REG_SZ /d 0 /f >NUL
+
 echo Revert to the full right-click menu
 reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /f /ve
 

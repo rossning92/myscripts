@@ -61,6 +61,9 @@ pac_install ttf-jetbrains-mono
 
 # Configure HiDPI display
 DPI_VALUE=120 # 96 * 1.25
+if [[ -f /sys/class/dmi/id/product_name ]] && grep -q "Surface Go 3" /sys/class/dmi/id/product_name; then
+    DPI_VALUE=144
+fi
 if ! grep -qF -- "Xft.dpi" ~/.Xresources; then
     echo "Xft.dpi: $DPI_VALUE" >>~/.Xresources
 else
