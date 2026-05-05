@@ -113,28 +113,19 @@ class TodoMenu(ListEditMenu[TodoItem]):
             return
         self.__add_item(item)
 
-    def __set_selected_item_value(self, kvps: Dict[str, Any]):
-        selected = self.get_selected_item()
-        if selected:
-            for name, value in kvps.items():
-                if value is None:
-                    del selected[name]
-                else:
-                    selected[name] = value
+    def __toggle_status(self):
+        items = list(self.get_selected_items())
+        if items:
+            status_order = ("none", "closed")
+            for item in items:
+                current = item.get("status", "none")
+                try:
+                    idx = status_order.index(current)
+                except ValueError:
+                    idx = 0
+                item["status"] = status_order[(idx + 1) % len(status_order)]
             self.save_json()
             self.update_screen()
-
-    def __toggle_status(self):
-        selected = self.get_selected_item()
-        if selected:
-            status_order = ("none", "closed")
-            current = selected.get("status", "none")
-            try:
-                idx = status_order.index(current)
-            except ValueError:
-                idx = 0
-            next_status = status_order[(idx + 1) % len(status_order)]
-            self.__set_selected_item_value({"status": next_status})
 
     def get_item_text(self, item: TodoItem) -> str:
         # Date
@@ -225,27 +216,25 @@ class TodoMenu(ListEditMenu[TodoItem]):
             args += extra_args
         super().open_ai_agent(extra_args=args)
 
-    def __edit_timestamp_field(self, item: TodoItem):
-        ts = input_date(prompt="date", default_ts=item.get("due_ts"))
+    def __edit_timestamp_field(self, items: List[TodoItem]):
+        prompt = "date" if len(items) == 1 else "date for %d items" % len(items)
+        default_ts = items[0].get("due_ts") if len(items) == 1 else None
+        ts = input_date(prompt=prompt, default_ts=default_ts)
         if ts is None:
             return
 
-        if ts == item.get("due_ts"):
-            self.set_message("Skip updating the same date")
-            return
-
-        if ts <= 0.0:
-            item.pop("due_ts", None)
-            self.set_message("Reset date")
-        else:
-            item["due_ts"] = ts
+        for item in items:
+            if ts <= 0.0:
+                item.pop("due_ts", None)
+            else:
+                item["due_ts"] = ts
         self.save_json()
+        self.update_screen()
 
     def __edit_due(self):
-        selected = self.get_selected_item()
-        if not selected:
-            return
-        self.__edit_timestamp_field(selected)
+        items = list(self.get_selected_items())
+        if items:
+            self.__edit_timestamp_field(items)
 
     def __edit_description(self):
         selected = self.get_selected_item()
@@ -293,7 +282,12 @@ class TodoMenu(ListEditMenu[TodoItem]):
         self.set_selected_item(selected)
 
     def __set_status_wip(self):
-        self.__set_selected_item_value({"status": "in_progress"})
+        items = list(self.get_selected_items())
+        if items:
+            for item in items:
+                item["status"] = "in_progress"
+            self.save_json()
+            self.update_screen()
 
 
 def _add_todo(data_file: str, desc: str, due: Optional[str] = None):
