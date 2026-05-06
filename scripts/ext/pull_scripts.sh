@@ -12,7 +12,7 @@ echo "Pulling: $ROOT_DIR"
 
 while IFS= read -r dir; do
     dir="${dir%$'\r'}"
-    if [[ -d "$dir" ]]; then
+    if [[ -d "$dir" && -d "$dir/.git" ]]; then
         echo "Pulling: $dir"
         (cd "$dir" && "$GIT" pull --rebase) || true
     fi

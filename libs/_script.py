@@ -1761,6 +1761,7 @@ def start_script(
     template=None,
     variables=None,
     run_in_tmux=False,
+    run_script_local=False,
 ):
     start_time = time.time()
 
@@ -1812,6 +1813,7 @@ def start_script(
         single_instance=single_instance,
         tee=tee,
         run_in_tmux=run_in_tmux,
+        run_script_local=run_script_local,
     )
     if not ret:
         raise subprocess.CalledProcessError(returncode=ret, cmd=args)

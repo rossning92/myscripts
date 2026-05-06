@@ -411,6 +411,11 @@
       "packages": ["openjdk-17-jre"]
     }
   },
+  "keepassxc": {
+    "pacman": {
+      "packages": ["keepassxc"]
+    }
+  },
   "less": {
     "apt": {
       "packages": ["less"]

@@ -36,6 +36,7 @@ from utils.term import enable_windows_vt
 EXPERIMENTAL_EANBLE_WINDOWS_VT = True
 
 GUTTER_SIZE = 1
+PASTE_THRESHOLD_SEC = 0.05
 PROCESS_EVENT_INTERVAL_SEC = 0.1
 SHIFT_DOWN = 0x150
 SHIFT_UP = 0x151
@@ -992,7 +993,14 @@ class Menu(Generic[T]):
                 elif isinstance(ch, int):
                     self.set_message(f"key=0x{ch:x}")
 
-            self.last_key_pressed_timestamp = time.time()
+            now = time.time()
+            prev_timestamp = self.last_key_pressed_timestamp
+            self.last_key_pressed_timestamp = now
+            is_paste = (
+                self.__allow_input
+                and prev_timestamp > 0
+                and (now - prev_timestamp) < PASTE_THRESHOLD_SEC
+            )
 
             if ch == "alt+enter" and "alt+enter" not in self.__hotkeys:
                 self.__input.on_char("\n")
@@ -1038,48 +1046,49 @@ class Menu(Generic[T]):
             elif ch == " " and self.__input.text == "" and "space" in self.__hotkeys:
                 self.__hotkeys["space"].func()
 
-            elif ch == "\n" or ch == "\r":
-                self.on_enter_pressed()
+            elif ch in ("\n", "\r"):
+                if is_paste:
+                    self.__input.on_char("\n")
+                    self._drain_paste(Menu._stdscr)
+                    self.update_screen()
+                else:
+                    self.on_enter_pressed()
 
-            elif ch == curses.KEY_UP or ch == KEY_A2 or ch == SHIFT_UP:
+            elif ch in (curses.KEY_UP, KEY_A2, SHIFT_UP):
                 self.__set_selection_by_offset(
                     offset=-1, multi_select=self.__multi_select_mode or ch == SHIFT_UP
                 )
 
-            elif ch == curses.KEY_DOWN or ch == KEY_C2 or ch == SHIFT_DOWN:
+            elif ch in (curses.KEY_DOWN, KEY_C2, SHIFT_DOWN):
                 self.__set_selection_by_offset(
                     offset=1, multi_select=self.__multi_select_mode or ch == SHIFT_DOWN
                 )
 
             elif (
-                ch == curses.KEY_LEFT or ch == 452
-            ) and "left" in self.__hotkeys:  # curses.KEY_B3
+                ch in (curses.KEY_LEFT, 452) and "left" in self.__hotkeys
+            ):  # curses.KEY_B3
                 self.__hotkeys["left"].func()
 
-            elif (
-                ch == curses.KEY_LEFT or ch == 452  # curses.KEY_B1
-            ) and self.__can_scroll:
+            elif ch in (curses.KEY_LEFT, 452) and self.__can_scroll:  # curses.KEY_B1
                 self.__scroll_x = max(self.__scroll_x - self.get_scroll_distance(), 0)
                 self.update_screen()
 
             elif (
-                ch == curses.KEY_RIGHT or ch == 454
-            ) and "right" in self.__hotkeys:  # curses.KEY_B3
+                ch in (curses.KEY_RIGHT, 454) and "right" in self.__hotkeys
+            ):  # curses.KEY_B3
                 self.__hotkeys["right"].func()
 
-            elif (
-                ch == curses.KEY_RIGHT or ch == 454  # curses.KEY_B3
-            ) and self.__can_scroll:
+            elif ch in (curses.KEY_RIGHT, 454) and self.__can_scroll:  # curses.KEY_B3
                 self.__scroll_x += self.get_scroll_distance()
                 self.update_screen()
 
-            elif ch == curses.KEY_PPAGE or ch == 451:  # curses.KEY_A3
+            elif ch in (curses.KEY_PPAGE, 451):  # curses.KEY_A3
                 self.__set_selection_by_offset(
                     offset=-self.get_items_per_page(),
                     multi_select=self.__multi_select_mode,
                 )
 
-            elif ch == curses.KEY_NPAGE or ch == 457:  # curses.KEY_C3
+            elif ch in (curses.KEY_NPAGE, 457):  # curses.KEY_C3
                 self.__set_selection_by_offset(
                     offset=self.get_items_per_page(),
                     multi_select=self.__multi_select_mode,
@@ -1141,6 +1150,24 @@ class Menu(Generic[T]):
             return True
         else:
             return False
+
+    def _drain_paste(self, stdscr):
+        """Read remaining pasted characters until a pause indicates paste is done."""
+        while True:
+            stdscr.timeout(int(PASTE_THRESHOLD_SEC * 1000))
+            try:
+                ch = stdscr.get_wch()
+            except curses.error:
+                break
+            self.last_key_pressed_timestamp = time.time()
+            if ch in ("\n", "\r"):
+                self.__input.on_char("\n")
+            elif _is_backspace_key(ch) or (
+                isinstance(ch, str) and len(ch) == 1 and ch >= " "
+            ):
+                self.__input.on_char(ch)
+            elif ch == -1:
+                break
 
     def post_event(self, func: Callable[[], None]) -> None:
         self.__event_queue.put(func)
