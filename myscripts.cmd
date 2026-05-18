@@ -11,7 +11,7 @@ if not %errorlevel%==0 (
     call install\install_python.cmd
 )
 
-title MyTerminal
+title myscriptsmgr
 
 if not exist "%USERPROFILE%\.venv\myscripts" (
   python -m venv "%USERPROFILE%\.venv\myscripts" --system-site-packages

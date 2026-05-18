@@ -1,10 +1,7 @@
 # Setup WSL2 on Windows host
 
 # Enable mirrored networking mode (Windows 11 22H2+)
-$wslConfig = "$env:USERPROFILE\.wslconfig"
-if (!(Test-Path $wslConfig) -or !(Select-String -Path $wslConfig -Pattern 'networkingMode' -Quiet)) {
-    Add-Content -Path $wslConfig -Value "[wsl2]`nnetworkingMode=mirrored"
-}
+Set-Content -Path "$env:USERPROFILE\.wslconfig" -Value "[wsl2]`nnetworkingMode=mirrored`nguiApplications=false"
 
 # Auto-mount Google Drive (G:) on WSL login
 wsl -u root -- mkdir -p /mnt/g

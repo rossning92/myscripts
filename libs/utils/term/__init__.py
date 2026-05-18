@@ -53,15 +53,41 @@ def set_terminal_title(title):
 
 
 def hide_terminal_from_taskbar():
+    # Uses the ITaskbarList COM interface via raw ctypes to remove the window from the taskbar.
     if sys.platform == "win32":
-        GWL_EXSTYLE = -20
-        WS_EX_TOOLWINDOW = 0x00000080
-        WS_EX_APPWINDOW = 0x00040000
+        import ctypes.wintypes
+
         hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-        user32 = ctypes.windll.user32
-        style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        style = (style | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
-        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+
+        clsid = (ctypes.c_byte * 16)()
+        iid = (ctypes.c_byte * 16)()
+        ctypes.windll.ole32.CLSIDFromString(
+            "{56FDF344-FD6D-11d0-958A-006097C9A090}", clsid
+        )
+        ctypes.windll.ole32.CLSIDFromString(
+            "{56FDF342-FD6D-11d0-958A-006097C9A090}", iid
+        )
+
+        ctypes.windll.ole32.CoInitialize(None)
+        p = ctypes.c_void_p()
+        ctypes.windll.ole32.CoCreateInstance(
+            clsid, None, 1, iid, ctypes.byref(p)
+        )
+
+        vtable = ctypes.cast(
+            ctypes.cast(p, ctypes.POINTER(ctypes.c_void_p))[0],
+            ctypes.POINTER(ctypes.c_void_p * 8),
+        ).contents
+
+        # ITaskbarList vtable: 0=QueryInterface, 1=AddRef, 2=Release,
+        # 3=HrInit, 4=AddTab, 5=DeleteTab
+        HrInit = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p)(vtable[3])
+        DeleteTab = ctypes.WINFUNCTYPE(
+            ctypes.HRESULT, ctypes.c_void_p, ctypes.wintypes.HWND
+        )(vtable[5])
+
+        HrInit(p)
+        DeleteTab(p, hwnd)
 
 
 def enable_windows_vt():

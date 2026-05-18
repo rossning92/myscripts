@@ -204,8 +204,8 @@ class DictEditMenu(Menu[_KeyValuePair]):
             )
             kvps.append((key, modified))
 
-        # Show modified values first
-        kvps = sorted(kvps, key=lambda x: x[1], reverse=True)
+        # Sort alphabetically, modified values first
+        kvps = sorted(kvps, key=lambda x: (not x[1], x[0]))
 
         # Update items
         self.items.clear()

@@ -56,7 +56,7 @@ if [[ "$MSYSTEM" != MINGW64 ]]; then
 fi
 
 # Set terminal title
-echo -ne '\033]0;MyTerminal\007'
+echo -ne '\033]0;myscriptsmgr\007'
 
 # Default settings for FZF
 export FZF_DEFAULT_OPTS='--layout=reverse'

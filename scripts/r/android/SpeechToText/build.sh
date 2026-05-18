@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 cd "$(dirname "$0")"
-gradle assembleDebug
+./gradlew assembleDebug
 adb install -r --user 0 app/build/outputs/apk/debug/app-debug.apk
 adb shell appops set com.ross.speechtotext SYSTEM_ALERT_WINDOW allow
 adb shell pm grant com.ross.speechtotext android.permission.RECORD_AUDIO

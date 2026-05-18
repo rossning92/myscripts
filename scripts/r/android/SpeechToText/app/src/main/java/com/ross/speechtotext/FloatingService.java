@@ -24,7 +24,6 @@ import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.view.animation.LinearInterpolator;
 import android.widget.Toast;
 
 import androidx.appcompat.view.ContextThemeWrapper;
@@ -58,10 +57,17 @@ public class FloatingService extends Service {
     private File audioFile;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Process rootShell;
+    private DataOutputStream rootStdin;
 
     private static final String CHANNEL_ID = "FloatingServiceChannel";
-    private static final int FAB_BG_COLOR = 0xFFF7F2FA;
-    private static final int FAB_ICON_COLOR = 0xFF65558F;
+    private static final ColorStateList FAB_BG_COLOR = ColorStateList.valueOf(0xFFF7F2FA);
+    private static final ColorStateList FAB_ICON_COLOR = ColorStateList.valueOf(0xFF65558F);
+    private static final ColorStateList DICTATING_BG_COLOR = ColorStateList.valueOf(0xFFD0BCFF);
+    private static final ColorStateList DICTATING_ICON_COLOR = ColorStateList.valueOf(0xFF381E72);
+    private static final ColorStateList TRANSCRIBING_BG_COLOR = ColorStateList.valueOf(0xFFE8DEF8);
+    private static final ColorStateList CANCEL_BG_COLOR = ColorStateList.valueOf(0xFFFFDAD6);
+    private static final ColorStateList CANCEL_ICON_COLOR = ColorStateList.valueOf(0xFF93000A);
 
     private String getPrefSuffix() {
         return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -108,7 +114,7 @@ public class FloatingService extends Service {
         Notification notification = new Notification.Builder(this, CHANNEL_ID)
                 .setContentTitle("Speech To Text")
                 .setContentText("Service is running")
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .setSmallIcon(R.drawable.ic_graphic_eq)
                 .build();
         startForeground(1, notification);
 
@@ -117,53 +123,32 @@ public class FloatingService extends Service {
         int layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 
-        floatingView = createFab(android.R.drawable.ic_btn_speak_now);
-        floatingView.setBackgroundTintList(ColorStateList.valueOf(FAB_BG_COLOR));
-        floatingView.setImageTintList(ColorStateList.valueOf(FAB_ICON_COLOR));
+        floatingView = createFab(R.drawable.ic_graphic_eq);
+        tintFab(floatingView, FAB_BG_COLOR, FAB_ICON_COLOR);
         floatingView.setHapticFeedbackEnabled(true);
 
-        params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, layoutType, flags, PixelFormat.TRANSLUCENT);
-        params.gravity = Gravity.TOP | Gravity.LEFT;
-
-        SharedPreferences prefs = getSharedPreferences("FloatingButtonPrefs", MODE_PRIVATE);
-        String suffix = getPrefSuffix();
-        params.x = prefs.getInt("x" + suffix, prefs.getInt("x", 100));
-        params.y = prefs.getInt("y" + suffix, prefs.getInt("y", 100));
+        params = createOverlayLayoutParams(layoutType, flags);
 
         cancelView = createFab(android.R.drawable.ic_menu_close_clear_cancel);
-        cancelView.setBackgroundTintList(ColorStateList.valueOf(0xFFFFDAD6));
-        cancelView.setImageTintList(ColorStateList.valueOf(0xFF93000A));
+        tintFab(cancelView, CANCEL_BG_COLOR, CANCEL_ICON_COLOR);
         cancelView.setVisibility(View.GONE);
         cancelView.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             cancelDictation();
         });
 
-        cancelParams = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, layoutType, flags, PixelFormat.TRANSLUCENT);
-        cancelParams.gravity = Gravity.TOP | Gravity.LEFT;
+        cancelParams = createOverlayLayoutParams(layoutType, flags);
 
         floatingView.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
             private static final int CLICK_THRESHOLD = 10;
-            private static final int LONG_PRESS_TIMEOUT = 500;
-            private final Handler longPressHandler = new Handler(Looper.getMainLooper());
-            private boolean isLongPressed = false;
-
-            private final Runnable longPressRunnable = () -> {
-                isLongPressed = true;
-                floatingView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-            };
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 if (isTranscribing) return true;
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        isLongPressed = false;
-                        longPressHandler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT);
                         v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                         initialX = params.x;
                         initialY = params.y;
@@ -174,9 +159,6 @@ public class FloatingService extends Service {
                         float dX = Math.abs(event.getRawX() - initialTouchX);
                         float dY = Math.abs(event.getRawY() - initialTouchY);
                         if (dX > CLICK_THRESHOLD || dY > CLICK_THRESHOLD) {
-                            if (!isLongPressed) {
-                                longPressHandler.removeCallbacks(longPressRunnable);
-                            }
                             params.x = initialX + (int) (event.getRawX() - initialTouchX);
                             params.y = initialY + (int) (event.getRawY() - initialTouchY);
                             windowManager.updateViewLayout(floatingView, params);
@@ -186,11 +168,6 @@ public class FloatingService extends Service {
                         }
                         return true;
                     case MotionEvent.ACTION_UP:
-                        longPressHandler.removeCallbacks(longPressRunnable);
-                        if (isLongPressed) {
-                            savePositionToEdge();
-                            return true;
-                        }
                         float deltaX = Math.abs(event.getRawX() - initialTouchX);
                         float deltaY = Math.abs(event.getRawY() - initialTouchY);
                         if (deltaX < CLICK_THRESHOLD && deltaY < CLICK_THRESHOLD) {
@@ -233,6 +210,7 @@ public class FloatingService extends Service {
 
         windowManager.addView(floatingView, params);
         windowManager.addView(cancelView, cancelParams);
+        updatePositionFromPrefs();
     }
 
     private FloatingActionButton createFab(int iconRes) {
@@ -240,15 +218,26 @@ public class FloatingService extends Service {
         FloatingActionButton fab = new FloatingActionButton(ctx);
         fab.setImageResource(iconRes);
         fab.setSize(FloatingActionButton.SIZE_MINI);
+        fab.setUseCompatPadding(true);
         return fab;
     }
 
+    private WindowManager.LayoutParams createOverlayLayoutParams(int layoutType, int flags) {
+        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, layoutType, flags, PixelFormat.TRANSLUCENT);
+        lp.gravity = Gravity.TOP | Gravity.LEFT;
+        return lp;
+    }
+
+    private void tintFab(FloatingActionButton fab, ColorStateList bg, ColorStateList icon) {
+        fab.setBackgroundTintList(bg);
+        fab.setImageTintList(icon);
+    }
 
     private void enterDictationMode() {
         isDictating = true;
         floatingView.setImageResource(android.R.drawable.ic_menu_send);
-        floatingView.setBackgroundTintList(ColorStateList.valueOf(0xFFD0BCFF));
-        floatingView.setImageTintList(ColorStateList.valueOf(0xFF381E72));
+        tintFab(floatingView, DICTATING_BG_COLOR, DICTATING_ICON_COLOR);
         updateActionButtonPositions();
         cancelView.setVisibility(View.VISIBLE);
         startRecording();
@@ -265,7 +254,7 @@ public class FloatingService extends Service {
         isDictating = false;
         cancelView.setVisibility(View.GONE);
         if (audioFile == null || !audioFile.exists() || audioFile.length() == 0) {
-            exitTranscribingMode();
+            resetFabToDefault();
             Toast.makeText(this, "No audio recorded", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -275,10 +264,14 @@ public class FloatingService extends Service {
         executor.execute(() -> {
             try {
                 String text = transcribe(file);
-                mainHandler.post(() -> {
-                    exitTranscribingMode();
-                    typeText(text);
-                });
+                mainHandler.post(() -> exitTranscribingMode());
+                if (!typeViaAccessibility(text) && !typeViaInputCommand(text)) {
+                    mainHandler.post(() -> {
+                        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                        clipboard.setPrimaryClip(ClipData.newPlainText("transcription", text));
+                        Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+                    });
+                }
             } catch (Exception e) {
                 mainHandler.post(() -> {
                     exitTranscribingMode();
@@ -293,8 +286,7 @@ public class FloatingService extends Service {
     private void enterTranscribingMode() {
         isTranscribing = true;
         floatingView.setImageResource(android.R.drawable.ic_popup_sync);
-        floatingView.setBackgroundTintList(ColorStateList.valueOf(0xFFE8DEF8));
-        floatingView.setImageTintList(ColorStateList.valueOf(0xFF65558F));
+        tintFab(floatingView, TRANSCRIBING_BG_COLOR, FAB_ICON_COLOR);
         spinAnimator = ObjectAnimator.ofFloat(floatingView, "alpha", 1f, 0.3f);
         spinAnimator.setDuration(600);
         spinAnimator.setRepeatCount(ValueAnimator.INFINITE);
@@ -313,9 +305,8 @@ public class FloatingService extends Service {
     }
 
     private void resetFabToDefault() {
-        floatingView.setImageResource(android.R.drawable.ic_btn_speak_now);
-        floatingView.setBackgroundTintList(ColorStateList.valueOf(FAB_BG_COLOR));
-        floatingView.setImageTintList(ColorStateList.valueOf(FAB_ICON_COLOR));
+        floatingView.setImageResource(R.drawable.ic_graphic_eq);
+        tintFab(floatingView, FAB_BG_COLOR, FAB_ICON_COLOR);
     }
 
     private void exitDictationMode() {
@@ -407,18 +398,30 @@ public class FloatingService extends Service {
         out.writeBytes(value + "\r\n");
     }
 
-    private void typeText(String text) {
+    private boolean typeViaAccessibility(String text) {
         TypeAccessibilityService service = TypeAccessibilityService.getInstance();
-        if (service != null && service.typeText(text)) {
-            return;
+        return service != null && service.typeText(text);
+    }
+
+    private boolean typeViaInputCommand(String text) {
+        try {
+            if (rootShell == null || !rootShell.isAlive()) {
+                rootShell = Runtime.getRuntime().exec("su");
+                rootStdin = new DataOutputStream(rootShell.getOutputStream());
+            }
+            String escaped = text.replace("%", "%%").replace(" ", "%s");
+            rootStdin.writeBytes("input text '" + escaped.replace("'", "'\\''") + "'\n");
+            rootStdin.flush();
+            return true;
+        } catch (Exception e) {
+            rootShell = null;
+            rootStdin = null;
+            return false;
         }
-        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-        clipboard.setPrimaryClip(ClipData.newPlainText("transcription", text));
-        Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
     }
 
     private void updateActionButtonPositions() {
-        cancelParams.x = params.x - floatingView.getWidth() - 4;
+        cancelParams.x = params.x - floatingView.getWidth();
         cancelParams.y = params.y;
         windowManager.updateViewLayout(cancelView, cancelParams);
     }
@@ -444,6 +447,7 @@ public class FloatingService extends Service {
         stopRecording();
         deleteAudioFile();
         executor.shutdownNow();
+        if (rootShell != null) rootShell.destroy();
         if (floatingView != null) windowManager.removeView(floatingView);
         if (cancelView != null) windowManager.removeView(cancelView);
     }

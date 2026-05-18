@@ -13,8 +13,10 @@ MODELS = [
     "gemini-3-pro-image-preview",
     "gemini-3.1-flash-image-preview",
     "gemini-3.1-flash-lite-preview",
+    "gpt-image-2",
     "openrouter:google/gemini-3-flash-preview",
     "local_llm",
+    "openrouter:x-ai/grok-imagine-image-quality",
 ]
 
 DEFAULT_MODEL = "gpt-5.2-chat-latest"

@@ -42,7 +42,7 @@ def add_keyboard_hooks(keyboard_hooks):
 def register_global_hotkeys_sxhkd(scripts: List[Script]):
     s = (
         "control+q\n"
-        "  wmctrl -a MyTerminal"
+        "  wmctrl -a myscriptsmgr"
         f' || alacritty -e "{get_my_script_root()}/myscripts"\n\n'
     )
 
@@ -271,7 +271,7 @@ def register_global_hotkeys_mac(scripts: List[Script]):
     with open(error_log_file, "w") as f:
         f.write("")
 
-    s = f'ctrl-q : {sys.executable} {get_my_script_root()}/bin/run_script.py r/activate_window.py MyTerminal || open -n "{get_my_script_root()}/myscripts"\n\n'
+    s = f'ctrl-q : {sys.executable} {get_my_script_root()}/bin/run_script.py r/activate_window.py myscripts || open -n "{get_my_script_root()}/myscripts"\n\n'
 
     replacements = {
         "win+": "cmd+",
@@ -494,7 +494,11 @@ class ScriptManager:
                     continue
 
                 # Recalculate if not set or if run_at_time has changed
-                if next_run_ts > 0 and datetime.datetime.fromtimestamp(next_run_ts).strftime("%H:%M") != run_at_time:
+                if (
+                    next_run_ts > 0
+                    and datetime.datetime.fromtimestamp(next_run_ts).strftime("%H:%M")
+                    != run_at_time
+                ):
                     next_run_ts = 0
 
                 if next_run_ts == 0:
@@ -503,28 +507,39 @@ class ScriptManager:
                     if dt < now:
                         dt += datetime.timedelta(days=1)
                     next_run_ts = dt.timestamp()
-                    self.next_scheduled_script_run_time[script.script_path] = next_run_ts
+                    self.next_scheduled_script_run_time[script.script_path] = (
+                        next_run_ts
+                    )
                     has_any_script_to_run = True
 
                 if now_ts > next_run_ts:
                     should_run = True
                     while now_ts > next_run_ts:
                         next_run_ts += 24 * 3600
-                    self.next_scheduled_script_run_time[script.script_path] = next_run_ts
+                    self.next_scheduled_script_run_time[script.script_path] = (
+                        next_run_ts
+                    )
 
             elif run_every_n_seconds:
                 if next_run_ts == 0 or now_ts > next_run_ts:
                     should_run = True
                     next_run_ts = now_ts + int(run_every_n_seconds)
-                    self.next_scheduled_script_run_time[script.script_path] = next_run_ts
+                    self.next_scheduled_script_run_time[script.script_path] = (
+                        next_run_ts
+                    )
 
             if should_run:
                 if script.is_running():
-                    logging.warning(f"Script is still running, skip scheduled task: {script.name}")
+                    logging.warning(
+                        f"Script is still running, skip scheduled task: {script.name}"
+                    )
                 else:
                     logging.info(f"Run scheduled task: {script.name}")
                     has_any_script_to_run = True
                     yield script
 
         if has_any_script_to_run:
-            save_json(_get_next_scheduled_script_run_time_file(), self.next_scheduled_script_run_time)
+            save_json(
+                _get_next_scheduled_script_run_time_file(),
+                self.next_scheduled_script_run_time,
+            )

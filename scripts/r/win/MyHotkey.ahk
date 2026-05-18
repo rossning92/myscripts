@@ -12,7 +12,7 @@ CurrentDesktop := 0
 WindowDividor := 2/3
 LastKeyPressTime := 0
 
-CONSOLE_WINDOW = MyTerminal
+CONSOLE_WINDOW = myscriptsmgr
 
 SetTitleMatchMode, 2
 
@@ -52,8 +52,13 @@ return
         UpdateExplorerInfo()
 
         ; Activate script window
-        if WinExist(CONSOLE_WINDOW) {
-            WinActivate % CONSOLE_WINDOW
+        if WinExist(CONSOLE_WINDOW)
+        {
+            if WinActive(CONSOLE_WINDOW)
+                WinActivateBottom, %CONSOLE_WINDOW%
+            else
+                WinActivate
+            return
         }
     return
 

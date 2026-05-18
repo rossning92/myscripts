@@ -15,7 +15,6 @@ import time
 import traceback
 from typing import Any, Dict, List, Optional
 
-
 MYSCRIPT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(MYSCRIPT_ROOT, "libs"))
 sys.path.append(os.path.join(MYSCRIPT_ROOT, "bin"))
@@ -30,15 +29,15 @@ from _ext import (
     rename_script,
 )
 from _script import (
+    Script,
     get_default_script_config,
     get_script_variables,
     is_instance_running,
-    Script,
     setup_env_var,
     try_reload_scripts_autorun,
     update_variables,
 )
-from _scriptmanager import execute_script, ScriptManager
+from _scriptmanager import ScriptManager, execute_script
 from _scriptserver import ScriptServer
 from _shutil import (
     append_to_path_global,
@@ -67,7 +66,6 @@ from utils.script.path import (
 from utils.term import hide_terminal_from_taskbar, set_terminal_title
 from utils.timeutil import time_diff_str
 from utils.tmux import has_tmux_session, is_in_tmux
-
 
 _REFRESH_INTERVAL_SECS = 60
 
@@ -260,7 +258,7 @@ class _MyScriptMenu(Menu[Script]):
         self.add_command(self._reload, hotkey="alt+l")
         self.add_command(self._rename_script, hotkey="alt+n")
         self.add_command(self._rename_script_replace_all)
-        self.add_command(self._set_cmdline_args)
+        self.add_command(self._set_cmdline_args, hotkey="alt+a")
 
     def _reload(self):
         self.run_raw(lambda: restart_program())
@@ -372,7 +370,7 @@ class _MyScriptMenu(Menu[Script]):
             self.update_last_refresh_time()
 
             # Make sure to recover the original terminal title in case it's being modified by other programs.
-            set_terminal_title("MyTerminal")
+            set_terminal_title("myscriptsmgr")
 
     def get_selected_script(self) -> Optional[Script]:
         index = self.get_selected_index()

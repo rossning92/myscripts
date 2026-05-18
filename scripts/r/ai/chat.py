@@ -10,6 +10,7 @@ import ai.anthropic.chat
 import ai.gemini.chat
 import ai.openai.chat
 import ai.openai_compatible.chat
+import ai.openai_image.chat
 import ai.openrouter.chat
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolResult, ToolUse
@@ -89,6 +90,14 @@ async def complete_chat(
             tools=tools,
             on_image=on_image,
             on_tool_use=on_tool_use,
+            usage=usage,
+        )
+    elif model and model in ai.openai_image.chat.IMAGE_MODELS:
+        return ai.openai_image.chat.complete_chat(
+            messages=messages,
+            out_message=out_message,
+            model=model,
+            on_image=on_image,
             usage=usage,
         )
     elif model == "local_llm":
