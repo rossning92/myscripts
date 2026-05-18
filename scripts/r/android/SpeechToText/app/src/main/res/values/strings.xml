@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_description">Allows Speech To Text to type transcribed text into text fields.</string>
+</resources>

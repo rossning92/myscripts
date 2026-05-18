@@ -256,7 +256,7 @@ class _TextInput:
     def __init__(
         self,
         prompt="",
-        prompt_color="white",
+        prompt_color: Union[str, Tuple[str, str]] = "white",
         text="",
         ascii_only=False,
         auto_complete=False,
@@ -433,7 +433,7 @@ class Menu(Generic[T]):
         wrap_text=False,
         search_mode=True,
         line_number=True,
-        prompt_color="white",
+        prompt_color: Union[str, Tuple[str, str]] = "white",
         follow=False,
         auto_complete=False,
     ):
