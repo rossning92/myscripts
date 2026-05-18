@@ -292,12 +292,17 @@ class _TextInput:
         assert Menu._stdscr is not None
 
         # Draw label
+        if isinstance(self.prompt_color, tuple):
+            fg, bg = self.prompt_color
+            color_attr = Menu._get_color_pair(fg, bg)
+        else:
+            color_attr = Menu._get_color_pair(self.prompt_color)
         _addstr(
             stdscr,
             row,
             0,
             self.prompt,
-            Menu._get_color_pair(self.prompt_color),
+            color_attr,
         )
 
         y, x = Menu._stdscr.getyx()  # type: ignore

@@ -234,6 +234,12 @@ class _MyScriptMenu(Menu[Script]):
             ascii_only=False,
             cancellable=run_script_and_quit,
             prompt=prompt if prompt else platform.node() + "$",
+            prompt_color=(
+                "black",
+                ["red", "green", "yellow", "blue", "magenta", "cyan"][
+                    hash(platform.node()) % 6
+                ],
+            ),
             text=input_text,
         )
 
