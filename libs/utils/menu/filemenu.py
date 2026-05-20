@@ -281,7 +281,7 @@ class FileMenu(Menu[_File]):
                 question = f'Delete "{files[0]}"?'
             else:
                 question = f"Delete {len(files)} files?"
-            if confirm(question):
+            if confirm(question, prompt_color="red"):
                 for file_full_path in files:
                     try:
                         if os.path.isdir(file_full_path):

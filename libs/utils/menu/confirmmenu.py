@@ -31,7 +31,7 @@ class ConfirmMenu(ActionMenu):
         return self.confirmed
 
 
-def confirm(prompt: str) -> bool:
-    menu = ConfirmMenu(prompt=prompt)
+def confirm(prompt: str, prompt_color: str = "green") -> bool:
+    menu = ConfirmMenu(prompt=prompt, prompt_color=prompt_color)
     menu.exec()
     return menu.is_confirmed()

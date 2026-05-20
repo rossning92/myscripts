@@ -357,16 +357,16 @@ def _get_windows_darwin() -> List[WindowItem]:
 def get_windows(
     script_status: Optional[Dict[str, str]] = None,
 ) -> List[WindowItem]:
+    windows: List[WindowItem] = []
     if sys.platform == "linux":
         windows = _get_windows_linux()
     elif sys.platform == "win32":
         windows = _get_windows_win()
     elif sys.platform == "darwin":
         windows = _get_windows_darwin()
-    elif is_in_tmux():
-        windows = _get_windows_tmux()
-    else:
-        windows = []
+
+    if is_in_tmux():
+        windows.extend(_get_windows_tmux())
 
     if script_status:
         windows.sort(

@@ -276,7 +276,7 @@ class _MyScriptMenu(Menu[Script]):
     def _delete_file(self):
         script = self.get_selected_script()
 
-        if script and confirm(f'Delete "{script.script_path}"?'):
+        if script and confirm(f'Delete "{script.script_path}"?', prompt_color="red"):
             os.remove(script.script_path)
 
             script_config_path = get_script_config_file_path(script.script_path)
@@ -638,7 +638,7 @@ def _main():
     global script_server
 
     log_file = os.path.join(get_data_dir(), "myscripts.log")
-    setup_logger(log_to_stderr=False, log_file=log_file)
+    setup_logger(log_to_stderr=False, log_file=log_file, level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
