@@ -256,70 +256,59 @@ def execute_script(
 
 
 def register_global_hotkeys_mac(scripts: List[Script]):
-    if not shutil.which("skhd"):
-        logging.warning("skhd is not installed, skip global hotkey registration")
-        return
+    import signal
 
-    error_log_file = f"/tmp/skhd_{os.getlogin()}.err.log"
-    if os.path.exists(error_log_file):
-        with open(error_log_file, "r") as f:
-            err = f.read().strip()
-        if err:
-            logging.error("Last skhd error: " + err)
-
-    # Clear /tmp/skhd_$USER.err.log
-    with open(error_log_file, "w") as f:
-        f.write("")
-
-    s = f'ctrl-q : {sys.executable} {get_my_script_root()}/bin/run_script.py r/activate_window.py myscripts || open -n "{get_my_script_root()}/myscripts"\n\n'
-
-    replacements = {
-        "win+": "cmd+",
-        "enter": "return",
-        "[": "0x21",
-        "]": "0x1E",
-        ",": "0x2B",
-        ".": "0x2F",
-        "del": "backspace",
-        "=": "0x1D",
-    }
-    f_key_pattern = re.compile(r"\bf(\d+)\b")
-
-    def replace_hotkey(hotkey: str) -> str:
-        # Replace F-keys to lower case: f1, f2, ...
-        for key, value in replacements.items():
-            hotkey = hotkey.replace(key, value)
-        hotkey = f_key_pattern.sub(r"f\1", hotkey)
-
-        # Replace right most + with -
-        hotkey = re.sub(r"\+(\w+)$", r"-\1", hotkey)
-
-        return hotkey
+    config = [
+        {
+            "hotkey": "ctrl+q",
+            "command": (
+                f"{sys.executable} {get_my_script_root()}/bin/run_script.py"
+                f' r/activate_window.py myscriptsmgr || open -n "{get_my_script_root()}/myscripts"'
+            ),
+        }
+    ]
 
     for script in scripts:
         hotkey_chain_def = script.cfg["globalHotkey"]
         assert isinstance(hotkey_chain_def, str)
         if hotkey_chain_def and script.is_supported():
-            hotkey_chain = [
-                replace_hotkey(hotkey.lower()) for hotkey in hotkey_chain_def.split()
-            ]
-            if len(hotkey_chain) > 1:
+            hotkeys = hotkey_chain_def.split()
+            if len(hotkeys) > 1:
                 logging.warning(
                     f'Hotkey chain "{hotkey_chain_def}" is not supported on macos'
                 )
                 continue
-            hotkey_def = ";".join(hotkey_chain)
-            s += "{} : ".format(hotkey_def)
-            s += (
-                "python3"
-                f" {get_my_script_root()}/bin/start_script.py"
-                " --restart-instance=auto"
-                f" {script.script_path}\n\n"
+            config.append(
+                {
+                    "hotkey": hotkeys[0],
+                    "command": (
+                        f"python3 {get_my_script_root()}/bin/start_script.py"
+                        f" --restart-instance=auto {script.script_path}"
+                    ),
+                }
             )
 
-    with open(os.path.expanduser("~/.skhdrc"), "w") as f:
-        f.write(s)
-    subprocess.call(["skhd", "-r"])  # reload config
+    config_path = "/tmp/myscripts_hotkeys.json"
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    pid_file = "/tmp/myscripts_hotkeys.pid"
+    if os.path.exists(pid_file):
+        try:
+            with open(pid_file) as f:
+                pid = int(f.read().strip())
+            os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, ValueError, OSError):
+            pass
+
+    error_log = "/tmp/myscripts_hotkeys.err.log"
+    listener = os.path.join(os.path.dirname(__file__), "_global_hotkeys_mac.py")
+    subprocess.Popen(
+        [sys.executable, listener, config_path],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=open(error_log, "w"),
+    )
 
 
 def register_global_hotkeys(scripts):

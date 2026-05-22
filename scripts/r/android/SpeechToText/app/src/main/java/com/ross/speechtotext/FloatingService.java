@@ -59,7 +59,6 @@ public class FloatingService extends Service {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Process rootShell;
     private DataOutputStream rootStdin;
-
     private static final String CHANNEL_ID = "FloatingServiceChannel";
     private static final ColorStateList FAB_BG_COLOR = ColorStateList.valueOf(0xFFF7F2FA);
     private static final ColorStateList FAB_ICON_COLOR = ColorStateList.valueOf(0xFF65558F);
@@ -322,8 +321,9 @@ public class FloatingService extends Service {
             recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
             recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-            recorder.setAudioEncodingBitRate(128000);
-            recorder.setAudioSamplingRate(44100);
+            recorder.setAudioEncodingBitRate(64000);
+            recorder.setAudioSamplingRate(16000);
+            recorder.setAudioChannels(1);
             recorder.setOutputFile(audioFile.getAbsolutePath());
             recorder.prepare();
             recorder.start();

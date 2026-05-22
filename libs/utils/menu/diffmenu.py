@@ -50,8 +50,18 @@ def _get_diff_line_info(diff_lines: List[str], index: int) -> Optional[Tuple[str
     return None
 
 
-def _run_git_diff(args: List[str]) -> List[str]:
-    cmd = [
+def _run_diff_cmd(cmd: List[str]) -> List[str]:
+    cp = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return [line.rstrip("\r") for line in cp.stdout.splitlines()]
+
+
+def _build_git_diff_cmd(args: List[str]) -> List[str]:
+    return [
         "git",
         "diff",
         "--color",
@@ -59,49 +69,21 @@ def _run_git_diff(args: List[str]) -> List[str]:
         "--color-moved=zebra",
         "--color-moved-ws=allow-indentation-change",
     ] + args
-    cp = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    lines = []
-    for line in cp.stdout.splitlines():
-        line = line.rstrip("\r")
-        stripped = _strip_ansi(line)
-        if stripped.startswith(("diff --git", "index ")):
-            continue
-        lines.append(line)
-    return lines
 
 
 class DiffMenu(TextMenu):
     def __init__(
         self,
+        root: Optional[str] = None,
         files: Optional[List[Tuple[str, str]]] = None,
         git_args: Optional[List[str]] = None,
         **kwargs,
     ):
-        self.__git_root = None
-        lines = []
+        self.__root = root
+        self.__files = files
+        self.__git_args = git_args
 
-        if files:
-            for f1, f2 in files:
-                lines.extend(_run_git_diff(["--no-index", f1, f2]))
-        else:
-            git_root = get_git_root()
-            if git_root:
-                self.__git_root = str(git_root)
-
-            if git_args is not None:
-                args = git_args
-            else:
-                args = []
-                if subprocess.run(["git", "diff", "--quiet"]).returncode == 0:
-                    args.extend(["HEAD~1", "HEAD"])
-
-            lines = _run_git_diff(args)
-
+        lines = self.__generate_diff_lines()
         self.__diff_lines = [_strip_ansi(line) for line in lines]
 
         super().__init__(
@@ -112,6 +94,35 @@ class DiffMenu(TextMenu):
         )
 
         self.add_command(self.__edit_file, hotkey="ctrl+e")
+        self.add_command(self.__refresh, hotkey="ctrl+r")
+
+    def __generate_diff_lines(self) -> List[str]:
+        if self.__files:
+            lines: List[str] = []
+            for f1, f2 in self.__files:
+                lines.extend(_run_diff_cmd(_build_git_diff_cmd(["--no-index", f1, f2])))
+            return lines
+        else:
+            if not self.__root:
+                git_root = get_git_root()
+                if git_root:
+                    self.__root = str(git_root)
+
+            if self.__git_args is not None:
+                args = self.__git_args
+            else:
+                args = []
+                if subprocess.run(["git", "diff", "--quiet"]).returncode == 0:
+                    args.extend(["HEAD~1", "HEAD"])
+
+            return _run_diff_cmd(_build_git_diff_cmd(args))
+
+    def __refresh(self):
+        lines = self.__generate_diff_lines()
+        self.__diff_lines = [_strip_ansi(line) for line in lines]
+        self.items[:] = lines
+        self.set_message("refreshed")
+        self.update_screen()
 
     def __edit_file(self):
         index = self.get_selected_index()
@@ -120,8 +131,8 @@ class DiffMenu(TextMenu):
         info = _get_diff_line_info(self.__diff_lines, index)
         if info:
             filename, line_number = info
-            if self.__git_root and not os.path.isabs(filename):
-                filename = os.path.join(self.__git_root, filename)
+            if self.__root and not os.path.isabs(filename):
+                filename = os.path.join(self.__root, filename)
 
             start_script(
                 "ext/edit.py",
@@ -130,6 +141,8 @@ class DiffMenu(TextMenu):
 
     def get_item_color(self, item: str) -> Union[str, Tuple[str, str]]:
         stripped_item = _strip_ansi(item)
+        if stripped_item.startswith(("diff ", "index ")):
+            return "brightblack"
         if stripped_item.startswith("---") or stripped_item.startswith("+++"):
             return ("black", "yellow")
         return super().get_item_color(item)
