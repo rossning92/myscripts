@@ -726,6 +726,20 @@ def _main():
 
     logging.info("Python executable: %s" % sys.executable)
 
+    # Add bin folder to PATH
+    bin_dir = os.path.join(MYSCRIPT_ROOT, "bin")
+    append_to_path_global(bin_dir)
+
+    # Add Python's "Scripts" dir to PATH
+    script_dir = os.path.abspath(os.path.join(sys.prefix, "Scripts"))
+    append_to_path_global(script_dir)
+
+    setup_env_var(os.environ)
+
+    refresh_env_vars()
+
+    setup_nodejs(install=False)
+
     # Check if we should run in tmux.
     should_run_in_tmux = args.tmux or (
         not is_in_tmux() and start_daemon and is_termux()
@@ -754,19 +768,6 @@ def _main():
         cmdline=quote_arg(os.path.join(MYSCRIPT_ROOT, "myscripts.cmd")) + " --startup",
     )
 
-    # Add bin folder to PATH
-    bin_dir = os.path.join(MYSCRIPT_ROOT, "bin")
-    append_to_path_global(bin_dir)
-
-    # Add Python's "Scripts" dir to PATH
-    script_dir = os.path.abspath(os.path.join(sys.prefix, "Scripts"))
-    append_to_path_global(script_dir)
-
-    setup_env_var(os.environ)
-
-    refresh_env_vars()
-
-    setup_nodejs(install=False)
 
     script_manager = ScriptManager(start_daemon=start_daemon, startup=args.startup)
 

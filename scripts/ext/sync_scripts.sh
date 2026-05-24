@@ -17,9 +17,9 @@ sync_repo() (
     fi
 
     # Check if file is modified
-    git status --short
     status=$(git status --short)
     if [[ ! -z "$status" ]]; then
+        GIT_REPO="$(cygpath -w "$(pwd)" 2>/dev/null || pwd)" run_script.exe r/git/git_diff.py
         echo "Confirm? (y/n)"
         read -n1 ans </dev/tty
         echo
@@ -60,7 +60,7 @@ if [ -d "$ROOT_DIR/scripts/r/videoedit/movy" ]; then
 fi
 
 # Sync additional script directories
-run_script ext/get_script_dirs.py | while IFS= read -r line || [[ -n "$line" ]]; do
+for line in $(run_script ext/get_script_dirs.py); do
     line="${line%$'\r'}"
     if [[ -z "$line" ]]; then
         continue

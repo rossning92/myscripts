@@ -21,6 +21,7 @@ from ai.chat_menu import ChatMenu, Line
 from ai.utils.mcp import MCPClient
 from ai.utils.memory import get_memory_prompt
 from ai.utils.menu.confirmcommandmenu import ConfirmCommandMenu
+from ai.utils.message import Message
 from ai.utils.skill import get_skill_prompt, get_skills
 from ai.utils.tools.permission import ALLOWED_COMMANDS, ALLOWED_COMMANDS_FILE
 from ai.utils.tooluse import (
@@ -29,21 +30,17 @@ from ai.utils.tooluse import (
     ToolResult,
     ToolUse,
     function_to_tool_definition,
-    get_tool_use_prompt,
-    parse_text_for_tool_use,
 )
 from utils.jsonschema import JSONSchema
 from utils.jsonutil import load_json
 from utils.menu.confirmmenu import ConfirmMenu
 from utils.menu.filemenu import FileMenu
-from utils.strutil import to_ordinal
 
 MODULE_NAME = Path(__file__).stem
 DATA_DIR = os.path.join(".config", MODULE_NAME)
 
 
 def _get_prompt(
-    tools: Optional[List[ToolDefinition]] = None,
     skill: bool = False,
     memory: bool = False,
 ) -> str:
@@ -53,9 +50,6 @@ def _get_prompt(
         memory_prompt = get_memory_prompt()
         if memory_prompt:
             prompt_parts.append(memory_prompt)
-
-    if tools:
-        prompt_parts.append(get_tool_use_prompt(tools))
 
     if skill:
         skill_prompt = get_skill_prompt()
@@ -83,7 +77,6 @@ class SettingsMenu(ai.chat_menu.SettingsMenu):
         return {
             **super().get_default_values(),
             "enable_tools": True,
-            "function_call": True,
             "mcp": [],
             "skill": True,
             "memory": False,
@@ -94,7 +87,6 @@ class SettingsMenu(ai.chat_menu.SettingsMenu):
         schema = super().get_schema()
         assert schema and schema["type"] == "object"
         schema["properties"]["enable_tools"] = {"type": "boolean"}
-        schema["properties"]["function_call"] = {"type": "boolean"}
         schema["properties"]["mcp"] = {
             "type": "array",
             "items": {"type": "object", "properties": {"command": {"type": "string"}}},
@@ -173,6 +165,54 @@ class AgentMenu(ChatMenu):
     def __update_tools(self):
         self.__tools = self.get_tools()
 
+    def __get_tool_uses(self, message: Message) -> List[ToolUse]:
+        return list(message.get("tool_use", []))
+
+    def __execute_tool(self, tool_use: ToolUse):
+        tool_name = tool_use["tool_name"]
+        tool = next(
+            (t for t in self.get_tools_callable() if t.__name__ == tool_name),
+            None,
+        )
+        if tool:
+            if tool_name in ["bash", "powershell"]:
+                ConfirmCommandMenu.confirm_command(
+                    command=tool_use["args"]["command"],
+                    allowed_commands=ALLOWED_COMMANDS,
+                    save_path=str(ALLOWED_COMMANDS_FILE),
+                )
+            return tool(**tool_use["args"])
+
+        client = next(
+            (
+                c
+                for c in self.__mcp_clients
+                if any(t.name == tool_use["tool_name"] for t in c.list_tools())
+            ),
+            None,
+        )
+        if client:
+            return client.call_tool(tool_use)
+
+        subagent = next(a for a in self.__subagents if a["name"] == tool_name)
+        menu = AgentMenu(
+            system_prompt=subagent["system_prompt"],
+            prompt=f"subagent={tool_name}",
+            message=tool_use["args"]["prompt"],
+            tools_callable=self.get_tools_callable(),
+            yes_always=self.__yes_always,
+            cancellable=True,
+        )
+        menu.exec()
+        return menu.get_messages()[-1]["text"]
+
+    def __confirm_tool_use(self, tool_use: ToolUse) -> bool:
+        if self.__yes_always:
+            return True
+        menu = ConfirmMenu(f"Run tool ({tool_use['tool_name']})?")
+        menu.exec()
+        return menu.is_confirmed()
+
     def on_message(self, content: str):
         self.__handle_response()
 
@@ -181,13 +221,7 @@ class AgentMenu(ChatMenu):
             messages = self.get_messages()
             if messages and messages[-1]["role"] == "assistant":
                 last_message = messages[-1]
-                tool_uses = (
-                    last_message.get("tool_use", [])
-                    if self.get_settings()["function_call"]
-                    else list(
-                        parse_text_for_tool_use(last_message["text"], self.__tools)
-                    )
-                )
+                tool_uses = self.__get_tool_uses(last_message)
                 if tool_uses:
                     self.__handle_response()
                     return
@@ -228,7 +262,6 @@ class AgentMenu(ChatMenu):
 
     def get_system_prompt(self) -> str:
         return _get_prompt(
-            tools=None if self.get_settings()["function_call"] else self.__tools,
             skill=self.get_settings()["skill"] and self.get_settings()["enable_tools"],
             memory=self.get_settings().get("memory", False),
         )
@@ -241,165 +274,73 @@ class AgentMenu(ChatMenu):
         last_message = messages[-1]
         text_content = last_message["text"]
 
-        reply = ""
         interrupted = False
         has_error = False
 
-        tool_uses = (
-            (last_message["tool_use"].copy() if "tool_use" in last_message else [])
-            if self.get_settings()["function_call"]
-            else list(parse_text_for_tool_use(text_content, self.__tools))
-        )
+        tool_uses = self.__get_tool_uses(last_message)
 
         tool_results: List[ToolResult] = []
-        for i, tool_use in enumerate(tool_uses):
-            # Run tool
-            if not self.__yes_always:
-                menu = ConfirmMenu(f"Run tool ({tool_use['tool_name']})?")
-                menu.exec()
-                if menu.is_confirmed():
-                    should_run = True
-                else:
-                    should_run = False
-                    if self.get_settings()["function_call"]:
-                        tool_results.append(
-                            ToolResult(
-                                tool_use_id=tool_use["tool_use_id"],
-                                content="Tool was interrupted by user",
-                            )
-                        )
-                    else:
-                        reply += f"The {to_ordinal(i + 1)} tool ({tool_use['tool_name']}) was interrupted by user.\n"
-                    break
-            else:
-                should_run = True
-
-            if should_run:
-                try:
-                    tool_name = tool_use["tool_name"]
-                    tool = next(
-                        (
-                            t
-                            for t in self.get_tools_callable()
-                            if t.__name__ == tool_name
-                        ),
-                        None,
+        for tool_use in tool_uses:
+            if not self.__confirm_tool_use(tool_use):
+                tool_results.append(
+                    ToolResult(
+                        tool_use_id=tool_use["tool_use_id"],
+                        content="Tool was interrupted by user",
                     )
-                    if tool:  # Call function tool
-                        if tool_name in ["bash", "powershell"]:
-                            ConfirmCommandMenu.confirm_command(
-                                command=tool_use["args"]["command"],
-                                allowed_commands=ALLOWED_COMMANDS,
-                                save_path=str(ALLOWED_COMMANDS_FILE),
-                            )
+                )
+                break
 
-                        ret = tool(**tool_use["args"])
+            try:
+                ret = self.__execute_tool(tool_use)
 
-                    else:  # Call MCP tool
-                        client = next(
-                            (
-                                c
-                                for c in self.__mcp_clients
-                                if any(
-                                    t.name == tool_use["tool_name"]
-                                    for t in c.list_tools()
-                                )
-                            ),
-                            None,
+                if ret:
+                    ret_str = str(ret)
+                    tool_result = ToolResult(
+                        tool_use_id=tool_use["tool_use_id"],
+                        content=ret_str,
+                    )
+                    if ret_str.startswith("data:image/"):
+                        tool_result["image_urls"] = [ret_str]
+                        tool_result["content"] = "Image content returned."
+                    tool_results.append(tool_result)
+                else:
+                    tool_results.append(
+                        ToolResult(
+                            tool_use_id=tool_use["tool_use_id"],
+                            content="Tool completed",
                         )
-                        if client:
-                            ret = client.call_tool(tool_use)
-                        else:
-                            subagent = next(
-                                a for a in self.__subagents if a["name"] == tool_name
-                            )
-                            menu = AgentMenu(
-                                system_prompt=subagent["system_prompt"],
-                                prompt=f"subagent={tool_name}",
-                                message=tool_use["args"]["prompt"],
-                                tools_callable=self.get_tools_callable(),
-                                yes_always=self.__yes_always,
-                                cancellable=True,
-                            )
-                            menu.exec()
-                            ret = menu.get_messages()[-1]["text"]
+                    )
 
-                    if ret:
-                        ret_str = str(ret)
-                        if self.get_settings()["function_call"]:
-                            tool_result = ToolResult(
-                                tool_use_id=tool_use["tool_use_id"],
-                                content=ret_str,
-                            )
-                            if ret_str.startswith("data:image/"):
-                                tool_result["image_urls"] = [ret_str]
-                                tool_result["content"] = "Image content returned."
-                            tool_results.append(tool_result)
-                        else:
-                            reply += f"""The {to_ordinal(i + 1)} tool ({tool_use["tool_name"]}) returned:
--------
-{ret_str}
--------
+            except Exception as ex:
+                has_error = True
+                tool_results.append(
+                    ToolResult(
+                        tool_use_id=tool_use["tool_use_id"],
+                        content=str(ex),
+                    )
+                )
+            except KeyboardInterrupt:
+                interrupted = True
+                tool_results.append(
+                    ToolResult(
+                        tool_use_id=tool_use["tool_use_id"],
+                        content="Tool was interrupted by user",
+                    )
+                )
+                break
 
-"""
+        self.on_response(text_content, done=not tool_results)
 
-                    else:
-                        if self.get_settings()["function_call"]:
-                            tool_results.append(
-                                ToolResult(
-                                    tool_use_id=tool_use["tool_use_id"],
-                                    content="Tool completed",
-                                )
-                            )
-                        else:
-                            reply += f"The {to_ordinal(i + 1)} tool ({tool_use['tool_name']}) completed successfully.\n\n"
-
-                except Exception as ex:
-                    has_error = True
-                    if self.get_settings()["function_call"]:
-                        tool_results.append(
-                            ToolResult(
-                                tool_use_id=tool_use["tool_use_id"],
-                                content=str(ex),
-                            )
-                        )
-                    else:
-                        reply += f"""ERROR in the {to_ordinal(i + 1)} tool ({tool_use["tool_name"]}):
--------
-{str(ex)}
--------
-
-"""
-                except KeyboardInterrupt:
-                    interrupted = True
-                    if self.get_settings()["function_call"]:
-                        tool_results.append(
-                            ToolResult(
-                                tool_use_id=tool_use["tool_use_id"],
-                                content="Tool was interrupted by user",
-                            )
-                        )
-                    else:
-                        reply += f"The {to_ordinal(i + 1)} tool using {tool_use['tool_name']} was interrupted by user.\n"
-                    break
-
-        if not reply:
-            self.on_response(text_content, done=not reply and not tool_results)
-
-        reply = reply.rstrip()
-        if reply or tool_results:
+        if tool_results:
             if not has_error and interrupted:
-                self.append_user_message(reply, tool_results=tool_results)
+                self.append_user_message("", tool_results=tool_results)
             else:
-                self.send_message(reply, tool_results=tool_results)
+                self.send_message("", tool_results=tool_results)
 
     def on_response(self, text: str, done: bool):
         pass
 
     def on_tool_use_start(self, tool_use: ToolUse):
-        if not self.get_settings()["function_call"]:
-            return
-
         msg_index, subindex = self.get_message_index_and_subindex()
         self.append_item(
             Line(
@@ -412,13 +353,9 @@ class AgentMenu(ChatMenu):
         self.process_events()
 
     def on_tool_use_args_delta(self, text: str):
-        if not self.get_settings()["function_call"]:
-            return
+        pass
 
     def on_tool_use(self, tool_use: ToolUse):
-        if not self.get_settings()["function_call"]:
-            return
-
         # Add or update tool use result
         exists = False
         for line in reversed(self.items):
@@ -475,10 +412,8 @@ class AgentMenu(ChatMenu):
                     if isinstance(allow, str):
                         allow = [allow]
                     for cmd in allow:
-                        if cmd not in ai.utils.tools.bash.ALLOWED_COMMANDS:
-                            ai.utils.tools.bash.ALLOWED_COMMANDS.append(cmd)
-                        if cmd not in ai.utils.tools.powershell.ALLOWED_COMMANDS:
-                            ai.utils.tools.powershell.ALLOWED_COMMANDS.append(cmd)
+                        if cmd not in ALLOWED_COMMANDS:
+                            ALLOWED_COMMANDS.append(cmd)
 
                 self.__update_tools()
                 return skill.content
