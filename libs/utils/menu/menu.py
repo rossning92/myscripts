@@ -36,6 +36,7 @@ from utils.term import enable_windows_vt
 EXPERIMENTAL_EANBLE_WINDOWS_VT = True
 
 GUTTER_SIZE = 1
+MESSAGE_TIMEOUT_SEC = 2.0
 PASTE_THRESHOLD_SEC = 0.05
 PROCESS_EVENT_INTERVAL_SEC = 0.1
 SHIFT_DOWN = 0x150
@@ -467,6 +468,7 @@ class Menu(Generic[T]):
         self.__line_number = line_number
         self.__matched_item_indices: List[int] = []
         self.__message: Optional[str] = None
+        self.__message_time: float = 0.0
         self.__num_rendered_items: int = 0
         self.__on_item_selected = on_item_selected
         self.__search_history: List[str] = []
@@ -1312,6 +1314,12 @@ class Menu(Generic[T]):
         return False
 
     def _on_idle(self):
+        if (
+            self.__message is not None
+            and time.monotonic() - self.__message_time >= MESSAGE_TIMEOUT_SEC
+        ):
+            self.__message = None
+            self.update_screen()
         self.on_idle()
 
     def on_exit(self):
@@ -1852,8 +1860,9 @@ class Menu(Generic[T]):
     def set_message(self, message: Optional[str] = None):
         if message:
             self.__message = message
+            self.__message_time = time.monotonic()
         else:
-            message = None
+            self.__message = None
         logging.info(f"set_message: {message}")
         self.update_screen()
 

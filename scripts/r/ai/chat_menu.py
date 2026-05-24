@@ -341,7 +341,7 @@ class ChatMenu(Menu[Line]):
         self.__messages: List[Message] = []
         self.__chat_file = self.__history_manager.get_new_file()
 
-        self.__update_terminal_title()
+        self.__update_terminal_title(state="idle")
         self.__update_prompt()
 
     def __add_file(self):
@@ -624,8 +624,10 @@ class ChatMenu(Menu[Line]):
             prompt += f" (queued: {len(self.__message_queue)})"
         self.set_prompt(prompt)
 
-    def __update_terminal_title(self):
-        status = "⧗" if self.__is_generating else "✓"
+    def __update_terminal_title(
+        self, state: Literal["idle", "generating", "done"] = "done"
+    ):
+        status = {"idle": "", "generating": "⧗", "done": "✓"}[state]
         title = self.__title + status
         if self.__messages:
             t = self.__messages[0].get("text", "")
@@ -870,7 +872,7 @@ class ChatMenu(Menu[Line]):
         self.on_generating()
         self.set_message(status)
         self.__is_generating = True
-        self.__update_terminal_title()
+        self.__update_terminal_title(state="generating")
 
         self._out_message = out_message = Message(
             role="assistant",
@@ -932,7 +934,7 @@ class ChatMenu(Menu[Line]):
     def __on_chat_done(self, cancelled=False):
         assert self._out_message
         self.__is_generating = False
-        self.__update_terminal_title()
+        self.__update_terminal_title(state="done")
 
         if cancelled:
             self._out_message["text"] += f"\n{_INTERRUPT_MESSAGE}"
@@ -990,7 +992,7 @@ class ChatMenu(Menu[Line]):
 
     def __on_chat_exception(self, exception: Exception):
         self.__is_generating = False
-        self.__update_terminal_title()
+        self.__update_terminal_title(state="done")
 
         if self.get_settings()["retry"]:
             self.__retry_count += 1
@@ -1111,7 +1113,7 @@ class ChatMenu(Menu[Line]):
         self.__context = None
         self.__image_urls.clear()
         self.__update_prompt()
-        self.__update_terminal_title()
+        self.__update_terminal_title(state="idle")
 
         self.__chat_file = self.__history_manager.get_new_file()
 

@@ -678,4 +678,5 @@ client.connect_signal("unfocus", function(c)
 end)
 -- }}}
 
+awful.spawn.once("fcitx5 -d")
 splitscreen:init_layout()

@@ -64,6 +64,7 @@ def _build_git_diff_cmd(args: List[str]) -> List[str]:
     return [
         "git",
         "diff",
+        "-U10",
         "--color",
         "--ignore-space-change",
         "--color-moved=zebra",

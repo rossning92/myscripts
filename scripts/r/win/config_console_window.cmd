@@ -7,16 +7,16 @@ reg add HKCU\Console /v CtrlKeyShortcutsDisabled /t REG_DWORD /d 1 /f >NUL
 reg add HKCU\Console /v InsertMode /t REG_DWORD /d 1 /f >NUL
 reg add HKCU\Console /v QuickEdit /t REG_DWORD /d 1 /f >NUL
 
-@REM Font (Cascadia Code 18pt)
-reg add HKCU\Console /v FaceName /t REG_SZ /d "Cascadia Code" /f >NUL
+@REM Font (Cascadia Mono 18pt)
+reg add HKCU\Console /v FaceName /t REG_SZ /d "Cascadia Mono" /f >NUL
 reg add HKCU\Console /v FontFamily /t REG_DWORD /d 0x36 /f >NUL
 reg add HKCU\Console /v FontSize /t REG_DWORD /d 0x120000 /f >NUL
 
 @REM Use Ctrl-Shift-C and Ctrl-Shift-V to copy and paste
 reg add HKCU\Console /v InterceptCopyPaste /t REG_DWORD /d 1 /f >NUL
 
-@REM Window size (0x1E: 30 rows 0x78: 120 columns)
-reg add HKCU\Console /v WindowSize /t REG_DWORD /d 0x1E0078 /f >NUL
+@REM Window size (0x28: 40 rows 0x78: 120 columns)
+reg add HKCU\Console /v WindowSize /t REG_DWORD /d 0x280078 /f >NUL
 
 @REM Terminal colors
 reg add HKCU\Console /v ColorTable00 /t REG_DWORD /d 0x00362a28 /f >NUL

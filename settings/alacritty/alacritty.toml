@@ -14,7 +14,7 @@ bindings = [
 
 [window.dimensions]
 columns = 120
-lines = 30
+lines = 40
 
 [window]
 padding.x = 0

@@ -63,7 +63,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         if message:
             self.set_message(message)
         else:
-            self.set_message(f"{time.strftime('%H:%M:%S')}: refreshed")
+            self.set_message("refreshed")
         self.refresh()
 
     def __activate_window(self, win_id):

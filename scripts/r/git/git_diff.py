@@ -64,6 +64,8 @@ class GitMenu(Menu):
         for item in items:
             self.append_item(item)
 
+        self.set_message("refreshed")
+
     def _view_all(self):
         if self.is_clean:
             git_args = ["HEAD~1", "HEAD"]

@@ -27,11 +27,10 @@ sudo pacman -S --noconfirm --needed \
     fcitx5-configtool \
     fcitx5-chinese-addons
 
-# Add environment variables for IM
-prepend_line_dedup ~/.xinitrc "export XMODIFIERS=@im=fcitx"
-prepend_line_dedup ~/.xinitrc "export QT_IM_MODULE=fcitx"
-prepend_line_dedup ~/.xinitrc "export GTK_IM_MODULE=fcitx"
-append_line_dedup ~/.xinitrc "fcitx5 -d"
+# Add environment variables for IM (xprofile is sourced by display managers and startx)
+prepend_line_dedup ~/.xprofile "export XMODIFIERS=@im=fcitx"
+prepend_line_dedup ~/.xprofile "export QT_IM_MODULE=fcitx"
+prepend_line_dedup ~/.xprofile "export GTK_IM_MODULE=fcitx"
 
 # Start fcitx5 if not running
 if ! pgrep -x fcitx5 >/dev/null; then
@@ -48,3 +47,22 @@ gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
 # Save changes to the profile file
 gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
     --method org.fcitx.Fcitx.Controller1.Save
+
+# Set Win+Space as the toggle key
+mkdir -p ~/.config/fcitx5
+touch ~/.config/fcitx5/config
+
+# Append the fresh Hotkey configuration
+cat <<EOF >~/.config/fcitx5/config
+[Hotkey/TriggerKeys]
+0=Super+space
+
+[Hotkey/EnumerateGroupForwardKeys]
+0=Super+space
+
+[Hotkey/EnumerateGroupBackwardKeys]
+0=Shift+Super+space
+EOF
+
+# Reload config
+fcitx5-remote -r &>/dev/null || true
