@@ -19,8 +19,12 @@ sync_repo() (
     # Check if file is modified
     status=$(git status --short)
     if [[ ! -z "$status" ]]; then
-        GIT_REPO="$(cygpath -w "$(pwd)" 2>/dev/null || pwd)" run_script.exe r/git/git_diff.py
-        echo "Confirm? (y/n)"
+        GIT_REPO="$(cygpath -w "$(pwd)" 2>/dev/null || pwd)" run_script r/git/git_diff.py
+        if [[ -n "$AMEND" ]]; then
+            echo -en "\033[32mAmend and force push? (y/n) \033[0m"
+        else
+            echo -en "\033[32mCommit and push? (y/n) \033[0m"
+        fi
         read -n1 ans </dev/tty
         echo
         if [[ "$ans" == "y" ]]; then
@@ -49,15 +53,6 @@ sync_repo() (
 # Sync current script directory
 sync_repo "$ROOT_DIR"
 
-# Update submodules
-if [ -d "$ROOT_DIR/scripts/r/videoedit/movy" ]; then
-    if (cd "$ROOT_DIR/scripts/r/videoedit/movy" && git diff --quiet); then
-        echo "Update submodule movy..."
-        (cd "$ROOT_DIR" && git submodule update --recursive --remote || true)
-    else
-        echo "(Skip updating submodule movy - working tree is dirty.)"
-    fi
-fi
 
 # Sync additional script directories
 for line in $(run_script ext/get_script_dirs.py); do

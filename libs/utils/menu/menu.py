@@ -28,6 +28,7 @@ from _shutil import get_hotkey_abbr
 
 from utils.clamp import clamp
 from utils.clip import get_clip, set_clip, set_clip_osc52
+from utils.strutil import strip_ansi
 from utils.editor import edit_text
 from utils.jsonutil import load_json, save_json
 from utils.slugify import slugify
@@ -635,7 +636,7 @@ class Menu(Generic[T]):
             self.set_input(last_input, save_search_history=False)
 
     def yank(self):
-        text = self.__get_selected_lines()
+        text = strip_ansi(self.__get_selected_lines())
         if sys.platform == "win32":
             # On Windows, OSC 52 doesn't reach the terminal while PDCurses
             # is active. Temporarily exit curses so the sequence goes through.

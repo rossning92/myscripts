@@ -6,12 +6,9 @@ from typing import List, Optional, Tuple, Union
 from _script import start_script
 
 from utils.git import get_git_root
+from utils.strutil import strip_ansi
 
 from .textmenu import TextMenu
-
-
-def _strip_ansi(s: str) -> str:
-    return re.sub(r"\x1b\[[0-9;]*m", "", s)
 
 
 def _get_diff_line_info(diff_lines: List[str], index: int) -> Optional[Tuple[str, int]]:
@@ -85,7 +82,7 @@ class DiffMenu(TextMenu):
         self.__git_args = git_args
 
         lines = self.__generate_diff_lines()
-        self.__diff_lines = [_strip_ansi(line) for line in lines]
+        self.__diff_lines = [strip_ansi(line) for line in lines]
 
         super().__init__(
             prompt="diff",
@@ -120,7 +117,7 @@ class DiffMenu(TextMenu):
 
     def __refresh(self):
         lines = self.__generate_diff_lines()
-        self.__diff_lines = [_strip_ansi(line) for line in lines]
+        self.__diff_lines = [strip_ansi(line) for line in lines]
         self.items[:] = lines
         self.set_message("refreshed")
         self.update_screen()
@@ -141,7 +138,7 @@ class DiffMenu(TextMenu):
             )
 
     def get_item_color(self, item: str) -> Union[str, Tuple[str, str]]:
-        stripped_item = _strip_ansi(item)
+        stripped_item = strip_ansi(item)
         if stripped_item.startswith(("diff ", "index ")):
             return "brightblack"
         if stripped_item.startswith("---") or stripped_item.startswith("+++"):

@@ -52,6 +52,8 @@ class GitMenu(Menu):
         super().__init__(close_on_selection=False)
         self.add_command(self._refresh, hotkey="ctrl+r")
         self.add_command(self._view_all, hotkey="ctrl+a")
+        self.add_command(self._stage, hotkey="ctrl+s")
+        self.add_command(self._unstage, hotkey="shift+u")
         self._refresh()
 
     def _refresh(self):
@@ -60,11 +62,28 @@ class GitMenu(Menu):
 
         self.set_prompt(get_git_prompt(is_clean))
 
-        self.clear_items()
-        for item in items:
-            self.append_item(item)
+        self.items[:] = items
+        self.refresh()
 
         self.set_message("refreshed")
+
+    def _get_filename(self, item: str) -> str:
+        name = item[3:]
+        if " -> " in name:
+            name = name.split(" -> ")[-1].strip('"')
+        return name
+
+    def _stage(self):
+        for item in self.get_selected_items():
+            filename = self._get_filename(item)
+            subprocess.run(["git", "add", "--", filename])
+        self._refresh()
+
+    def _unstage(self):
+        for item in self.get_selected_items():
+            filename = self._get_filename(item)
+            subprocess.run(["git", "reset", "HEAD", "--", filename])
+        self._refresh()
 
     def _view_all(self):
         if self.is_clean:
@@ -74,9 +93,7 @@ class GitMenu(Menu):
         DiffMenu(git_args=git_args).exec()
 
     def on_item_selected(self, item):
-        filename = item[3:]
-        if " -> " in filename:
-            filename = filename.split(" -> ")[-1].strip('"')
+        filename = self._get_filename(item)
 
         if self.is_clean:
             git_args = ["HEAD~1", "HEAD", filename]
