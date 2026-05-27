@@ -49,6 +49,8 @@ public class FloatingService extends Service {
 
     private FloatingActionButton cancelView;
     private WindowManager.LayoutParams cancelParams;
+    private WaveformView waveformView;
+    private WindowManager.LayoutParams waveformParams;
     private boolean isDictating = false;
     private boolean isTranscribing = false;
     private ObjectAnimator spinAnimator;
@@ -57,16 +59,23 @@ public class FloatingService extends Service {
     private File audioFile;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private static final int AMPLITUDE_POLL_MS = 50;
+    private final Runnable amplitudePollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (recorder != null && isDictating) {
+                float normalized = (float) Math.sqrt(recorder.getMaxAmplitude() / 32767.0);
+                waveformView.addAmplitude(normalized);
+                mainHandler.postDelayed(this, AMPLITUDE_POLL_MS);
+            }
+        }
+    };
     private Process rootShell;
     private DataOutputStream rootStdin;
     private static final String CHANNEL_ID = "FloatingServiceChannel";
-    private static final ColorStateList FAB_BG_COLOR = ColorStateList.valueOf(0xFFF7F2FA);
-    private static final ColorStateList FAB_ICON_COLOR = ColorStateList.valueOf(0xFF65558F);
-    private static final ColorStateList DICTATING_BG_COLOR = ColorStateList.valueOf(0xFFD0BCFF);
-    private static final ColorStateList DICTATING_ICON_COLOR = ColorStateList.valueOf(0xFF381E72);
-    private static final ColorStateList TRANSCRIBING_BG_COLOR = ColorStateList.valueOf(0xFFE8DEF8);
-    private static final ColorStateList CANCEL_BG_COLOR = ColorStateList.valueOf(0xFFFFDAD6);
-    private static final ColorStateList CANCEL_ICON_COLOR = ColorStateList.valueOf(0xFF93000A);
+    private static final int ACCENT = 0xFF65558F;
+    private static final ColorStateList FAB_BG = ColorStateList.valueOf(0xFFFFFFFF);
+    private static final ColorStateList FAB_ICON = ColorStateList.valueOf(ACCENT);
 
     private String getPrefSuffix() {
         return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -123,13 +132,13 @@ public class FloatingService extends Service {
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 
         floatingView = createFab(R.drawable.ic_graphic_eq);
-        tintFab(floatingView, FAB_BG_COLOR, FAB_ICON_COLOR);
+        tintFab(floatingView, FAB_BG, FAB_ICON);
         floatingView.setHapticFeedbackEnabled(true);
 
         params = createOverlayLayoutParams(layoutType, flags);
 
-        cancelView = createFab(android.R.drawable.ic_menu_close_clear_cancel);
-        tintFab(cancelView, CANCEL_BG_COLOR, CANCEL_ICON_COLOR);
+        cancelView = createFab(R.drawable.ic_close);
+        tintFab(cancelView, FAB_BG, FAB_ICON);
         cancelView.setVisibility(View.GONE);
         cancelView.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
@@ -137,6 +146,13 @@ public class FloatingService extends Service {
         });
 
         cancelParams = createOverlayLayoutParams(layoutType, flags);
+
+        float density = getResources().getDisplayMetrics().density;
+        waveformView = new WaveformView(this);
+        waveformView.setVisibility(View.GONE);
+        waveformParams = createOverlayLayoutParams(layoutType, flags);
+        waveformParams.width = (int) (72 * density);
+        waveformParams.height = (int) (40 * density);
 
         floatingView.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -209,6 +225,7 @@ public class FloatingService extends Service {
 
         windowManager.addView(floatingView, params);
         windowManager.addView(cancelView, cancelParams);
+        windowManager.addView(waveformView, waveformParams);
         updatePositionFromPrefs();
     }
 
@@ -235,11 +252,13 @@ public class FloatingService extends Service {
 
     private void enterDictationMode() {
         isDictating = true;
-        floatingView.setImageResource(android.R.drawable.ic_menu_send);
-        tintFab(floatingView, DICTATING_BG_COLOR, DICTATING_ICON_COLOR);
+        floatingView.setImageResource(R.drawable.ic_check);
+        waveformView.clear();
+        waveformView.setVisibility(View.VISIBLE);
         updateActionButtonPositions();
         cancelView.setVisibility(View.VISIBLE);
         startRecording();
+        mainHandler.post(amplitudePollRunnable);
     }
 
     private void cancelDictation() {
@@ -250,8 +269,7 @@ public class FloatingService extends Service {
 
     private void finishDictation() {
         stopRecording();
-        isDictating = false;
-        cancelView.setVisibility(View.GONE);
+        exitDictationMode();
         if (audioFile == null || !audioFile.exists() || audioFile.length() == 0) {
             resetFabToDefault();
             Toast.makeText(this, "No audio recorded", Toast.LENGTH_SHORT).show();
@@ -285,7 +303,6 @@ public class FloatingService extends Service {
     private void enterTranscribingMode() {
         isTranscribing = true;
         floatingView.setImageResource(android.R.drawable.ic_popup_sync);
-        tintFab(floatingView, TRANSCRIBING_BG_COLOR, FAB_ICON_COLOR);
         spinAnimator = ObjectAnimator.ofFloat(floatingView, "alpha", 1f, 0.3f);
         spinAnimator.setDuration(600);
         spinAnimator.setRepeatCount(ValueAnimator.INFINITE);
@@ -305,10 +322,11 @@ public class FloatingService extends Service {
 
     private void resetFabToDefault() {
         floatingView.setImageResource(R.drawable.ic_graphic_eq);
-        tintFab(floatingView, FAB_BG_COLOR, FAB_ICON_COLOR);
     }
 
     private void exitDictationMode() {
+        mainHandler.removeCallbacks(amplitudePollRunnable);
+        waveformView.setVisibility(View.GONE);
         isDictating = false;
         resetFabToDefault();
         cancelView.setVisibility(View.GONE);
@@ -421,7 +439,17 @@ public class FloatingService extends Service {
     }
 
     private void updateActionButtonPositions() {
-        cancelParams.x = params.x - floatingView.getWidth();
+        int fabH = floatingView.getHeight();
+        int waveW = waveformParams.width;
+        int waveH = waveformParams.height;
+
+        waveformParams.x = params.x - waveW;
+        waveformParams.y = params.y + (fabH - waveH) / 2;
+        if (waveformView.getVisibility() == View.VISIBLE) {
+            windowManager.updateViewLayout(waveformView, waveformParams);
+        }
+
+        cancelParams.x = params.x - waveW - floatingView.getWidth();
         cancelParams.y = params.y;
         windowManager.updateViewLayout(cancelView, cancelParams);
     }
@@ -448,6 +476,8 @@ public class FloatingService extends Service {
         deleteAudioFile();
         executor.shutdownNow();
         if (rootShell != null) rootShell.destroy();
+        mainHandler.removeCallbacks(amplitudePollRunnable);
+        if (waveformView != null) windowManager.removeView(waveformView);
         if (floatingView != null) windowManager.removeView(floatingView);
         if (cancelView != null) windowManager.removeView(cancelView);
     }

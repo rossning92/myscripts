@@ -56,6 +56,18 @@ class GitMenu(Menu):
         self.add_command(self._unstage, hotkey="shift+u")
         self._refresh()
 
+    def get_item_color(self, item: str) -> str:
+        status = item[:2]
+        if "D" in status:
+            return "red"
+        if "?" in status:
+            return "cyan"
+        if "A" in status:
+            return "green"
+        if "M" in status or "R" in status:
+            return "yellow"
+        return "white"
+
     def _refresh(self):
         items, is_clean = get_git_status_items()
         self.is_clean = is_clean

@@ -48,13 +48,8 @@ def _get_diff_line_info(diff_lines: List[str], index: int) -> Optional[Tuple[str
 
 
 def _run_diff_cmd(cmd: List[str]) -> List[str]:
-    cp = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    return [line.rstrip("\r") for line in cp.stdout.splitlines()]
+    cp = subprocess.run(cmd, capture_output=True)
+    return cp.stdout.decode("utf-8", errors="replace").replace("\r", "").splitlines()
 
 
 def _build_git_diff_cmd(args: List[str]) -> List[str]:
@@ -86,7 +81,7 @@ class DiffMenu(TextMenu):
 
         super().__init__(
             prompt="diff",
-            text="\n".join(lines),
+            text="\n".join(lines) if lines else "(no diff)",
             wrap_text=False,
             **kwargs,
         )

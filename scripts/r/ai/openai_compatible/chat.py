@@ -135,6 +135,33 @@ async def complete_chat(
         ) as response:
             await check_for_status(response)
 
+            pending_tool_calls: Dict[int, dict] = {}
+            pending_reasoning = ""
+
+            def flush_reasoning():
+                nonlocal pending_reasoning
+                if pending_reasoning:
+                    if on_reasoning:
+                        on_reasoning(pending_reasoning)
+                    out_message.setdefault("reasoning", []).append(
+                        pending_reasoning
+                    )
+                    pending_reasoning = ""
+
+            def flush_tool_calls():
+                for idx in sorted(pending_tool_calls):
+                    tc = pending_tool_calls[idx]
+                    raw_args = tc["arguments"]
+                    tool_use = ToolUse(
+                        tool_name=tc["name"],
+                        args=json.loads(raw_args) if raw_args else {},
+                        tool_use_id=tc["id"],
+                    )
+                    if on_tool_use:
+                        on_tool_use(tool_use)
+                    out_message.setdefault("tool_use", []).append(tool_use)
+                pending_tool_calls.clear()
+
             async for line in iter_lines(response.content):
                 if not line:
                     continue
@@ -144,6 +171,8 @@ async def complete_chat(
 
                 data_str = line[6:].decode("utf-8")
                 if data_str == "[DONE]":
+                    flush_reasoning()
+                    flush_tool_calls()
                     return
 
                 try:
@@ -162,46 +191,50 @@ async def complete_chat(
 
                 for choice in data.get("choices", []):
                     delta = choice.get("delta", {})
+                    finish_reason = choice.get("finish_reason")
 
-                    tool_calls = delta.get("tool_calls")
-                    if tool_calls:
-                        logging.debug(f"tool call delta: {tool_calls}")
-                        for tool_call in tool_calls:
-                            if tool_call["type"] == "function":
-                                function = tool_call["function"]
-                                if function:
-                                    tool_use = ToolUse(
-                                        tool_name=function["name"],
-                                        args=json.loads(function["arguments"]),
-                                        tool_use_id=tool_call["id"],
-                                    )
-                                    if on_tool_use:
-                                        on_tool_use(tool_use)
-                                    out_message.setdefault("tool_use", []).append(
-                                        tool_use
-                                    )
-
-                    content = delta.get("content")
-                    if content:
-                        logging.debug(f"yielding content chunk: {content}")
-                        yield content
-                        out_message["text"] += content
-
+                    # Accumulate reasoning deltas
                     reasoning_details = delta.get("reasoning_details")
                     if reasoning_details:
                         assert isinstance(reasoning_details, list)
                         for reasoning_detail in reasoning_details:
                             if reasoning_detail["type"] == "reasoning.text":
-                                reasoning_text = reasoning_detail["text"]
-                                if on_reasoning:
-                                    on_reasoning(reasoning_text)
-                                out_message.setdefault("reasoning", []).append(
-                                    reasoning_text
-                                )
-
+                                pending_reasoning += reasoning_detail["text"]
                         out_message.setdefault("reasoning_details", []).extend(
                             reasoning_details
                         )
+
+                    # Accumulate tool call deltas
+                    tool_calls = delta.get("tool_calls")
+                    if tool_calls:
+                        logging.debug(f"tool call delta: {tool_calls}")
+                        for tool_call in tool_calls:
+                            idx = tool_call["index"]
+                            if idx not in pending_tool_calls:
+                                pending_tool_calls[idx] = {
+                                    "id": tool_call.get("id", ""),
+                                    "name": "",
+                                    "arguments": "",
+                                }
+                            tc = pending_tool_calls[idx]
+                            function = tool_call.get("function") or {}
+                            if function.get("name"):
+                                tc["name"] = function["name"]
+                            if function.get("arguments"):
+                                tc["arguments"] += function["arguments"]
+
+                    # Stream content chunks, flushing reasoning first
+                    content = delta.get("content")
+                    if content:
+                        flush_reasoning()
+                        logging.debug(f"yielding content chunk: {content}")
+                        yield content
+                        out_message["text"] += content
+
+                    # On finish, flush all pending state
+                    if finish_reason:
+                        flush_reasoning()
+                        flush_tool_calls()
 
                     images = delta.get("images")
                     if images:

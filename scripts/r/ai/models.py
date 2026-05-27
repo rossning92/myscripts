@@ -17,6 +17,7 @@ MODELS = [
     "openrouter:google/gemini-3-flash-preview",
     "local_llm",
     "openrouter:x-ai/grok-imagine-image-quality",
+    "openrouter:deepseek/deepseek-v4-pro",
 ]
 
 DEFAULT_MODEL = "gpt-5.2-chat-latest"

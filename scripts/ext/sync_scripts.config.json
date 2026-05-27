@@ -1,6 +1,5 @@
 {
   "gitBash": true,
-  "hotkey": "alt+s",
   "packages": "git",
   "reloadScriptsAfterRun": true,
   "template": false
