@@ -756,7 +756,7 @@ def _main():
                 os.path.join(MYSCRIPT_ROOT, "settings", "tmux", ".tmux.conf"),
                 "new",
                 "-n",
-                "myscripts",
+                "myscriptsmgr",
                 sys.executable,
                 *(x for x in sys.argv if x not in ("-t", "--tmux")),
             )

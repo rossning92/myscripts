@@ -1,6 +1,7 @@
 import os
 import subprocess
 
+from utils.menu.confirmmenu import confirm
 from utils.menu.diffmenu import DiffMenu
 from utils.menu.menu import Menu
 
@@ -47,13 +48,18 @@ def get_git_prompt(is_clean: bool) -> str:
     return f"{repo_name} ({branch}{dirty})>"
 
 
+_HOTKEY_HINTS = "--- [^a]diff all [^s]stage [^u]unstage [^d]discard [^r]refresh ---"
+
+
 class GitMenu(Menu):
     def __init__(self):
         super().__init__(close_on_selection=False)
+        self.set_header(_HOTKEY_HINTS)
         self.add_command(self._refresh, hotkey="ctrl+r")
-        self.add_command(self._view_all, hotkey="ctrl+a")
+        self.add_command(self._diff_all, hotkey="ctrl+a")
         self.add_command(self._stage, hotkey="ctrl+s")
         self.add_command(self._unstage, hotkey="shift+u")
+        self.add_command(self._discard, hotkey="ctrl+d")
         self._refresh()
 
     def get_item_color(self, item: str) -> str:
@@ -97,7 +103,28 @@ class GitMenu(Menu):
             subprocess.run(["git", "reset", "HEAD", "--", filename])
         self._refresh()
 
-    def _view_all(self):
+    def _discard(self):
+        items = list(self.get_selected_items())
+        if not items:
+            return
+        names = [self._get_filename(item) for item in items]
+        if not confirm(f"Discard changes to {len(names)} file(s)?"):
+            return
+        for item, filename in zip(items, names):
+            status = item[:2]
+            if "?" in status:
+                # Untracked file: remove it
+                path = os.path.join(os.getcwd(), filename)
+                if os.path.isdir(path):
+                    subprocess.run(["git", "clean", "-fd", "--", filename])
+                else:
+                    os.remove(path)
+            else:
+                # Tracked file: restore to HEAD
+                subprocess.run(["git", "checkout", "HEAD", "--", filename])
+        self._refresh()
+
+    def _diff_all(self):
         if self.is_clean:
             git_args = ["HEAD~1", "HEAD"]
         else:
