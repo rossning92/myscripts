@@ -1,12 +1,13 @@
 import os
 import subprocess
+import time
 from typing import List, Optional
 
 from utils.jsonutil import load_json
 from utils.menu.menu import Menu
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
-_HOTKEY_HINTS = "[^r]refresh [^s]sync [!a]amend+sync [!c]commit+sync [↵]git diff"
+_HOTKEY_HINTS = "--- [!c]commit+sync [!a]amend+sync [^r]refresh [^s]sync ---"
 
 
 def _git(path: str, *args: str) -> Optional[str]:
@@ -43,7 +44,10 @@ class Repo:
 
         self.ahead = self.behind = 0
         counts = _git(
-            self.path, "rev-list", "--left-right", "--count",
+            self.path,
+            "rev-list",
+            "--left-right",
+            "--count",
             f"{self.branch}...@{{u}}",
         )
         if counts:
@@ -88,6 +92,8 @@ class RepoMenu(Menu[Repo]):
             close_on_selection=False,
             prompt="Repos",
         )
+        self.set_header(_HOTKEY_HINTS)
+        self._last_refresh_time = 0.0
         self._refresh()
         self.add_command(self._sync, hotkey="ctrl+s", name="Sync (pull+push)")
         self.add_command(self._amend_and_sync, hotkey="alt+a", name="Amend+sync")
@@ -102,9 +108,6 @@ class RepoMenu(Menu[Repo]):
         if item.behind:
             return "red"
         return super().get_item_color(item)
-
-    def get_status_text(self) -> str:
-        return _HOTKEY_HINTS + "\n" + super().get_status_text()
 
     def on_item_selected(self, item: Repo):
         if not item.is_git:
@@ -158,7 +161,12 @@ class RepoMenu(Menu[Repo]):
             ["git", "push"],
         )
 
+    def on_idle(self):
+        if time.monotonic() - self._last_refresh_time >= 30:
+            self._refresh()
+
     def _refresh(self):
+        self._last_refresh_time = time.monotonic()
         self.items.clear()
         for repo in _get_repos():
             repo.refresh()

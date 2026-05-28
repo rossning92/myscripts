@@ -1,5 +1,3 @@
 {
-  "globalHotkey": "win+alt+g",
-  "hotkey": "alt+g",
   "variableNames": "GIT_REPO GIT_REPO_BACKUP_DIR"
 }

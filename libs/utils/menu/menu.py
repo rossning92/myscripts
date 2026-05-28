@@ -438,6 +438,7 @@ class Menu(Generic[T]):
         prompt_color: Union[str, Tuple[str, str]] = "white",
         follow=False,
         auto_complete=False,
+        header="",
     ):
         self.close_on_selection: bool = close_on_selection
         self.is_cancelled: bool = False
@@ -488,6 +489,7 @@ class Menu(Generic[T]):
 
         # Selection
         self.__follow = follow
+        self.__header: str = header
         self.__selected_row_begin: int = selected_index
         self.__selected_row_end: int = selected_index
         self.__multi_select_mode: bool = False
@@ -734,6 +736,13 @@ class Menu(Generic[T]):
     def set_prompt(self, prompt: str):
         self.__input.prompt = prompt
         self.update_screen()
+
+    def set_header(self, header: str):
+        self.__header = header
+        self.update_screen()
+
+    def get_header(self) -> str:
+        return self.__header
 
     def clear_input(self, reset_selection=False) -> bool:
         if self.__input.text == "":
@@ -1544,8 +1553,22 @@ class Menu(Generic[T]):
             show_enter_symbol=self.__should_trigger_search(),
         )
 
-        # Get matched scripts
+        # Draw header (below prompt, above items)
         item_y = draw_input_result.last_y + 1
+        header = self.get_header()
+        if header:
+            header_lines = header.splitlines()
+            for header_line in header_lines:
+                if item_y >= item_y_max:
+                    break
+                self.__draw_text(
+                    row=item_y,
+                    col=0,
+                    s=header_line,
+                    fg=_to_curses_color("brightblack"),
+                    ymax=item_y_max,
+                )
+                item_y += 1
 
         # Auto select last item
         item_indices = self.get_item_indices()

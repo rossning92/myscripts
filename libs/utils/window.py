@@ -15,7 +15,8 @@ TITLE_MATCH_MODE_EXACT = 0
 TITLE_MATCH_MODE_PARTIAL = 1
 TITLE_MATCH_MODE_START_WITH = 2
 TITLE_MATCH_MODE_REGEX = 3
-TITLE_MATCH_MODE_DEFAULT = TITLE_MATCH_MODE_REGEX
+TITLE_MATCH_MODE_START_OR_END_WITH = 4
+TITLE_MATCH_MODE_DEFAULT = TITLE_MATCH_MODE_START_OR_END_WITH
 
 TITLE_DIVIDER = " - "
 
@@ -484,6 +485,8 @@ def _activate_window_darwin(
             return title.startswith(name)
         elif match_mode == TITLE_MATCH_MODE_REGEX:
             return bool(re.search(patt, title))
+        elif match_mode == TITLE_MATCH_MODE_START_OR_END_WITH:
+            return title.startswith(name) or title.endswith(name)
         else:
             return name in title
 
@@ -539,6 +542,11 @@ def _control_window(
                 hwnds.append(hwnd)
                 return should_search_next(hwnd=hwnd)
             elif match_mode == TITLE_MATCH_MODE_REGEX and re.search(patt, win_title):
+                hwnds.append(hwnd)
+                return should_search_next(hwnd=hwnd)
+            elif match_mode == TITLE_MATCH_MODE_START_OR_END_WITH and (
+                win_title.startswith(name) or win_title.endswith(name)
+            ):
                 hwnds.append(hwnd)
                 return should_search_next(hwnd=hwnd)
             else:
