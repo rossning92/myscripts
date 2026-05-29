@@ -192,6 +192,12 @@
       "packages": ["voidtools.Everything"]
     }
   },
+  "f3d": {
+    "executables": ["C:\\Program Files\\F3D\\bin\\f3d.exe"],
+    "winget": {
+      "packages": ["f3d-app.f3d"]
+    }
+  },
   "expect": {
     "apt": {
       "packages": ["expect"]
