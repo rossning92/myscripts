@@ -2,6 +2,12 @@
 set -e
 cd "$(dirname "$0")"
 ./gradlew assembleDebug
+
+if [[ "$1" == "--build-only" ]]; then
+    echo "APK built: app/build/outputs/apk/debug/app-debug.apk"
+    exit 0
+fi
+
 adb install -r --user 0 app/build/outputs/apk/debug/app-debug.apk
 adb shell appops set com.ross.speechtotext SYSTEM_ALERT_WINDOW allow
 adb shell pm grant com.ross.speechtotext android.permission.RECORD_AUDIO

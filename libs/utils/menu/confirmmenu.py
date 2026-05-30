@@ -7,6 +7,7 @@ class ConfirmMenu(ActionMenu):
             prompt=prompt + " (y/n)",
             prompt_color=prompt_color,
             search_mode=False,
+            line_number=False,
             **kwargs,
         )
         self.confirmed = False

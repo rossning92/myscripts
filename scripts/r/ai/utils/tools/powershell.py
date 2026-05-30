@@ -3,38 +3,10 @@ import subprocess
 import sys
 import tempfile
 
-from utils.menu.menu import Menu
-
-def _strip_transcript(text: str) -> str:
-    lines = text.splitlines()
-
-    # Find the start of the actual output
-    start_idx = 0
-    for i, line in enumerate(lines):
-        if line.startswith("Transcript started, output file is"):
-            start_idx = i + 1
-            break
-
-    # Find the end of the actual output
-    end_idx = len(lines)
-    for i in range(len(lines) - 1, -1, -1):
-        if lines[i].startswith("**********************"):
-            if (
-                i + 1 < len(lines)
-                and "Windows PowerShell transcript end" in lines[i + 1]
-            ):
-                end_idx = i
-                break
-
-    return "\n".join(lines[start_idx:end_idx]).strip()
-
 
 def _run_powershell(command: str) -> str:
     ps_exe = "powershell" if sys.platform == "win32" else "pwsh"
 
-    # Use NamedTemporaryFile to generate random filenames.
-    # delete=False is required on Windows because files must be closed before PowerShell
-    # can open them (otherwise a sharing violation occurs).
     with tempfile.NamedTemporaryFile(
         suffix=".ps1", delete=False, mode="w", encoding="utf-8-sig"
     ) as f:
@@ -45,20 +17,17 @@ def _run_powershell(command: str) -> str:
         log_file = f.name
 
     try:
-        ps_command = [
-            ps_exe,
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            f"Clear-Host; Start-Transcript -Path '{log_file}' -Force; try {{ & '{script_file}' }} finally {{ Stop-Transcript }}",
-        ]
-
-        Menu.run_raw(lambda: subprocess.run(ps_command, check=False))
+        with open(log_file, "w", encoding="utf-8") as log_fh:
+            subprocess.run(
+                [ps_exe, "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-File", script_file],
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
 
         with open(log_file, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
-            return _strip_transcript(content)
+            return f.read().strip()
 
     finally:
         if os.path.exists(script_file):

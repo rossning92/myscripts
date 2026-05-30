@@ -4,6 +4,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
+import android.content.Context;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -12,8 +13,9 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import androidx.preference.PreferenceManager;
 import android.content.res.Configuration;
-import android.content.res.ColorStateList;
+
 import android.graphics.PixelFormat;
 import android.media.MediaRecorder;
 import android.os.Handler;
@@ -73,9 +75,7 @@ public class FloatingService extends Service {
     private Process rootShell;
     private DataOutputStream rootStdin;
     private static final String CHANNEL_ID = "FloatingServiceChannel";
-    private static final int ACCENT = 0xFF65558F;
-    private static final ColorStateList FAB_BG = ColorStateList.valueOf(0xFFFFFFFF);
-    private static final ColorStateList FAB_ICON = ColorStateList.valueOf(ACCENT);
+    private Context themedContext;
 
     private String getPrefSuffix() {
         return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -127,18 +127,18 @@ public class FloatingService extends Service {
         startForeground(1, notification);
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        themedContext = com.google.android.material.color.DynamicColors.wrapContextIfAvailable(
+                new ContextThemeWrapper(this, com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar));
 
         int layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 
         floatingView = createFab(R.drawable.ic_graphic_eq);
-        tintFab(floatingView, FAB_BG, FAB_ICON);
         floatingView.setHapticFeedbackEnabled(true);
 
         params = createOverlayLayoutParams(layoutType, flags);
 
         cancelView = createFab(R.drawable.ic_close);
-        tintFab(cancelView, FAB_BG, FAB_ICON);
         cancelView.setVisibility(View.GONE);
         cancelView.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
@@ -148,23 +148,24 @@ public class FloatingService extends Service {
         cancelParams = createOverlayLayoutParams(layoutType, flags);
 
         float density = getResources().getDisplayMetrics().density;
-        waveformView = new WaveformView(this);
+        waveformView = new WaveformView(themedContext);
         waveformView.setVisibility(View.GONE);
         waveformParams = createOverlayLayoutParams(layoutType, flags);
         waveformParams.width = (int) (72 * density);
         waveformParams.height = (int) (40 * density);
 
-        floatingView.setOnTouchListener(new View.OnTouchListener() {
+        View.OnTouchListener dragTouchListener = new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
             private static final int CLICK_THRESHOLD = 10;
+            private boolean isDragging = false;
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 if (isTranscribing) return true;
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                        isDragging = false;
                         initialX = params.x;
                         initialY = params.y;
                         initialTouchX = event.getRawX();
@@ -174,6 +175,7 @@ public class FloatingService extends Service {
                         float dX = Math.abs(event.getRawX() - initialTouchX);
                         float dY = Math.abs(event.getRawY() - initialTouchY);
                         if (dX > CLICK_THRESHOLD || dY > CLICK_THRESHOLD) {
+                            isDragging = true;
                             params.x = initialX + (int) (event.getRawX() - initialTouchX);
                             params.y = initialY + (int) (event.getRawY() - initialTouchY);
                             windowManager.updateViewLayout(floatingView, params);
@@ -183,45 +185,29 @@ public class FloatingService extends Service {
                         }
                         return true;
                     case MotionEvent.ACTION_UP:
-                        float deltaX = Math.abs(event.getRawX() - initialTouchX);
-                        float deltaY = Math.abs(event.getRawY() - initialTouchY);
-                        if (deltaX < CLICK_THRESHOLD && deltaY < CLICK_THRESHOLD) {
-                            if (!isDictating) {
-                                enterDictationMode();
-                            } else {
-                                finishDictation();
-                            }
-                        } else {
+                        if (isDragging) {
                             savePositionToEdge();
+                        } else {
+                            v.performClick();
                         }
                         return true;
                 }
                 return false;
             }
+        };
 
-            private void savePositionToEdge() {
-                int screenWidth = windowManager.getCurrentWindowMetrics().getBounds().width();
-                int viewWidth = floatingView.getWidth();
-                int targetX = (params.x + viewWidth / 2 < screenWidth / 2) ? 0 : screenWidth - viewWidth;
-
-                ValueAnimator animator = ValueAnimator.ofInt(params.x, targetX);
-                animator.setDuration(200);
-                animator.addUpdateListener(animation -> {
-                    params.x = (int) animation.getAnimatedValue();
-                    windowManager.updateViewLayout(floatingView, params);
-                    if (isDictating) {
-                        updateActionButtonPositions();
-                    }
-                });
-                animator.addListener(new AnimatorListenerAdapter() {
-                    @Override
-                    public void onAnimationEnd(Animator animation) {
-                        savePosition();
-                    }
-                });
-                animator.start();
+        floatingView.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            if (!isDictating) {
+                enterDictationMode();
+            } else {
+                finishDictation();
             }
         });
+
+        floatingView.setOnTouchListener(dragTouchListener);
+        waveformView.setOnTouchListener(dragTouchListener);
+        cancelView.setOnTouchListener(dragTouchListener);
 
         windowManager.addView(floatingView, params);
         windowManager.addView(cancelView, cancelParams);
@@ -230,8 +216,7 @@ public class FloatingService extends Service {
     }
 
     private FloatingActionButton createFab(int iconRes) {
-        ContextThemeWrapper ctx = new ContextThemeWrapper(this, com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar);
-        FloatingActionButton fab = new FloatingActionButton(ctx);
+        FloatingActionButton fab = new FloatingActionButton(themedContext);
         fab.setImageResource(iconRes);
         fab.setSize(FloatingActionButton.SIZE_MINI);
         fab.setUseCompatPadding(true);
@@ -243,11 +228,6 @@ public class FloatingService extends Service {
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, layoutType, flags, PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.LEFT;
         return lp;
-    }
-
-    private void tintFab(FloatingActionButton fab, ColorStateList bg, ColorStateList icon) {
-        fab.setBackgroundTintList(bg);
-        fab.setImageTintList(icon);
     }
 
     private void enterDictationMode() {
@@ -370,8 +350,9 @@ public class FloatingService extends Service {
     }
 
     private String transcribe(File file) throws Exception {
-        String apiKey = BuildConfig.OPENAI_API_KEY;
-        if (apiKey.isEmpty()) throw new Exception("OPENAI_API_KEY not set in local.properties");
+        String apiKey = PreferenceManager.getDefaultSharedPreferences(this)
+                .getString(MainActivity.KEY_OPENAI_API_KEY, "");
+        if (apiKey.isEmpty()) throw new Exception("API key not configured");
 
         String boundary = "----Boundary" + System.currentTimeMillis();
         URL url = new URL("https://api.openai.com/v1/audio/transcriptions");
@@ -438,18 +419,50 @@ public class FloatingService extends Service {
         }
     }
 
+    private void savePositionToEdge() {
+        int screenWidth = windowManager.getCurrentWindowMetrics().getBounds().width();
+        int viewWidth = floatingView.getWidth();
+        int targetX = (params.x + viewWidth / 2 < screenWidth / 2) ? 0 : screenWidth - viewWidth;
+
+        ValueAnimator animator = ValueAnimator.ofInt(params.x, targetX);
+        animator.setDuration(200);
+        animator.addUpdateListener(animation -> {
+            params.x = (int) animation.getAnimatedValue();
+            windowManager.updateViewLayout(floatingView, params);
+            if (isDictating) {
+                updateActionButtonPositions();
+            }
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                savePosition();
+            }
+        });
+        animator.start();
+    }
+
     private void updateActionButtonPositions() {
+        int screenWidth = windowManager.getCurrentWindowMetrics().getBounds().width();
+        int fabW = floatingView.getWidth();
         int fabH = floatingView.getHeight();
         int waveW = waveformParams.width;
         int waveH = waveformParams.height;
+        boolean onLeft = params.x + fabW / 2 < screenWidth / 2;
 
-        waveformParams.x = params.x - waveW;
+        if (onLeft) {
+            waveformParams.x = params.x + fabW;
+            cancelParams.x = params.x + fabW + waveW;
+        } else {
+            waveformParams.x = params.x - waveW;
+            cancelParams.x = params.x - waveW - fabW;
+        }
+
         waveformParams.y = params.y + (fabH - waveH) / 2;
         if (waveformView.getVisibility() == View.VISIBLE) {
             windowManager.updateViewLayout(waveformView, waveformParams);
         }
 
-        cancelParams.x = params.x - waveW - floatingView.getWidth();
         cancelParams.y = params.y;
         windowManager.updateViewLayout(cancelView, cancelParams);
     }

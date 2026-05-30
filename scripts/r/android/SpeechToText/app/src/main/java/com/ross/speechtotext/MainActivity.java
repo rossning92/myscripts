@@ -10,6 +10,8 @@ import android.provider.Settings;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
+    static final String KEY_OPENAI_API_KEY = "openai_api_key";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -19,7 +21,7 @@ public class MainActivity extends Activity {
         } else if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1);
         } else {
-            startServiceAndFinish();
+            openSettings();
         }
     }
 
@@ -31,7 +33,7 @@ public class MainActivity extends Activity {
                 if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1);
                 } else {
-                    startServiceAndFinish();
+                    openSettings();
                 }
             } else {
                 Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show();
@@ -45,7 +47,7 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 1) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startServiceAndFinish();
+                openSettings();
             } else {
                 Toast.makeText(this, "Microphone permission denied", Toast.LENGTH_SHORT).show();
                 finish();
@@ -53,8 +55,8 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void startServiceAndFinish() {
-        startForegroundService(new Intent(this, FloatingService.class));
+    private void openSettings() {
+        startActivity(new Intent(this, SettingsActivity.class));
         finish();
     }
 }

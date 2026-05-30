@@ -13,6 +13,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".SettingsActivity" android:exported="false"
+            android:theme="@style/Theme.Material3.DayNight" />
         <service android:name=".FloatingService" android:exported="false"
             android:foregroundServiceType="microphone" />
         <service android:name=".TypeAccessibilityService"

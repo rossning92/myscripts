@@ -7,6 +7,8 @@ import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 
+import com.google.android.material.color.MaterialColors;
+
 import java.util.Arrays;
 
 public class WaveformView extends View {
@@ -27,10 +29,11 @@ public class WaveformView extends View {
         barGap = 1.5f * d;
         cornerRadius = 1.5f * d;
         minBarHeight = 2f * d;
-        barPaint.setColor(0xFF65558F);
+        barPaint.setColor(MaterialColors.getColor(context, com.google.android.material.R.attr.colorPrimary, 0));
+        int surfaceColor = MaterialColors.getColor(context, com.google.android.material.R.attr.colorSurfaceContainer, 0);
 
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xFFFFFFFF);
+        bg.setColor(surfaceColor);
         bg.setCornerRadius(18f * d);
         setBackground(bg);
         setElevation(4f * d);
