@@ -14,14 +14,14 @@ class FetchRetryMenu(TextMenu):
             prompt_color="red",
         )
         self.should_retry = False
-        self.add_command(self.retry, hotkey="r")
-        self.add_command(self.debug, hotkey="d")
+        self.add_command(self._retry, hotkey="r")
+        self.add_command(self._debug, hotkey="d")
 
-    def retry(self):
+    def _retry(self):
         self.should_retry = True
         self.close()
 
-    def inspect(self):
+    def _debug(self):
         self.run_raw(
             lambda: subprocess.run(
                 ["run_script", "r/web/browsercli/browsercli.js", "inspect"]

@@ -705,7 +705,11 @@ class ChatMenu(Menu[Line]):
                     {
                         **message,
                         "text": message["text"]
-                        + (f"\n---\n{message['context']}" if "context" in message else ""),
+                        + (
+                            f"\n---\n{message['context']}"
+                            if "context" in message
+                            else ""
+                        ),
                     }
                     if i == 0 and "context" in message
                     else message

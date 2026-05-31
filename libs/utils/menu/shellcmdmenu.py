@@ -26,12 +26,15 @@ class ShellCmdMenu(Menu):
         command: Union[str, List[str]],
         prompt: str = "",
         raise_on_interrupt: bool = False,
+        cwd: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(prompt=prompt, search_mode=False, line_number=False, **kwargs)
 
         self.__command = command
-        self.__prompt = prompt
+        self.__cwd = cwd
+        cmd_str = command if isinstance(command, str) else " ".join(command)
+        self.__prompt = f"{cmd_str} - {prompt}" if prompt else cmd_str
         self.__exception: Optional[Exception] = None
         self.__output = ""
         self.__process: Optional[subprocess.Popen] = None
@@ -52,6 +55,7 @@ class ShellCmdMenu(Menu):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                cwd=self.__cwd,
                 bufsize=0,
             )
             assert self.__process.stdout

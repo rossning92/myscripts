@@ -5,8 +5,10 @@ from typing import List, Optional
 
 from utils.jsonutil import load_json
 from utils.menu.menu import Menu
+from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
+_MODULE_NAME = os.path.splitext(os.path.basename(__file__))[0]
 _HOTKEY_HINTS = "--- [!c]commit+sync [!a]amend+sync [^r]refresh [^s]sync ---"
 
 
@@ -75,9 +77,13 @@ def _get_repos() -> List[Repo]:
     config_file = get_script_dirs_config_file()
     data = load_json(config_file, default=[])
     seen_paths = {os.path.realpath(dirs[0])}
-    for entry in data:
-        d = entry["directory"]
-        if os.path.isabs(d) and os.path.isdir(d):
+
+    extra_dirs = [entry["directory"] for entry in data]
+    extra = os.environ.get("REPO_PATHS", "")
+    extra_dirs += [d.strip() for d in extra.split(os.pathsep)]
+
+    for d in extra_dirs:
+        if d and os.path.isabs(d) and os.path.isdir(d):
             real = os.path.realpath(d)
             if real not in seen_paths:
                 seen_paths.add(real)
@@ -90,7 +96,7 @@ class RepoMenu(Menu[Repo]):
         super().__init__(
             cancellable=False,
             close_on_selection=False,
-            prompt="Repos",
+            prompt=_MODULE_NAME,
         )
         self.set_header(_HOTKEY_HINTS)
         self._last_refresh_time = 0.0
@@ -117,7 +123,7 @@ class RepoMenu(Menu[Repo]):
             os.chdir(item.path)
             from git.git_diff import GitMenu
 
-            GitMenu().exec()
+            GitMenu(prompt_prefix=_MODULE_NAME).exec()
         finally:
             os.chdir(saved_cwd)
         self._refresh()
@@ -127,17 +133,12 @@ class RepoMenu(Menu[Repo]):
         if repo is None or not repo.is_git:
             return
 
-        def run():
-            failed = False
-            for cmd in commands:
-                r = subprocess.run(cmd, cwd=repo.path, check=False)
-                if r.returncode != 0:
-                    failed = True
-                    break
-            if failed:
-                input("\nPress Enter to continue...")
-
-        self.run_raw(run)
+        shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in commands)
+        menu = ShellCmdMenu(
+            shell_cmd,
+            cwd=repo.path,
+        )
+        menu.exec()
         self._refresh()
 
     def _sync(self):

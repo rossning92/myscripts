@@ -28,10 +28,10 @@ from _shutil import get_hotkey_abbr
 
 from utils.clamp import clamp
 from utils.clip import get_clip, set_clip, set_clip_osc52
-from utils.strutil import strip_ansi
 from utils.editor import edit_text
 from utils.jsonutil import load_json, save_json
 from utils.slugify import slugify
+from utils.strutil import strip_ansi
 from utils.term import enable_windows_vt
 
 EXPERIMENTAL_EANBLE_WINDOWS_VT = True

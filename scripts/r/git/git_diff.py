@@ -45,15 +45,16 @@ def get_git_prompt(is_clean: bool) -> str:
     except subprocess.CalledProcessError:
         branch = "?"
     dirty = "" if is_clean else " *"
-    return f"{repo_name} ({branch}{dirty})>"
+    return f"{repo_name} ({branch}{dirty})"
 
 
 _HOTKEY_HINTS = "--- [^a]diff all [^s]stage [^u]unstage [^d]discard [^r]refresh ---"
 
 
 class GitMenu(Menu):
-    def __init__(self):
+    def __init__(self, prompt_prefix: str = ""):
         super().__init__(close_on_selection=False)
+        self._prompt_prefix = prompt_prefix
         self.set_header(_HOTKEY_HINTS)
         self.add_command(self._refresh, hotkey="ctrl+r")
         self.add_command(self._diff_all, hotkey="ctrl+a")
@@ -78,10 +79,12 @@ class GitMenu(Menu):
         items, is_clean = get_git_status_items()
         self.is_clean = is_clean
 
-        self.set_prompt(get_git_prompt(is_clean))
+        prompt = get_git_prompt(is_clean)
+        if self._prompt_prefix:
+            prompt = f"{self._prompt_prefix} > {prompt}"
+        self.set_prompt(prompt)
 
         self.items[:] = items
-        self.refresh()
 
         self.set_message("refreshed")
 
@@ -108,7 +111,7 @@ class GitMenu(Menu):
         if not items:
             return
         names = [self._get_filename(item) for item in items]
-        if not confirm(f"Discard changes to {len(names)} file(s)?"):
+        if not confirm(f"Discard changes to {len(names)} file(s)?", prompt_color="red"):
             return
         for item, filename in zip(items, names):
             status = item[:2]
