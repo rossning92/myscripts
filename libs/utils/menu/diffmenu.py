@@ -1,6 +1,8 @@
 import os
 import re
 import subprocess
+import threading
+import time
 from typing import List, Optional, Tuple, Union
 
 from _script import start_script
@@ -77,6 +79,8 @@ class DiffMenu(TextMenu):
         self.__files = files
         self.__git_args = git_args
         self.__diff_cmd = diff_cmd
+        self.__last_refresh_time = time.monotonic()
+        self.__refresh_thread: Optional[threading.Thread] = None
 
         lines = self.__generate_diff_lines()
         self.__diff_lines = [strip_ansi(line) for line in lines]
@@ -90,6 +94,8 @@ class DiffMenu(TextMenu):
 
         self.add_command(self.__edit_file, hotkey="ctrl+e")
         self.add_command(self.__refresh, hotkey="ctrl+r")
+        self.add_command(self.__scroll_up, hotkey="ctrl+u")
+        self.add_command(self.__scroll_down, hotkey="ctrl+d")
 
     def __generate_diff_lines(self) -> List[str]:
         if self.__diff_cmd:
@@ -115,11 +121,32 @@ class DiffMenu(TextMenu):
             return _run_diff_cmd(_build_git_diff_cmd(args))
 
     def __refresh(self):
-        lines = self.__generate_diff_lines()
+        if self.__refresh_thread and self.__refresh_thread.is_alive():
+            return
+        self.__last_refresh_time = time.monotonic()
+
+        def worker():
+            lines = self.__generate_diff_lines()
+            self.post_event(lambda: self.__apply_refresh(lines))
+
+        self.set_message("refreshing...")
+        self.__refresh_thread = threading.Thread(target=worker, daemon=True)
+        self.__refresh_thread.start()
+
+    def __apply_refresh(self, lines: List[str]):
         self.__diff_lines = [strip_ansi(line) for line in lines]
         self.items[:] = lines
         self.set_message("refreshed")
-        self.update_screen()
+
+    def on_idle(self):
+        if time.monotonic() - self.__last_refresh_time >= 5:
+            self.__refresh()
+
+    def __scroll_up(self):
+        self._Menu__set_selection_by_offset(offset=-10, multi_select=False)
+
+    def __scroll_down(self):
+        self._Menu__set_selection_by_offset(offset=10, multi_select=False)
 
     def __edit_file(self):
         index = self.get_selected_index()

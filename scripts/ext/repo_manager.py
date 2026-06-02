@@ -168,11 +168,11 @@ class RepoMenu(Menu[Repo]):
         try:
             os.chdir(item.path)
             if item.is_git:
-                from git.git_diff import GitMenu
+                from git.git_menu import GitMenu
 
                 GitMenu(prompt_prefix=_MODULE_NAME).exec()
             elif item.is_hg:
-                from git.hg_diff import HgMenu
+                from git.hg_menu import HgMenu
 
                 HgMenu(prompt_prefix=_MODULE_NAME).exec()
         finally:
