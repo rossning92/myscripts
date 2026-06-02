@@ -70,11 +70,13 @@ class DiffMenu(TextMenu):
         root: Optional[str] = None,
         files: Optional[List[Tuple[str, str]]] = None,
         git_args: Optional[List[str]] = None,
+        diff_cmd: Optional[List[str]] = None,
         **kwargs,
     ):
         self.__root = root
         self.__files = files
         self.__git_args = git_args
+        self.__diff_cmd = diff_cmd
 
         lines = self.__generate_diff_lines()
         self.__diff_lines = [strip_ansi(line) for line in lines]
@@ -90,7 +92,9 @@ class DiffMenu(TextMenu):
         self.add_command(self.__refresh, hotkey="ctrl+r")
 
     def __generate_diff_lines(self) -> List[str]:
-        if self.__files:
+        if self.__diff_cmd:
+            return _run_diff_cmd(self.__diff_cmd)
+        elif self.__files:
             lines: List[str] = []
             for f1, f2 in self.__files:
                 lines.extend(_run_diff_cmd(_build_git_diff_cmd(["--no-index", f1, f2])))

@@ -29,7 +29,7 @@ class ShellCmdMenu(Menu):
         cwd: Optional[str] = None,
         **kwargs,
     ):
-        super().__init__(prompt=prompt, search_mode=False, line_number=False, **kwargs)
+        super().__init__(prompt=prompt, search_mode=False, line_number=False, follow=True, **kwargs)
 
         self.__command = command
         self.__cwd = cwd

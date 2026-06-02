@@ -1,5 +1,6 @@
 import os
 import subprocess
+import time
 
 from utils.menu.confirmmenu import confirm
 from utils.menu.diffmenu import DiffMenu
@@ -76,6 +77,7 @@ class GitMenu(Menu):
         return "white"
 
     def _refresh(self):
+        self._last_refresh_time = time.monotonic()
         items, is_clean = get_git_status_items()
         self.is_clean = is_clean
 
@@ -133,6 +135,10 @@ class GitMenu(Menu):
         else:
             git_args = []
         DiffMenu(git_args=git_args).exec()
+
+    def on_idle(self):
+        if time.monotonic() - self._last_refresh_time >= 10:
+            self._refresh()
 
     def on_item_selected(self, item):
         filename = self._get_filename(item)
