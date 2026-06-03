@@ -439,6 +439,7 @@ class Menu(Generic[T]):
         follow=False,
         auto_complete=False,
         header="",
+        quick_select=False,
     ):
         self.close_on_selection: bool = close_on_selection
         self.is_cancelled: bool = False
@@ -543,6 +544,15 @@ class Menu(Generic[T]):
                             lambda item=item: self.__on_item_hotkey(item),
                             hotkey=hotkey,
                         )
+
+        self.__quick_select = quick_select
+        if quick_select:
+            self.__line_number = True
+            for i in range(26):
+                self.add_command(
+                    lambda i=i: self._select_by_shortcut_index(9 + i),
+                    hotkey=f"alt+{chr(ord('a') + i)}",
+                )
 
     def __goto(self):
         selected = self.get_selected_item()
@@ -1627,7 +1637,10 @@ class Menu(Generic[T]):
         matched_item_index = self.__scroll_y
 
         if self.__line_number and len(item_indices) > 0:
-            line_number_width = len(self.get_line_number_text(item_indices[-1]))
+            if self.__quick_select:
+                line_number_width = 4
+            else:
+                line_number_width = len(self.get_line_number_text(item_indices[-1]))
         else:
             line_number_width = 0
 
@@ -1675,10 +1688,14 @@ class Menu(Generic[T]):
                 ymax=item_y_max,
             )
 
-            # Draw line number
+            # Draw line number / quick select label
             if self.__line_number:
                 line_number_fg = _to_curses_color("brightblack")
-                line_number_text = self.get_line_number_text(item_index)
+                line_number_text = (
+                    self.__get_quick_select_label(matched_item_index)
+                    if self.__quick_select
+                    else self.get_line_number_text(item_index)
+                )
                 self.__draw_text(
                     item_y,
                     0,
@@ -1785,6 +1802,11 @@ class Menu(Generic[T]):
             yield self.items[item_index]
 
     def on_char(self, ch: Union[int, str]):
+        if self.__quick_select and isinstance(ch, str) and ch.isdigit():
+            index = int(ch) - 1
+            if 0 <= index <= 8 and self._select_by_shortcut_index(index):
+                return True
+
         if ch == "\t":
             return self.on_tab_pressed()
 
@@ -1940,6 +1962,22 @@ class Menu(Generic[T]):
 
     def get_line_number_text(self, item_index: int) -> str:
         return f"{item_index + 1}"
+
+    @staticmethod
+    def __get_quick_select_label(index: int) -> str:
+        if index < 9:
+            return f"[ {index + 1}]"
+        elif index < 35:
+            return f"[!{chr(ord('a') + index - 9)}]"
+        return "    "
+
+    def _select_by_shortcut_index(self, index: int) -> bool:
+        item_indices = list(self.get_item_indices())
+        if index < len(item_indices):
+            self.set_selected_row(index)
+            self.on_enter_pressed()
+            return True
+        return False
 
     def __get_selected_lines(self) -> str:
         selected_items = self.get_selected_items()

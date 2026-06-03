@@ -118,10 +118,17 @@ def _get_repos() -> List[Repo]:
     extra = os.environ.get("REPO_PATHS", "")
     extra_dirs += [d.strip() for d in extra.split(os.pathsep)]
 
+    def _mtime(path: str) -> float:
+        try:
+            return os.path.getmtime(path)
+        except OSError:
+            return 0.0
+
     for d in extra_dirs:
         if not d:
             continue
-        for p in sorted(glob.glob(os.path.expanduser(d))):
+        # Sort wildcard matches by directory modification time, newest first.
+        for p in sorted(glob.glob(os.path.expanduser(d)), key=_mtime, reverse=True):
             if os.path.isabs(p) and os.path.isdir(p):
                 real = os.path.realpath(p)
                 if real not in seen_paths:
@@ -136,6 +143,7 @@ class RepoMenu(Menu[Repo]):
             cancellable=False,
             close_on_selection=False,
             prompt=_MODULE_NAME,
+            quick_select=True,
         )
         self.set_header(_HOTKEY_HINTS)
         self._last_refresh_time = 0.0

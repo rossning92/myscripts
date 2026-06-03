@@ -21,9 +21,9 @@ vim.keymap.set('n', '<down>', "v:count == 0 ? 'gj' : 'j'", { expr = true, silent
 vim.keymap.set('i', '<up>', '<C-o>gk', { silent = true })
 vim.keymap.set('i', '<down>', '<C-o>gj', { silent = true })
 
--- Scroll 10 lines and recenter the cursor
-vim.keymap.set("n", "<C-u>", "10<C-y>10kzz", { noremap = true, silent = true })
-vim.keymap.set("n", "<C-d>", "10<C-e>10jzz", { noremap = true, silent = true })
+-- Scroll 5 lines and recenter the cursor
+vim.keymap.set("n", "<C-u>", "5<C-y>5kzz", { noremap = true, silent = true })
+vim.keymap.set("n", "<C-d>", "5<C-e>5jzz", { noremap = true, silent = true })
 
 -- Quickly save the file
 vim.keymap.set("i", "WW", "<Esc>:w<CR>i")

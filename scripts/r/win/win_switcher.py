@@ -26,7 +26,11 @@ _STATUS_COLOR_MAPPING: Dict[WindowStatus, str] = {
 class WinSwitcherMenu(Menu[WindowItem]):
     def __init__(self):
         super().__init__(
-            prompt="activate", prompt_color="cyan", items=[], line_number=False
+            prompt="activate",
+            prompt_color="cyan",
+            items=[],
+            line_number=False,
+            quick_select=True,
         )
         self.__auto_refresh_enabled = True
         self.__auto_refresh_last_time = 0.0
@@ -35,21 +39,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.add_command(self.__close_windows, hotkey="delete")
         self.add_command(self.__close_windows, hotkey="ctrl+k")
 
-        for i in range(26):
-            self.add_command(
-                lambda i=i: self.__activate_by_index(9 + i),
-                hotkey=f"alt+{chr(ord('a') + i)}",
-            )
-
         self.__refresh_windows()
-
-    def __activate_by_index(self, index: int) -> bool:
-        item_indices = list(self.get_item_indices())
-        if index < len(item_indices):
-            self.set_selected_row(index)
-            self.__activate_window(self.items[item_indices[index]].id)
-            return True
-        return False
 
     def __refresh_windows(self, message: Optional[str] = None):
         notifications = get_notifications()
@@ -109,13 +99,6 @@ class WinSwitcherMenu(Menu[WindowItem]):
         if selected:
             self.__activate_window(selected.id)
 
-    def on_char(self, ch):
-        if isinstance(ch, str) and ch.isdigit():
-            index = int(ch) - 1
-            if 0 <= index <= 8 and self.__activate_by_index(index):
-                return True
-        return super().on_char(ch)
-
     def on_focus_gained(self):
         self.__refresh_windows()
         self.__auto_refresh_enabled = True
@@ -135,18 +118,6 @@ class WinSwitcherMenu(Menu[WindowItem]):
 
     def on_escape_pressed(self):
         self.clear_input()
-
-    def get_item_text(self, item: WindowItem) -> str:
-        text = super().get_item_text(item)
-        item_indices = self.get_item_indices()
-        for i in range(min(35, len(item_indices))):
-            if self.items[item_indices[i]] == item:
-                if i < 9:
-                    label = f" {i + 1}"
-                else:
-                    label = f"!{chr(ord('a') + i - 9)}"
-                return f"[{label}] {text}"
-        return "     " + text
 
     def get_item_color(self, item: WindowItem) -> str:
         status = item.get_status(self.script_status)

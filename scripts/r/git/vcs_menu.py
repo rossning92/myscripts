@@ -11,7 +11,7 @@ class VcsDiffMenu(Menu):
     _HOTKEY_HINTS = ""
 
     def __init__(self, prompt_prefix: str = ""):
-        super().__init__(close_on_selection=False)
+        super().__init__(close_on_selection=False, quick_select=True)
         self.__prompt_prefix = prompt_prefix
         self.__last_refresh_time = 0.0
         self.__refresh_thread: Optional[threading.Thread] = None
