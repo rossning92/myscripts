@@ -89,6 +89,7 @@ class DiffMenu(TextMenu):
             prompt="diff",
             text="\n".join(lines) if lines else "(no diff)",
             wrap_text=False,
+            line_number=False,
             **kwargs,
         )
 
@@ -158,9 +159,11 @@ class DiffMenu(TextMenu):
             if self.__root and not os.path.isabs(filename):
                 filename = os.path.join(self.__root, filename)
 
-            start_script(
-                "ext/edit.py",
-                args=[os.path.abspath(filename), "--line", str(line_number)],
+            self.run_raw(
+                lambda: start_script(
+                    "ext/edit.py",
+                    args=[os.path.abspath(filename), "--line", str(line_number)],
+                )
             )
 
     def get_item_color(self, item: str) -> Union[str, Tuple[str, str]]:

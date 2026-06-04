@@ -496,6 +496,7 @@ class Menu(Generic[T]):
         self.__multi_select_mode: bool = False
         self.__should_update_matched_items: bool = False
         self.__auto_complete = auto_complete
+        self.__pending_enter = False
 
         # Avoid updating the matching items when input changes too often.
         self.__last_match_time: float = 0
@@ -993,7 +994,9 @@ class Menu(Generic[T]):
         if self.__closed:
             return True
 
-        if timeout_sec > 0.0:
+        if self.__pending_enter:
+            Menu._stdscr.timeout(int(PASTE_THRESHOLD_SEC * 1000))
+        elif timeout_sec > 0.0:
             Menu._stdscr.timeout(int(timeout_sec * 1000.0))
         else:
             Menu._stdscr.timeout(0)
@@ -1026,14 +1029,12 @@ class Menu(Generic[T]):
                 elif isinstance(ch, int):
                     self.set_message(f"key=0x{ch:x}")
 
-            now = time.time()
-            prev_timestamp = self.last_key_pressed_timestamp
-            self.last_key_pressed_timestamp = now
-            is_paste = (
-                self.__allow_input
-                and prev_timestamp > 0
-                and (now - prev_timestamp) < PASTE_THRESHOLD_SEC
-            )
+            self.last_key_pressed_timestamp = time.time()
+
+            if self.__pending_enter:
+                self.__pending_enter = False
+                self.__input.on_char("\n")
+                self.update_screen()
 
             if ch == "alt+enter" and "alt+enter" not in self.__hotkeys:
                 self.__input.on_char("\n")
@@ -1080,10 +1081,8 @@ class Menu(Generic[T]):
                 self.__hotkeys["space"].func()
 
             elif ch in ("\n", "\r"):
-                if is_paste:
-                    self.__input.on_char("\n")
-                    self._drain_paste(Menu._stdscr)
-                    self.update_screen()
+                if self.__allow_input:
+                    self.__pending_enter = True
                 else:
                     self.on_enter_pressed()
 
@@ -1175,32 +1174,18 @@ class Menu(Generic[T]):
 
             self.__last_key = ch
 
-        if ch == -1 and timeout_sec > 0.0:  # getch() is timed-out
-            self._on_idle()
+        if ch == -1:
+            if self.__pending_enter:
+                self.__pending_enter = False
+                self.on_enter_pressed()
+            elif timeout_sec > 0.0:
+                self._on_idle()
 
         if self.__closed:
             self.on_exit()
             return True
         else:
             return False
-
-    def _drain_paste(self, stdscr):
-        """Read remaining pasted characters until a pause indicates paste is done."""
-        while True:
-            stdscr.timeout(int(PASTE_THRESHOLD_SEC * 1000))
-            try:
-                ch = stdscr.get_wch()
-            except curses.error:
-                break
-            self.last_key_pressed_timestamp = time.time()
-            if ch in ("\n", "\r"):
-                self.__input.on_char("\n")
-            elif _is_backspace_key(ch) or (
-                isinstance(ch, str) and len(ch) == 1 and ch >= " "
-            ):
-                self.__input.on_char(ch)
-            elif ch == -1:
-                break
 
     def post_event(self, func: Callable[[], None]) -> None:
         self.__event_queue.put(func)
@@ -1354,6 +1339,7 @@ class Menu(Generic[T]):
     def _reset_state(self):
         self.is_cancelled = False
         self.__closed = False
+        self.__pending_enter = False
 
     def _exec(self):
         self._reset_state()
