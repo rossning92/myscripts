@@ -11,7 +11,7 @@ sudo tee /etc/keyd/default.conf <<EOF
 *
 [main]
 rightcontrol = rightcontrol
-capslock = overload(capslock, esc)
+capslock = layer(capslock)
 
 [capslock:C-M]
 space = command(sudo -u $REAL_USER DISPLAY=:0 XAUTHORITY=$REAL_HOME/.Xauthority $REAL_HOME/myscripts/bin/run_script r/toggle_vncviewer.linux.sh)

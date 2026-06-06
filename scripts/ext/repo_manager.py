@@ -54,7 +54,9 @@ class Repo:
             self._refresh_hg()
 
     def _refresh_git(self):
-        self.branch = _run_vcs(self.path, "git", "rev-parse", "--abbrev-ref", "HEAD") or "?"
+        self.branch = (
+            _run_vcs(self.path, "git", "rev-parse", "--abbrev-ref", "HEAD") or "?"
+        )
 
         status = _run_vcs(self.path, "git", "status", "--porcelain")
         self.dirty = bool(status)
@@ -78,9 +80,10 @@ class Repo:
             self.path, "hg", "log", "-r", ".", "--template", "{activebookmark}"
         )
         if not self.branch:
-            self.branch = _run_vcs(
-                self.path, "hg", "log", "-r", ".", "--template", "{branch}"
-            ) or "?"
+            self.branch = (
+                _run_vcs(self.path, "hg", "log", "-r", ".", "--template", "{branch}")
+                or "?"
+            )
 
         status = _run_vcs(self.path, "hg", "status")
         self.dirty = bool(status)
@@ -157,7 +160,7 @@ class RepoMenu(Menu[Repo]):
     def get_item_text(self, item: Repo) -> str:
         vcs_info = item.vcs_info
         if vcs_info:
-            return f"{item.display_path:<40}  {vcs_info}"
+            return f"{item.display_path:<20}  {vcs_info}"
         return item.display_path
 
     def get_item_color(self, item: Repo) -> str:

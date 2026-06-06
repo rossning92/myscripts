@@ -262,7 +262,11 @@ public class FloatingService extends Service {
             try {
                 String text = transcribe(file);
                 mainHandler.post(() -> exitTranscribingMode());
-                if (!typeViaAccessibility(text) && !typeViaInputCommand(text)) {
+                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(FloatingService.this);
+                boolean useRoot = prefs.getBoolean("enable_root", true);
+                boolean typed = typeViaAccessibility(text)
+                        || (useRoot && typeViaInputCommand(text));
+                if (!typed) {
                     mainHandler.post(() -> {
                         ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
                         clipboard.setPrimaryClip(ClipData.newPlainText("transcription", text));

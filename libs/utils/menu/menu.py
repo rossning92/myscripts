@@ -414,6 +414,7 @@ class Menu(Generic[T]):
     original_level: Optional[int] = None
 
     _stdscr = None
+    _original_stdout_fd: Optional[int] = None
 
     def __init__(
         self,
@@ -590,11 +591,28 @@ class Menu(Generic[T]):
                 Menu.logger.setLevel(Menu.original_level)
                 Menu.original_level = None
 
+    @staticmethod
+    def _redirect_stdout_to_tty():
+        if sys.platform != "win32" and os.path.exists("/dev/tty"):
+            Menu._original_stdout_fd = os.dup(1)
+            tty_fd = os.open("/dev/tty", os.O_WRONLY)
+            os.dup2(tty_fd, 1)
+            os.close(tty_fd)
+
+    @staticmethod
+    def _restore_stdout():
+        if Menu._original_stdout_fd is not None:
+            sys.stdout.flush()
+            os.dup2(Menu._original_stdout_fd, 1)
+            os.close(Menu._original_stdout_fd)
+            Menu._original_stdout_fd = None
+
     def __enter__(self):
         if self.__is_stdscr_owner:
             raise Exception("Using with-clause on Menu object twice is not allowed")
         self.__is_stdscr_owner = Menu._stdscr is None
         if self.__is_stdscr_owner:
+            Menu._redirect_stdout_to_tty()
             Menu.__setup_logging()
             Menu.init_curses()
 
@@ -602,6 +620,7 @@ class Menu(Generic[T]):
         if self.__is_stdscr_owner:
             Menu.destroy_curses()
             Menu.__teardown_logging()
+            Menu._restore_stdout()
         else:
             Menu._should_update_screen = True
         self.__is_stdscr_owner = False

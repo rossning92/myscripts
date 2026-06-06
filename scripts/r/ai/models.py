@@ -18,6 +18,8 @@ MODELS = [
     "local_llm",
     "openrouter:x-ai/grok-imagine-image-quality",
     "openrouter:deepseek/deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "deepseek-v4-pro",
 ]
 
 DEFAULT_MODEL = "gpt-5.2-chat-latest"

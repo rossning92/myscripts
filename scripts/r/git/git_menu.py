@@ -16,7 +16,7 @@ class GitMenu(VcsDiffMenu):
     def _get_status_items(self):
         try:
             status = subprocess.check_output(
-                ["git", "status", "--short"], universal_newlines=True
+                ["git", "status", "--short", "-u"], universal_newlines=True
             )
             if status.strip():
                 return status.splitlines(), False

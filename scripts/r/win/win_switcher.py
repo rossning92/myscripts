@@ -27,7 +27,6 @@ class WinSwitcherMenu(Menu[WindowItem]):
     def __init__(self):
         super().__init__(
             prompt="activate",
-            prompt_color="cyan",
             items=[],
             line_number=False,
             quick_select=True,

@@ -19,7 +19,7 @@ from utils.textutil import truncate_text
 
 
 def get_image_url_text(image_url: str) -> str:
-    return "\033[34m□ image: {}\033[0m".format(image_url[:32] + "...")
+    return "\033[34m▣ image: {}\033[0m".format(image_url[:32] + "...")
 
 
 def get_context_text(context: str) -> str:
@@ -27,7 +27,7 @@ def get_context_text(context: str) -> str:
 
 
 def get_tool_result_text(tool_result: ToolResult) -> str:
-    return "\033[34m└ {}\033[0m".format(truncate_text(tool_result["content"]))
+    return "\033[34m✓ {}\033[0m".format(truncate_text(tool_result["content"]))
 
 
 def get_tool_use_text(tool_use: ToolUse) -> str:
@@ -37,7 +37,7 @@ def get_tool_use_text(tool_use: ToolUse) -> str:
 
 
 def get_reasoning_text(text: str) -> str:
-    return "\033[34m► reasoning: {}\033[0m".format(truncate_text(text))
+    return "\033[34m… reasoning: {}\033[0m".format(truncate_text(text))
 
 
 async def complete_chat(
@@ -98,6 +98,19 @@ async def complete_chat(
             out_message=out_message,
             model=model,
             on_image=on_image,
+            usage=usage,
+        )
+    elif model and model.startswith("deepseek"):
+        return ai.openai_compatible.chat.complete_chat(
+            endpoint_url="https://api.deepseek.com/chat/completions",
+            api_key=os.environ["DEEPSEEK_API_KEY"],
+            messages=messages,
+            out_message=out_message,
+            model=model,
+            system_prompt=system_prompt,
+            tools=tools,
+            on_tool_use=on_tool_use,
+            on_reasoning=on_reasoning,
             usage=usage,
         )
     elif model == "local_llm":

@@ -70,8 +70,10 @@ def register_global_hotkeys_sxhkd(scripts: List[Script]):
                 [replace_hotkey(hotkey.lower()) for hotkey in hotkey_chain.split()]
             )
             s += "{}\n".format(hotkey_def)
+            title = script.get_window_title()
             s += (
-                "  python3"
+                f"  wmctrl -a '{title}'"
+                f" || python3"
                 f" {get_my_script_root()}/bin/start_script.py"
                 " --restart-instance=auto"
                 f" {script.script_path}\n\n"
@@ -113,15 +115,18 @@ def register_global_hotkeys_sway(scripts: List[Script]):
                 logging.info(
                     f"Register global hotkey '{hotkey_chain_arr[0]}' for script '{script.name}'"
                 )
+                title = script.get_window_title()
+                exec_cmd = (
+                    f"swaymsg '[title=\"{title}\"] focus'"
+                    f" || python3 {get_my_script_root()}/bin/start_script.py"
+                    f" --restart-instance=auto {script.script_path}"
+                )
                 args = [
                     "sway",
                     "bindsym",
                     hotkey_chain_arr[0],
                     "exec",
-                    "python3",
-                    f"{get_my_script_root()}/bin/start_script.py",
-                    "--restart-instance=auto",
-                    script.script_path,
+                    exec_cmd,
                 ]
                 out = subprocess.check_output(args)
                 if not json.loads(out)[0]["success"]:

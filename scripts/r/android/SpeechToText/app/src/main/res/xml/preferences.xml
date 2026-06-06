@@ -1,8 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
-    <EditTextPreference
-        android:key="openai_api_key"
-        android:title="OpenAI API Key"
-        android:dialogTitle="OpenAI API Key"
-        android:singleLine="true" />
+    <PreferenceCategory android:title="Provider">
+        <EditTextPreference
+            android:key="openai_api_key"
+            android:title="OpenAI API Key"
+            android:dialogTitle="OpenAI API Key"
+            android:singleLine="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Input Methods">
+        <SwitchPreferenceCompat
+            android:key="accessibility_status"
+            android:title="Accessibility Service"
+            android:summary="Type dictated text into focused fields without root"
+            android:persistent="false" />
+        <SwitchPreferenceCompat
+            android:key="enable_root"
+            android:title="Root"
+            android:summary="Use 'input text' command to type when accessibility can't connect to the focused app"
+            android:defaultValue="true" />
+    </PreferenceCategory>
 </PreferenceScreen>

@@ -143,9 +143,7 @@ async def complete_chat(
                 if pending_reasoning:
                     if on_reasoning:
                         on_reasoning(pending_reasoning)
-                    out_message.setdefault("reasoning", []).append(
-                        pending_reasoning
-                    )
+                    out_message.setdefault("reasoning", []).append(pending_reasoning)
                     pending_reasoning = ""
 
             def flush_tool_calls():
@@ -182,12 +180,11 @@ async def complete_chat(
                     logging.debug(f"Skipping malformed chunk: {data_str}")
                     continue
 
-                if "usage" in data:
-                    if usage:
-                        u = data["usage"]
-                        usage.total_tokens = u["total_tokens"]
-                        usage.input_tokens = u["prompt_tokens"]
-                        usage.output_tokens = u["completion_tokens"]
+                if usage and data.get("usage"):
+                    u = data["usage"]
+                    usage.total_tokens = u["total_tokens"]
+                    usage.input_tokens = u["prompt_tokens"]
+                    usage.output_tokens = u["completion_tokens"]
 
                 for choice in data.get("choices", []):
                     delta = choice.get("delta", {})
@@ -195,6 +192,7 @@ async def complete_chat(
 
                     # Accumulate reasoning deltas
                     reasoning_details = delta.get("reasoning_details")
+                    reasoning_content = delta.get("reasoning_content")
                     if reasoning_details:
                         assert isinstance(reasoning_details, list)
                         for reasoning_detail in reasoning_details:
@@ -203,6 +201,8 @@ async def complete_chat(
                         out_message.setdefault("reasoning_details", []).extend(
                             reasoning_details
                         )
+                    elif reasoning_content:
+                        pending_reasoning += reasoning_content
 
                     # Accumulate tool call deltas
                     tool_calls = delta.get("tool_calls")

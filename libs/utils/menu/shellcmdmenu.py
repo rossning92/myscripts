@@ -27,9 +27,16 @@ class ShellCmdMenu(Menu):
         prompt: str = "",
         raise_on_interrupt: bool = False,
         cwd: Optional[str] = None,
+        close_on_failure: bool = False,
         **kwargs,
     ):
-        super().__init__(prompt=prompt, search_mode=False, line_number=False, follow=True, **kwargs)
+        super().__init__(
+            prompt=prompt,
+            search_mode=False,
+            line_number=False,
+            follow=True,
+            **kwargs,
+        )
 
         self.__command = command
         self.__cwd = cwd
@@ -40,6 +47,7 @@ class ShellCmdMenu(Menu):
         self.__process: Optional[subprocess.Popen] = None
         self.__raise_on_interrupt = raise_on_interrupt
         self.__interrupted = False
+        self.__close_on_failure = close_on_failure
 
         self.__thread = Thread(target=self.__shell_cmd_thread)
         self.__spinner = cycle(["|", "/", "-", "\\"])
@@ -77,7 +85,10 @@ class ShellCmdMenu(Menu):
             self.__exception = e
 
     def on_escape_pressed(self):
-        self.__send_ctrl_c()
+        if not self.__thread.is_alive():
+            self.close()
+        else:
+            self.__send_ctrl_c()
 
     def on_keyboard_interrupt(self):
         self.__send_ctrl_c()
@@ -86,12 +97,16 @@ class ShellCmdMenu(Menu):
         if not self.__thread.is_alive():
             if self.__exception is not None:
                 raise self.__exception
-            self.close()
+            if self.__close_on_failure or self.get_returncode() == 0:
+                self.close()
+            else:
+                ret = self.get_returncode()
+                self.set_prompt(f"[exit {ret}] {self.__prompt}")
         else:
             self.__update_prompt()
 
     def on_enter_pressed(self):
-        if self.__process and self.__process.stdin:
+        if self.__process and self.__process.stdin and self.__process.poll() is None:
             self.__process.stdin.write(self.get_input().encode() + b"\n")
             self.clear_input()
 
