@@ -763,6 +763,9 @@ class Menu(Generic[T]):
     def get_input(self) -> str:
         return self.__input.text
 
+    def get_prompt(self) -> str:
+        return self.__input.prompt
+
     def set_prompt(self, prompt: str):
         self.__input.prompt = prompt
         self.update_screen()
@@ -1695,18 +1698,19 @@ class Menu(Generic[T]):
 
             # Draw line number / quick select label
             if self.__line_number:
-                line_number_fg = _to_curses_color("brightblack")
-                line_number_text = (
-                    self.__get_quick_select_label(matched_item_index)
-                    if self.__quick_select
-                    else self.get_line_number_text(item_index)
-                )
+                if self.__quick_select:
+                    line_number_text = self.__get_quick_select_label(
+                        matched_item_index
+                    )
+                    gutter_fg = -1
+                else:
+                    line_number_text = self.get_line_number_text(item_index)
+                    gutter_fg = _to_curses_color("brightblack")
                 self.__draw_text(
                     item_y,
                     0,
                     line_number_text.rjust(line_number_width) + (" " * GUTTER_SIZE),
-                    fg=line_number_fg,
-                    reverse=is_item_selected,
+                    fg=gutter_fg,
                     ymax=item_y_max,
                 )
 
@@ -1718,8 +1722,7 @@ class Menu(Generic[T]):
                         y,
                         0,
                         " " * (line_number_width + GUTTER_SIZE),
-                        fg=line_number_fg,
-                        reverse=is_item_selected,
+                        fg=gutter_fg,
                         ymax=item_y_max,
                     )
 

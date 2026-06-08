@@ -152,16 +152,20 @@ class RepoMenu(Menu[Repo]):
         self._last_refresh_time = 0.0
         self._refresh_thread: Optional[threading.Thread] = None
         self._refresh()
-        self.add_command(self._sync, hotkey="ctrl+s", name="Sync (pull+push)")
-        self.add_command(self._amend_and_sync, hotkey="alt+a", name="Amend+sync")
-        self.add_command(self._commit_and_sync, hotkey="alt+c", name="Commit+sync")
-        self.add_command(self._refresh, hotkey="ctrl+r", name="Refresh")
+        self.add_command(self._sync, hotkey="ctrl+s", name="sync (pull+push)")
+        self.add_command(self._amend_and_sync, hotkey="alt+a", name="amend+sync")
+        self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
+        self.add_command(self._refresh, hotkey="ctrl+r", name="refresh")
 
     def get_item_text(self, item: Repo) -> str:
         vcs_info = item.vcs_info
         if vcs_info:
-            return f"{item.display_path:<20}  {vcs_info}"
+            width = self._max_path_width()
+            return f"{item.display_path:<{width}}  {vcs_info}"
         return item.display_path
+
+    def _max_path_width(self) -> int:
+        return max(len(item.display_path) for item in self.items)
 
     def get_item_color(self, item: Repo) -> str:
         if not item.vcs:

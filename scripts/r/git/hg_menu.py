@@ -2,6 +2,7 @@ import os
 import subprocess
 
 from utils.menu.diffmenu import DiffMenu
+from utils.menu.shellcmdmenu import ShellCmdMenu
 
 from git.vcs_menu import VcsDiffMenu
 
@@ -16,7 +17,7 @@ def _hg(*args):
 
 
 class HgMenu(VcsDiffMenu):
-    _HOTKEY_HINTS = "--- [^a]diff all [^d]discard [^r]refresh ---"
+    _HOTKEY_HINTS = "--- [^a]diff all [^d]discard [!c]commit [^r]refresh ---"
 
     def _get_status_items(self):
         status = _hg("status")
@@ -27,7 +28,7 @@ class HgMenu(VcsDiffMenu):
         return items, True
 
     def _get_vcs_prompt(self, is_clean):
-        repo_name = os.path.basename(os.getcwd())
+        repo_name = self._repo_display_name()
         bookmark = _hg("log", "-r", ".", "--template", "{activebookmark}")
         if not bookmark:
             bookmark = _hg("log", "-r", ".", "--template", "{branch}") or "?"
@@ -68,6 +69,11 @@ class HgMenu(VcsDiffMenu):
         else:
             subprocess.run(["hg", "revert", "--no-backup", "--", filename])
 
+    def _commit_files(self, filenames, message):
+        cmds = [["hg", "add", "--"] + filenames, ["hg", "commit", "-m", message, "--"] + filenames]
+        shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in cmds)
+        ShellCmdMenu(shell_cmd).exec()
+
     def __build_diff_cmd(self, *extra_args):
         cmd = [
             "hg",
@@ -85,7 +91,7 @@ class HgMenu(VcsDiffMenu):
             diff_cmd = self.__build_diff_cmd("-c", ".")
         else:
             diff_cmd = self.__build_diff_cmd()
-        DiffMenu(root=os.getcwd(), diff_cmd=diff_cmd).exec()
+        DiffMenu(root=os.getcwd(), diff_cmd=diff_cmd, prompt_prefix=self.get_prompt()).exec()
 
     def on_item_selected(self, item):
         filename = self._get_filename(item)
@@ -103,7 +109,7 @@ class HgMenu(VcsDiffMenu):
             ]
         else:
             diff_cmd = self.__build_diff_cmd("--", filename)
-        DiffMenu(root=os.getcwd(), diff_cmd=diff_cmd).exec()
+        DiffMenu(root=os.getcwd(), diff_cmd=diff_cmd, prompt_prefix=self.get_prompt()).exec()
 
 
 if __name__ == "__main__":

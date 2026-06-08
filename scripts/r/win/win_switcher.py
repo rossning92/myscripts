@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 from utils.menu import Menu
 from utils.notify import get_notifications
@@ -34,6 +34,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.__auto_refresh_enabled = True
         self.__auto_refresh_last_time = 0.0
         self.script_status: Dict[str, str] = {}
+        self.__visited_done: Set[str] = set()
         self.add_command(self.__refresh_windows, hotkey="ctrl+r")
         self.add_command(self.__close_windows, hotkey="delete")
         self.add_command(self.__close_windows, hotkey="ctrl+k")
@@ -48,6 +49,11 @@ class WinSwitcherMenu(Menu[WindowItem]):
             if isinstance(n, dict) and isinstance(n.get("app"), str)
         }
         self.items = get_windows(script_status=self.script_status)
+
+        current_done_titles = {
+            w.title for w in self.items if w.get_status(self.script_status) == "done"
+        }
+        self.__visited_done &= current_done_titles
 
         if message:
             self.set_message(message)
@@ -97,6 +103,8 @@ class WinSwitcherMenu(Menu[WindowItem]):
         selected = self.get_selected_item()
         if selected:
             self.__activate_window(selected.id)
+            if selected.get_status(self.script_status) == "done":
+                self.__visited_done.add(selected.title)
 
     def on_focus_gained(self):
         self.__refresh_windows()
@@ -117,6 +125,12 @@ class WinSwitcherMenu(Menu[WindowItem]):
 
     def on_escape_pressed(self):
         self.clear_input()
+
+    def get_item_text(self, item: WindowItem) -> str:
+        status = item.get_status(self.script_status)
+        if status == "done" and item.title not in self.__visited_done:
+            return "● " + item.title
+        return item.title
 
     def get_item_color(self, item: WindowItem) -> str:
         status = item.get_status(self.script_status)

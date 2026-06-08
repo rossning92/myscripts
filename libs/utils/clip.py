@@ -232,7 +232,7 @@ def get_clip() -> str:
                 universal_newlines=True,
                 stderr=subprocess.DEVNULL,
             )
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return ""
 
 

@@ -2,6 +2,8 @@
 
 vim.loader.enable() -- Cache Lua bytecode to speed up require()
 
+pcall(require, 'local')
+
 vim.wo.relativenumber = true
 vim.wo.number = true
 vim.g.mapleader = " "
@@ -14,6 +16,11 @@ vim.opt.messagesopt = "wait:1000,history:500"
 vim.g.loaded_netrw = 1         -- built-in file explorer (replaced by telescope)
 vim.g.loaded_netrwPlugin = 1   -- netrw's plugin wrapper
 vim.g.loaded_matchit = 1       -- extended % matching for HTML tags, if/else, etc.
+vim.g.loaded_tarPlugin = 1
+vim.g.loaded_zipPlugin = 1
+vim.g.loaded_gzip = 1
+vim.g.loaded_2html_plugin = 1
+vim.g.loaded_tutor_mode_plugin = 1
 
 -- Better up/down movement
 vim.keymap.set('n', '<up>', "v:count == 0 ? 'gk' : 'k'", { expr = true, silent = true })

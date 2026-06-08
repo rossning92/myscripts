@@ -1,9 +1,8 @@
 import os
-from datetime import datetime
+from datetime import date
 from pathlib import Path
 from platform import platform
 from typing import Optional
-
 
 def get_global_config_path() -> Optional[Path]:
     if path := os.getenv("AI_CONFIG_ROOT"):
@@ -16,5 +15,5 @@ def get_env_info() -> str:
 
 Platform: {platform()}
 Current working directory: {os.getcwd()}
-Current date and time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Today's date: {date.today().isoformat()}
 """

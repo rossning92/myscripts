@@ -116,7 +116,13 @@ async def complete_chat(
         "stream": True,
     }
     if system_prompt:
-        payload["system"] = system_prompt
+        payload["system"] = [
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
     if tools:
         payload["tools"] = [
             {
@@ -159,6 +165,8 @@ async def complete_chat(
                         u = data["message"]["usage"]
                         usage.input_tokens += u["input_tokens"]
                         usage.output_tokens += u["output_tokens"]
+                        usage.cache_creation_input_tokens += u.get("cache_creation_input_tokens", 0)
+                        usage.cache_read_input_tokens += u.get("cache_read_input_tokens", 0)
                         usage.total_tokens = usage.input_tokens + usage.output_tokens
 
                 elif data["type"] == "message_delta":

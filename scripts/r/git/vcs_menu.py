@@ -4,7 +4,12 @@ import time
 from typing import List, Optional, Tuple
 
 from utils.menu.confirmmenu import confirm
+from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
+
+
+def _default_commit_message(filenames: List[str]) -> str:
+    return "update " + ", ".join(os.path.basename(f) for f in filenames)
 
 
 class VcsDiffMenu(Menu):
@@ -20,6 +25,7 @@ class VcsDiffMenu(Menu):
         self.add_command(self._refresh, hotkey="ctrl+r")
         self.add_command(self._diff_all, hotkey="ctrl+a")
         self.add_command(self.__discard, hotkey="ctrl+d")
+        self.add_command(self.__commit_selected, hotkey="alt+c", name="commit selected")
         self._init_extra_commands()
         self.set_prompt(os.path.basename(os.getcwd()))
         self._refresh()
@@ -30,6 +36,9 @@ class VcsDiffMenu(Menu):
     def _get_status_items(self) -> Tuple[List[str], bool]:
         raise NotImplementedError
 
+    def _repo_display_name(self) -> str:
+        return os.getcwd().replace(os.path.expanduser("~"), "~", 1)
+
     def _get_vcs_prompt(self, is_clean: bool) -> str:
         raise NotImplementedError
 
@@ -37,6 +46,9 @@ class VcsDiffMenu(Menu):
         raise NotImplementedError
 
     def _discard_file(self, item: str, filename: str) -> None:
+        raise NotImplementedError
+
+    def _commit_files(self, filenames: List[str], message: str) -> None:
         raise NotImplementedError
 
     def _diff_all(self) -> None:
@@ -70,6 +82,21 @@ class VcsDiffMenu(Menu):
     def on_idle(self) -> None:
         if time.monotonic() - self.__last_refresh_time >= 10:
             self._refresh()
+
+    def __commit_selected(self) -> None:
+        items = list(self.get_selected_items())
+        if not items:
+            return
+        filenames = [self._get_filename(item) for item in items]
+        label = f"Commit {len(filenames)} file(s) (empty=default msg)"
+        menu = InputMenu(prompt=label, prompt_color="green")
+        message = menu.request_input()
+        if message is None:
+            return
+        if not message.strip():
+            message = _default_commit_message(filenames)
+        self._commit_files(filenames, message)
+        self._refresh()
 
     def __discard(self) -> None:
         items = list(self.get_selected_items())

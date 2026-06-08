@@ -73,6 +73,7 @@ class DiffMenu(TextMenu):
         files: Optional[List[Tuple[str, str]]] = None,
         git_args: Optional[List[str]] = None,
         diff_cmd: Optional[List[str]] = None,
+        prompt_prefix: str = "",
         **kwargs,
     ):
         self.__root = root
@@ -85,8 +86,9 @@ class DiffMenu(TextMenu):
         lines = self.__generate_diff_lines()
         self.__diff_lines = [strip_ansi(line) for line in lines]
 
+        prompt = f"{prompt_prefix} > diff" if prompt_prefix else "diff"
         super().__init__(
-            prompt="diff",
+            prompt=prompt,
             text="\n".join(lines) if lines else "(no diff)",
             wrap_text=False,
             line_number=False,

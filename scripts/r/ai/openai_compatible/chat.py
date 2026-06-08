@@ -185,6 +185,7 @@ async def complete_chat(
                     usage.total_tokens = u["total_tokens"]
                     usage.input_tokens = u["prompt_tokens"]
                     usage.output_tokens = u["completion_tokens"]
+                    usage.cache_read_input_tokens = u.get("prompt_cache_hit_tokens", 0)
 
                 for choice in data.get("choices", []):
                     delta = choice.get("delta", {})

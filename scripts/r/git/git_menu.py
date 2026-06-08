@@ -2,12 +2,13 @@ import os
 import subprocess
 
 from utils.menu.diffmenu import DiffMenu
+from utils.menu.shellcmdmenu import ShellCmdMenu
 
 from git.vcs_menu import VcsDiffMenu
 
 
 class GitMenu(VcsDiffMenu):
-    _HOTKEY_HINTS = "--- [^a]diff all [^s]stage [^u]unstage [^d]discard [^r]refresh ---"
+    _HOTKEY_HINTS = "--- [^a]diff all [^s]stage [^u]unstage [^d]discard [!c]commit [^r]refresh ---"
 
     def _init_extra_commands(self):
         self.add_command(self.__stage, hotkey="ctrl+s")
@@ -38,7 +39,7 @@ class GitMenu(VcsDiffMenu):
             return [], False
 
     def _get_vcs_prompt(self, is_clean):
-        repo_name = os.path.basename(os.getcwd())
+        repo_name = self._repo_display_name()
         try:
             branch = subprocess.check_output(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
@@ -102,12 +103,17 @@ class GitMenu(VcsDiffMenu):
             subprocess.run(["git", "reset", "HEAD", "--", filename])
         self._refresh()
 
+    def _commit_files(self, filenames, message):
+        cmds = [["git", "add", "--"] + filenames, ["git", "commit", "-m", message]]
+        shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in cmds)
+        ShellCmdMenu(shell_cmd).exec()
+
     def _diff_all(self):
         if self._is_clean:
             git_args = ["HEAD~1", "HEAD"]
         else:
             git_args = []
-        DiffMenu(git_args=git_args).exec()
+        DiffMenu(git_args=git_args, prompt_prefix=self.get_prompt()).exec()
 
     def on_item_selected(self, item):
         filename = self._get_filename(item)
@@ -117,7 +123,7 @@ class GitMenu(VcsDiffMenu):
             git_args = ["--no-index", os.devnull, filename]
         else:
             git_args = [filename]
-        DiffMenu(git_args=git_args).exec()
+        DiffMenu(git_args=git_args, prompt_prefix=self.get_prompt()).exec()
 
 
 if __name__ == "__main__":
