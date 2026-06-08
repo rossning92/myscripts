@@ -49,7 +49,9 @@ def parse_datetime(text: str) -> datetime:
         "^"
         r"(?:(?P<year>\d{2,4})[-/])?"
         r"(?:(?P<month>\d{1,2})[-/](?P<day>\d{1,2}))?"
-        r"(?:\s+(?P<hour>\d{1,2})(?::(?P<minute>\d{1,2}))?(?P<ampm>am|pm)?)?"
+        r"(?:\s+(?P<hour>\d{1,2})"
+        r"(?::(?P<minute>\d{1,2})(?::(?P<second>\d{1,2}))?)?"
+        r"(?P<ampm>am|pm)?)?"
         "$",
         text_lower,
     )
@@ -60,6 +62,7 @@ def parse_datetime(text: str) -> datetime:
         day = int(match.group("day") or now.day)
         hour = int(match.group("hour") or 0)
         minute = int(match.group("minute") or 0)
+        second = int(match.group("second") or 0)
         ampm = match.group("ampm")
 
         # Adjust hour for AM/PM if specified
@@ -70,7 +73,7 @@ def parse_datetime(text: str) -> datetime:
                 hour = 0
 
         try:
-            return datetime(year, month, day, hour, minute)
+            return datetime(year, month, day, hour, minute, second)
         except ValueError as e:
             raise ValueError(f"Invalid date/time: {text}") from e
 

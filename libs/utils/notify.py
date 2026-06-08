@@ -63,7 +63,10 @@ def send_notify(
                 check=True,
             )
         elif is_linux():
-            subprocess.run(["notify-send", app, text], check=True)
+            try:
+                subprocess.run(["notify-send", app, text], check=True)
+            except FileNotFoundError:
+                pass
         elif is_windows():
             script_path = (
                 Path(get_my_script_root()) / "scripts" / "ext" / "send_notification.ps1"
