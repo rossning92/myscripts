@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Remote Open</title>
+</head>
+<body>
+<h2>Remote Open <span id="status">(connecting...)</span></h2>
+<div id="empty">waiting for files ...</div>
+<ul id="list"></ul>
+<div id="popup-warning" style="display:none;color:red">
+    Pop-ups blocked - please allow pop-ups for this site
+</div>
+<script>
+const items = [];
+const seen = new Set();
+let isReplay = true;
+
+function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function itemUrl(it) {
+    return it.type === "url" ? it.path : "/view.html?id=" + it.id;
+}
+
+function render() {
+    document.getElementById("empty").style.display = items.length ? "none" : "block";
+    document.getElementById("list").innerHTML = items
+        .map(
+            (it) =>
+                "<li><a href=\"" + esc(itemUrl(it)) + '" target="_blank">' +
+                esc(it.name) + "</a> <small>" + it.time + "</small></li>"
+        )
+        .join("");
+}
+
+function addItem(it) {
+    if (seen.has(it.id)) return;
+    seen.add(it.id);
+    items.unshift(it);
+    render();
+
+    if (!isReplay) {
+        var w = window.open(itemUrl(it), "_blank");
+        if (!w || w.closed) {
+            document.getElementById("popup-warning").style.display = "block";
+        }
+    }
+}
+
+function connect() {
+    isReplay = true;
+    var es = new EventSource("/api/events");
+    var st = document.getElementById("status");
+    es.onopen = function () {
+        st.textContent = "(connected)";
+        setTimeout(function () { isReplay = false; }, 500);
+    };
+    es.onerror = function () {
+        st.textContent = "(disconnected - reconnecting...)";
+        es.close();
+        setTimeout(function () { location.reload(); }, 2000);
+    };
+    es.onmessage = function (e) { addItem(JSON.parse(e.data)); };
+}
+connect();
+</script>
+</body>
+</html>

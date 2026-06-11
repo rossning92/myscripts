@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Loading...</title>
+</head>
+<body>
+<div id="path"></div>
+<div id="viewer"></div>
+<script>
+var IMG = ["png","jpg","jpeg","gif","webp","svg","bmp","ico","tiff"];
+var VID = ["mp4","webm","mov","avi","mkv"];
+var AUD = ["mp3","wav","ogg","flac","aac"];
+
+function ext(name) {
+    var parts = name.split(".");
+    return parts.length > 1 ? parts.pop().toLowerCase() : "";
+}
+
+function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+var id = new URLSearchParams(location.search).get("id");
+if (id) {
+    fetch("/api/item/" + id)
+        .then(function (r) { return r.json(); })
+        .then(function (it) {
+            document.title = it.name;
+            document.getElementById("path").textContent = it.path;
+
+            var v = document.getElementById("viewer");
+            var e = ext(it.name);
+            var src = "/api/file" + it.path;
+
+            if (IMG.indexOf(e) >= 0) {
+                v.innerHTML = '<img src="' + src + '">';
+            } else if (VID.indexOf(e) >= 0) {
+                v.innerHTML = '<video controls src="' + src + '"></video>';
+            } else if (AUD.indexOf(e) >= 0) {
+                v.innerHTML = '<audio controls src="' + src + '"></audio>';
+            } else if (e === "pdf") {
+                v.innerHTML = '<iframe src="' + src + '" style="width:100%;height:90vh;border:none"></iframe>';
+            } else {
+                fetch(src)
+                    .then(function (r) { return r.text(); })
+                    .then(function (t) { v.innerHTML = "<pre>" + esc(t) + "</pre>"; });
+            }
+        });
+}
+</script>
+</body>
+</html>
