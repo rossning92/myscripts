@@ -255,7 +255,7 @@ class _MyScriptMenu(Menu[Script]):
         self.add_command(self._run_script_local)
         self.add_command(self._run_script_background)
         self.add_command(self._reload_scripts, hotkey="ctrl+r")
-        self.add_command(self._reload, hotkey="alt+l")
+        self.add_command(self._reload, hotkey="alt+r")
         self.add_command(self._rename_script, hotkey="alt+n")
         self.add_command(self._rename_script_replace_all)
         self.add_command(self._set_cmdline_args, hotkey="alt+a")

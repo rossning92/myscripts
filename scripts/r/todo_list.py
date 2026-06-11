@@ -369,8 +369,7 @@ def _get_todo_str(item: TodoItem) -> str:
 
     return "\n".join(
         [
-            "<todo-item>",
-            f"ID: {item.get('id', 0)}",
+            f"<todo-item id=\"{item.get('id', 0)}\">",
             f"Status: {item.get('status', 'None')}",
             f"Due: {due_str}",
             desc_str,

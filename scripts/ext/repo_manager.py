@@ -12,7 +12,7 @@ from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
 _MODULE_NAME = os.path.splitext(os.path.basename(__file__))[0]
-_HOTKEY_HINTS = "--- [!c]commit+sync [!a]amend+sync [^r]refresh [^s]sync ---"
+_HOTKEY_HINTS = "--- [!c]commit+sync [!a]amend+sync [!p]push [^r]refresh [^s]sync ---"
 
 
 def _run_vcs(path: str, cmd: str, *args: str) -> Optional[str]:
@@ -155,6 +155,7 @@ class RepoMenu(Menu[Repo]):
         self.add_command(self._sync, hotkey="ctrl+s", name="sync (pull+push)")
         self.add_command(self._amend_and_sync, hotkey="alt+a", name="amend+sync")
         self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
+        self.add_command(self._push, hotkey="alt+p", name="push")
         self.add_command(self._refresh, hotkey="ctrl+r", name="refresh")
 
     def get_item_text(self, item: Repo) -> str:
@@ -237,6 +238,15 @@ class RepoMenu(Menu[Repo]):
                 ["hg", "amend"],
                 ["hg", "push"],
             )
+
+    def _push(self):
+        repo = self.get_selected_item()
+        if repo is None:
+            return
+        if repo.is_git:
+            self._run_cmds(["git", "push"])
+        elif repo.is_hg:
+            self._run_cmds(["hg", "push"])
 
     def _commit_and_sync(self):
         repo = self.get_selected_item()

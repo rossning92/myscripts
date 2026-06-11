@@ -4,7 +4,6 @@ import platform
 import re
 import shutil
 import tempfile
-import time
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import List, Optional
@@ -25,13 +24,6 @@ class ScriptDirectory:
 def get_script_dirs_config_file():
     config_json_file = os.path.join(get_data_dir(), "script_directories.json")
     return config_json_file
-
-
-def _wait_until_exists(path: str):
-    if not os.path.exists(path):
-        logging.info(f"Waiting for directory to become available: {path} ...")
-        while not os.path.exists(path):
-            time.sleep(1)
 
 
 @lru_cache(maxsize=None)
@@ -82,7 +74,9 @@ def get_script_directories() -> List[ScriptDirectory]:
                 )
             )
 
-        _wait_until_exists(directory)
+        if not os.path.isdir(directory):
+            logging.warning(f"Script directory does not exist, skipping: {directory}")
+            continue
 
         directories.append(ScriptDirectory(name=name, path=directory))
 

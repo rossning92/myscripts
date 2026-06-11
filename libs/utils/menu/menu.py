@@ -530,6 +530,7 @@ class Menu(Generic[T]):
             self.add_command(self.__goto, hotkey="ctrl+g")
             self.add_command(self.__logs, hotkey="alt+l")
             self.add_command(self.__prev_search_history, hotkey="alt+u")
+            self.add_command(self.__reload_script, hotkey="alt+r")
             self.add_command(self.__select_all)
             self.add_command(self.__toggle_multi_select, hotkey="ctrl+x")
             self.add_command(self.__toggle_wrap, hotkey="alt+z")
@@ -565,6 +566,10 @@ class Menu(Generic[T]):
 
     def __logs(self):
         _logging_menu.exec()
+
+    @staticmethod
+    def __reload_script():
+        os.execl(sys.executable, sys.executable, *sys.argv)
 
     @staticmethod
     def __setup_logging():
@@ -1989,7 +1994,7 @@ class Menu(Generic[T]):
 
     def __get_selected_lines(self) -> str:
         selected_items = self.get_selected_items()
-        return "\n".join([str(x) for x in selected_items])
+        return "\n".join([self.get_item_metadata(x) for x in selected_items])
 
     def ask_ai(self, extra_args: Optional[List[str]] = None):
         selected_items = self.get_selected_items()

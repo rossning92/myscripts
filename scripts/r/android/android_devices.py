@@ -13,6 +13,7 @@ class DeviceInfo:
     serial: str
     product_name: str
     battery_level: Optional[int]
+    wakefulness: Optional[str]
     key: Optional[str]
     is_current: bool
 
@@ -55,6 +56,7 @@ def _update_device_list(
                             serial=parts[0],
                             product_name=info.get("product", "n/a"),
                             battery_level=None,
+                            wakefulness=None,
                             key=None,
                             is_current=parts[0] == current_serial,
                         )
@@ -69,6 +71,14 @@ def _update_device_list(
                         used_keys.add(ch)
                         break
 
+            existing = {d.serial: d for d in devices}
+            for device in new_devices:
+                old = existing.get(device.serial)
+                if old:
+                    device.battery_level = old.battery_level
+                    device.wakefulness = old.wakefulness
+                else:
+                    _refresh_device_status(device)
             devices[:] = new_devices
 
     except Exception:
@@ -82,7 +92,47 @@ def _update_device_list(
                 proc.kill()
 
 
-def _update_battery_levels(
+def _query_battery_level(serial: str) -> Optional[int]:
+    try:
+        res = subprocess.run(
+            ["adb", "-s", serial, "shell", "dumpsys battery"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if res.returncode == 0:
+            for line in res.stdout.splitlines():
+                if "level:" in line:
+                    return int(line.split(":")[1].strip())
+    except Exception:
+        pass
+    return None
+
+
+def _query_wakefulness(serial: str) -> Optional[str]:
+    try:
+        res = subprocess.run(
+            ["adb", "-s", serial, "shell", "dumpsys power"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if res.returncode == 0:
+            for line in res.stdout.splitlines():
+                line = line.strip()
+                if line.startswith("mWakefulness="):
+                    return line.split("=", 1)[1]
+    except Exception:
+        pass
+    return None
+
+
+def _refresh_device_status(device: DeviceInfo):
+    device.battery_level = _query_battery_level(device.serial)
+    device.wakefulness = _query_wakefulness(device.serial)
+
+
+def _poll_device_status(
     devices: List[DeviceInfo],
     stop_event: threading.Event,
 ):
@@ -90,20 +140,7 @@ def _update_battery_levels(
         for device in list(devices):
             if stop_event.is_set():
                 break
-            try:
-                res = subprocess.run(
-                    ["adb", "-s", device.serial, "shell", "dumpsys battery"],
-                    capture_output=True,
-                    text=True,
-                    timeout=2,
-                )
-                if res.returncode == 0:
-                    for line in res.stdout.splitlines():
-                        if "level:" in line:
-                            device.battery_level = int(line.split(":")[1].strip())
-                            break
-            except Exception:
-                pass
+            _refresh_device_status(device)
         stop_event.wait(10)
 
 
@@ -119,18 +156,20 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
         )
         self.__device_update_thread.start()
 
-        self.__battery_update_thread = threading.Thread(
-            target=lambda: _update_battery_levels(self.__devices, self.__stop_event),
+        self.__status_update_thread = threading.Thread(
+            target=lambda: _poll_device_status(self.__devices, self.__stop_event),
             daemon=True,
         )
-        self.__battery_update_thread.start()
+        self.__status_update_thread.start()
 
         super().__init__(items=self.__devices, prompt="devices")
+
+        self.add_command(self.__toggle_sleep, hotkey="alt+s")
 
     def on_exit(self):
         self.__stop_event.set()
         self.__device_update_thread.join()
-        self.__battery_update_thread.join()
+        self.__status_update_thread.join()
 
     def on_char(self, ch: int | str) -> bool:
         if ch == "0":
@@ -149,7 +188,8 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
 
     def get_item_text(self, item: DeviceInfo) -> str:
         bat = f"{item.battery_level:>3}%" if item.battery_level is not None else "n/a"
-        s = f"[{item.key}] {item.product_name:<12} {item.serial:<15}  bat={bat}"
+        wake = item.wakefulness or "n/a"
+        s = f"[{item.key}] {item.product_name:<12} {item.serial:<15}  bat={bat}  {wake}"
         return s
 
     def get_item_color(self, item: DeviceInfo) -> str:
@@ -157,6 +197,20 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
             return "green"
         else:
             return super().get_item_color(item)
+
+    def __toggle_sleep(self):
+        device = self.get_selected_item()
+        if device is None:
+            return
+
+        def do_toggle():
+            subprocess.run(
+                ["adb", "-s", device.serial, "shell", "input", "keyevent", "KEYCODE_POWER"],
+                timeout=5,
+            )
+            _refresh_device_status(device)
+
+        threading.Thread(target=do_toggle, daemon=True).start()
 
     def on_idle(self):
         self.update_screen()

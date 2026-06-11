@@ -35,10 +35,24 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.__auto_refresh_last_time = 0.0
         self.script_status: Dict[str, str] = {}
         self.__visited_done: Set[str] = set()
+        self.__pinned: Set[str] = set()
         self.add_command(self.__refresh_windows, hotkey="ctrl+r")
         self.add_command(self.__close_windows, hotkey="delete")
         self.add_command(self.__close_windows, hotkey="ctrl+k")
+        self.add_command(self.__toggle_pin, hotkey="ctrl+t", name="pin/unpin")
 
+        self.__refresh_windows()
+
+    def __toggle_pin(self):
+        selected = self.get_selected_item(ignore_cancellation=True)
+        if not selected:
+            return
+        if selected.title in self.__pinned:
+            self.__pinned.discard(selected.title)
+            self.set_message("unpinned")
+        else:
+            self.__pinned.add(selected.title)
+            self.set_message("pinned")
         self.__refresh_windows()
 
     def __refresh_windows(self, message: Optional[str] = None):
@@ -49,6 +63,9 @@ class WinSwitcherMenu(Menu[WindowItem]):
             if isinstance(n, dict) and isinstance(n.get("app"), str)
         }
         self.items = get_windows(script_status=self.script_status)
+        self.items.sort(
+            key=lambda w: (0 if w.title in self.__pinned else 1,)
+        )
 
         current_done_titles = {
             w.title for w in self.items if w.get_status(self.script_status) == "done"
@@ -127,12 +144,16 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.clear_input()
 
     def get_item_text(self, item: WindowItem) -> str:
+        if item.title in self.__pinned:
+            return "★ " + item.title
         status = item.get_status(self.script_status)
         if status == "done" and item.title not in self.__visited_done:
             return "● " + item.title
         return item.title
 
     def get_item_color(self, item: WindowItem) -> str:
+        if item.title in self.__pinned:
+            return "cyan"
         status = item.get_status(self.script_status)
         return _STATUS_COLOR_MAPPING.get(status, "white")
 
