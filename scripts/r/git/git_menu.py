@@ -100,7 +100,11 @@ class GitMenu(VcsDiffMenu):
     def __unstage(self):
         for item in self.get_selected_items():
             filename = self._get_filename(item)
-            subprocess.run(["git", "reset", "HEAD", "--", filename])
+            subprocess.run(
+                ["git", "reset", "HEAD", "--", filename],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         self._refresh()
 
     def _commit_files(self, filenames, message):

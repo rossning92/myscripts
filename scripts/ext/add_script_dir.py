@@ -16,7 +16,7 @@ if __name__ == "__main__":
         prefix = args.prefix
     else:
         script_dir_path = FileMenu(
-            prompt="select script dir", prompt_color="green"
+            prompt="Select script dir", prompt_color="green"
         ).select_directory()
         if not script_dir_path:
             exit(0)

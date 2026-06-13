@@ -12,6 +12,12 @@ vim.opt.clipboard = "unnamedplus" -- Use system clipboard
 vim.opt.termguicolors = true
 vim.opt.mouse = ""                -- Disable mouse
 vim.opt.messagesopt = "wait:1000,history:500"
+vim.opt.ignorecase = true
+vim.opt.smartcase = true
+vim.opt.incsearch = true
+vim.opt.hlsearch = true
+
+vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 vim.g.loaded_netrw = 1         -- built-in file explorer (replaced by telescope)
 vim.g.loaded_netrwPlugin = 1   -- netrw's plugin wrapper

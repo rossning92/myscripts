@@ -530,7 +530,7 @@ class Menu(Generic[T]):
             self.add_command(self.__goto, hotkey="ctrl+g")
             self.add_command(self.__logs, hotkey="alt+l")
             self.add_command(self.__prev_search_history, hotkey="alt+u")
-            self.add_command(self.__reload_script, hotkey="alt+r")
+            self.add_command(self.__reload_menu, hotkey="alt+r")
             self.add_command(self.__select_all)
             self.add_command(self.__toggle_multi_select, hotkey="ctrl+x")
             self.add_command(self.__toggle_wrap, hotkey="alt+z")
@@ -552,9 +552,10 @@ class Menu(Generic[T]):
         if quick_select:
             self.__line_number = True
             for i in range(26):
-                self.add_command(
-                    lambda i=i: self._select_by_shortcut_index(9 + i),
-                    hotkey=f"alt+{chr(ord('a') + i)}",
+                hotkey = f"alt+{chr(ord('a') + i)}"
+                self.__hotkeys[hotkey] = _Command(
+                    hotkey=hotkey,
+                    func=lambda i=i: self._select_by_shortcut_index(9 + i),
                 )
 
     def __goto(self):
@@ -568,7 +569,8 @@ class Menu(Generic[T]):
         _logging_menu.exec()
 
     @staticmethod
-    def __reload_script():
+    def __reload_menu():
+        os.environ["_MENU_RELOADED"] = "1"
         os.execl(sys.executable, sys.executable, *sys.argv)
 
     @staticmethod
@@ -1370,6 +1372,8 @@ class Menu(Generic[T]):
 
     def _exec(self):
         self._reset_state()
+        if os.environ.pop("_MENU_RELOADED", None):
+            self.set_message("reloaded")
         self.update_screen()
         self.on_created()
         self.on_main_loop()

@@ -3,7 +3,7 @@ import re
 import subprocess
 import threading
 import time
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Set, Tuple, Union
 
 from _script import start_script
 
@@ -47,6 +47,72 @@ def _get_diff_line_info(diff_lines: List[str], index: int) -> Optional[Tuple[str
                     current_line += 1
             return filename, current_line
     return None
+
+
+def _is_section_start(line: str) -> bool:
+    # A new hunk ("@@ ...") or a new file ("diff --git ...") ends the current body.
+    return line.startswith("@@ ") or line.startswith("diff --git")
+
+
+def _build_stage_patch(diff_lines: List[str], selected: Set[int]) -> Optional[str]:
+    """Build a git patch containing only the selected +/- lines.
+
+    Unselected additions are dropped and unselected deletions become context
+    lines. so applying the patch with `git apply --cached` stages only the
+    changes the user picked. Returns None if the selection has no real change.
+    """
+    patch: List[str] = []
+    file_header: Optional[List[str]] = None
+    file_emitted = False
+    n = len(diff_lines)
+    i = 0
+    while i < n:
+        line = diff_lines[i]
+        if line.startswith("diff --git"):
+            file_header = [line]
+            i += 1
+            while i < n and not _is_section_start(diff_lines[i]):
+                file_header.append(diff_lines[i])
+                i += 1
+            file_emitted = False
+            continue
+        if line.startswith("@@ "):
+            hunk_header = line
+            i += 1
+            body: List[str] = []
+            has_change = False
+            while i < n and not _is_section_start(diff_lines[i]):
+                cur = diff_lines[i]
+                tag = cur[:1]
+                if tag == "+":
+                    if i in selected:
+                        body.append(cur)
+                        has_change = True
+                    # Unselected addition. drop it.
+                elif tag == "-":
+                    if i in selected:
+                        body.append(cur)
+                        has_change = True
+                    else:
+                        # Unselected deletion stays as context.
+                        body.append(" " + cur[1:])
+                elif tag == "\\":
+                    body.append(cur)  # "\ No newline at end of file" marker.
+                else:
+                    # Context line (leading space) or blank line.
+                    body.append(cur if cur else " ")
+                i += 1
+            if has_change:
+                if file_header is not None and not file_emitted:
+                    patch.extend(file_header)
+                    file_emitted = True
+                patch.append(hunk_header)
+                patch.extend(body)
+            continue
+        i += 1
+    if not patch:
+        return None
+    return "\n".join(patch) + "\n"
 
 
 def _run_diff_cmd(cmd: List[str]) -> List[str]:
@@ -96,6 +162,7 @@ class DiffMenu(TextMenu):
         )
 
         self.add_command(self.__edit_file, hotkey="ctrl+e")
+        self.add_command(self.__stage_lines, hotkey="ctrl+s")
         self.add_command(self.__refresh, hotkey="ctrl+r")
         self.add_command(self.__scroll_up, hotkey="ctrl+u")
         self.add_command(self.__scroll_down, hotkey="ctrl+d")
@@ -150,6 +217,40 @@ class DiffMenu(TextMenu):
 
     def __scroll_down(self):
         self._Menu__set_selection_by_offset(offset=10, multi_select=False)
+
+    def __stage_lines(self):
+        # Only working-tree git diffs can be staged. file/cmd comparisons,
+        # committed ranges (HEAD...) and untracked (--no-index) diffs can't.
+        if self.__files is not None or self.__diff_cmd is not None:
+            self.set_message("staging not supported for this diff")
+            return
+        if self.__git_args is not None and any(
+            a == "--no-index" or a.startswith("HEAD") for a in self.__git_args
+        ):
+            self.set_message("staging not supported for this diff")
+            return
+
+        selected = set(self.get_selected_indices())
+        if not selected:
+            return
+        patch = _build_stage_patch(self.__diff_lines, selected)
+        if patch is None:
+            self.set_message("no changes in selection to stage")
+            return
+
+        result = subprocess.run(
+            ["git", "apply", "--cached", "--recount", "--ignore-whitespace"],
+            input=patch.encode("utf-8"),
+            capture_output=True,
+            cwd=self.__root,
+        )
+        if result.returncode != 0:
+            err = result.stderr.decode("utf-8", errors="replace").strip()
+            self.set_message(f"stage failed: {err}")
+            return
+        self.set_message("staged selection")
+        self.set_multi_select(False)
+        self.__refresh()
 
     def __edit_file(self):
         index = self.get_selected_index()
