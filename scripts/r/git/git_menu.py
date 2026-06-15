@@ -8,11 +8,9 @@ from git.vcs_menu import VcsDiffMenu
 
 
 class GitMenu(VcsDiffMenu):
-    _HOTKEY_HINTS = "--- [^a]diff all [^s]stage [^u]unstage [^d]discard [!c]commit [^r]refresh ---"
-
     def _init_extra_commands(self):
-        self.add_command(self.__stage, hotkey="ctrl+s")
-        self.add_command(self.__unstage, hotkey="shift+u")
+        self.add_command(self.__stage, hotkey="ctrl+s", name="stage", pinned=True)
+        self.add_command(self.__unstage, hotkey="alt+u", name="unstage", pinned=True)
 
     def _get_status_items(self):
         try:
@@ -95,7 +93,7 @@ class GitMenu(VcsDiffMenu):
         for item in self.get_selected_items():
             filename = self._get_filename(item)
             subprocess.run(["git", "add", "--", filename])
-        self._refresh()
+        self._after_action()
 
     def __unstage(self):
         for item in self.get_selected_items():
@@ -105,10 +103,19 @@ class GitMenu(VcsDiffMenu):
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        self._refresh()
+        self._after_action()
 
-    def _commit_files(self, filenames, message):
-        cmds = [["git", "add", "--"] + filenames, ["git", "commit", "-m", message]]
+    def _resolve_commit_files(self, selected_filenames):
+        staged = subprocess.check_output(
+            ["git", "diff", "--cached", "--name-only"], text=True
+        ).splitlines()
+        if staged:
+            return staged, "staged", False
+        return selected_filenames, "selected", True
+
+    def _commit_files(self, filenames, message, *, stage):
+        cmds = [["git", "add", "--"] + filenames] if stage else []
+        cmds += [["git", "commit", "-m", message]]
         shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in cmds)
         ShellCmdMenu(shell_cmd).exec()
 

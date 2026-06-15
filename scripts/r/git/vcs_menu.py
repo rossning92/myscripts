@@ -13,20 +13,19 @@ def _default_commit_message(filenames: List[str]) -> str:
 
 
 class VcsDiffMenu(Menu):
-    _HOTKEY_HINTS = ""
-
     def __init__(self, prompt_prefix: str = ""):
         super().__init__(close_on_selection=False, quick_select=True)
         self.__prompt_prefix = prompt_prefix
         self.__last_refresh_time = 0.0
         self.__refresh_thread: Optional[threading.Thread] = None
         self._is_clean: bool = False
-        self.set_header(self._HOTKEY_HINTS)
-        self.add_command(self._refresh, hotkey="ctrl+r")
-        self.add_command(self._diff_all, hotkey="ctrl+a")
-        self.add_command(self.__discard, hotkey="ctrl+d")
-        self.add_command(self.__commit_selected, hotkey="alt+c", name="commit selected")
+        self.add_command(
+            self._diff_all, hotkey="ctrl+a", name="diff all", pinned=True
+        )
         self._init_extra_commands()
+        self.add_command(self.__discard, hotkey="ctrl+d", name="discard", pinned=True)
+        self.add_command(self.__commit, hotkey="alt+c", name="commit", pinned=True)
+        self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
         self.set_prompt(os.path.basename(os.getcwd()))
         self._refresh()
 
@@ -48,8 +47,18 @@ class VcsDiffMenu(Menu):
     def _discard_file(self, item: str, filename: str) -> None:
         raise NotImplementedError
 
-    def _commit_files(self, filenames: List[str], message: str) -> None:
+    def _commit_files(
+        self, filenames: List[str], message: str, *, stage: bool
+    ) -> None:
         raise NotImplementedError
+
+    def _resolve_commit_files(
+        self, selected_filenames: List[str]
+    ) -> Tuple[List[str], str, bool]:
+        # Subclasses can override to substitute the files actually being
+        # committed (e.g. already-staged files). Returns
+        # (filenames, label, needs_staging).
+        return selected_filenames, "selected", True
 
     def _diff_all(self) -> None:
         raise NotImplementedError
@@ -75,7 +84,7 @@ class VcsDiffMenu(Menu):
 
     def __apply_refresh(self, items: List[str], is_clean: bool, prompt: str) -> None:
         self._is_clean = is_clean
-        self.set_prompt(prompt)
+        self.set_prompt(prompt if is_clean else f"\x1b[33m{prompt}\x1b[0m")
         self.items[:] = items
         self.set_message("refreshed")
 
@@ -83,20 +92,31 @@ class VcsDiffMenu(Menu):
         if time.monotonic() - self.__last_refresh_time >= 10:
             self._refresh()
 
-    def __commit_selected(self) -> None:
+    def _after_action(self) -> None:
+        self.set_multi_select(False)
+        self._refresh()
+
+    def __commit(self) -> None:
         items = list(self.get_selected_items())
         if not items:
             return
-        filenames = [self._get_filename(item) for item in items]
-        label = f"Commit {len(filenames)} file(s) (empty=default msg)"
+        selected = [self._get_filename(item) for item in items]
+        filenames, source, stage = self._resolve_commit_files(selected)
+        if not filenames:
+            return
+        default_message = _default_commit_message(filenames)
+        label = (
+            f"Commit {len(filenames)} {source} file(s) "
+            f'(empty="{default_message}")'
+        )
         menu = InputMenu(prompt=label, prompt_color="green")
         message = menu.request_input()
         if message is None:
             return
         if not message.strip():
-            message = _default_commit_message(filenames)
-        self._commit_files(filenames, message)
-        self._refresh()
+            message = default_message
+        self._commit_files(filenames, message, stage=stage)
+        self._after_action()
 
     def __discard(self) -> None:
         items = list(self.get_selected_items())
@@ -107,4 +127,4 @@ class VcsDiffMenu(Menu):
             return
         for item, filename in zip(items, names):
             self._discard_file(item, filename)
-        self._refresh()
+        self._after_action()

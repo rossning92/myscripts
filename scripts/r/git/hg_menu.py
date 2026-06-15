@@ -17,8 +17,6 @@ def _hg(*args):
 
 
 class HgMenu(VcsDiffMenu):
-    _HOTKEY_HINTS = "--- [^a]diff all [^d]discard [!c]commit [^r]refresh ---"
-
     def _get_status_items(self):
         status = _hg("status")
         if status:
@@ -69,8 +67,9 @@ class HgMenu(VcsDiffMenu):
         else:
             subprocess.run(["hg", "revert", "--no-backup", "--", filename])
 
-    def _commit_files(self, filenames, message):
-        cmds = [["hg", "add", "--"] + filenames, ["hg", "commit", "-m", message, "--"] + filenames]
+    def _commit_files(self, filenames, message, *, stage):
+        cmds = [["hg", "add", "--"] + filenames] if stage else []
+        cmds += [["hg", "commit", "-m", message, "--"] + filenames]
         shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in cmds)
         ShellCmdMenu(shell_cmd).exec()
 

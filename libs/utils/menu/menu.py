@@ -176,10 +176,15 @@ def _addstr(stdscr, *args) -> bool:
 
 class _Command:
     def __init__(
-        self, hotkey: Optional[str], func: Callable, name: Optional[str] = None
+        self,
+        hotkey: Optional[str],
+        func: Callable,
+        name: Optional[str] = None,
+        pinned: bool = False,
     ):
         self.hotkey = hotkey
         self.func = func
+        self.pinned = pinned
         if name is not None:
             self.name = name
         else:
@@ -254,6 +259,44 @@ def _get_ansi_color(code: int) -> int:
     ][code - 30]
 
 
+_ANSI_CSI_RE = re.compile(r"(?:\\x1b\[|\x1b\[)([0-9;]*)m")
+
+
+def _apply_ansi_escape(
+    s: str, i: int, attr: int, default_attr: int
+) -> Optional[Tuple[int, int]]:
+    # If s[i:] starts with a CSI ...m escape, apply codes to attr and return
+    # (new_attr, i_after_escape). Otherwise return None.
+    m = _ANSI_CSI_RE.match(s, i)
+    if not m:
+        return None
+    reverse_initial = bool(default_attr & curses.A_REVERSE)
+    for code in m.group(1).split(";"):
+        if code in ("0", ""):
+            attr = default_attr
+        elif code == "1":
+            attr |= curses.A_BOLD
+        elif code == "2":
+            attr |= curses.A_DIM
+        elif code == "7":
+            if reverse_initial:
+                attr &= ~curses.A_REVERSE
+            else:
+                attr |= curses.A_REVERSE
+        elif code == "22":
+            attr &= ~(curses.A_BOLD | curses.A_DIM)
+        elif code == "27":
+            if reverse_initial:
+                attr |= curses.A_REVERSE
+            else:
+                attr &= ~curses.A_REVERSE
+        elif code.isdigit() and 30 <= int(code) <= 37:
+            attr = (attr & ~curses.A_COLOR) | Menu._get_color_pair(
+                _get_ansi_color(int(code))
+            )
+    return attr, m.end()
+
+
 class _TextInput:
     def __init__(
         self,
@@ -299,15 +342,22 @@ class _TextInput:
             color_attr = Menu._get_color_pair(fg, bg)
         else:
             color_attr = Menu._get_color_pair(self.prompt_color)
-        _addstr(
-            stdscr,
-            row,
-            0,
-            self.prompt,
-            color_attr,
-        )
 
-        y, x = Menu._stdscr.getyx()  # type: ignore
+        attr = color_attr
+        y, x = row, 0
+        i = 0
+        while i < len(self.prompt):
+            ch = self.prompt[i]
+            if ch == "\\" or ch == "\x1b":
+                result = _apply_ansi_escape(self.prompt, i, attr, color_attr)
+                if result is not None:
+                    attr, i = result
+                    continue
+            next_esc = self.prompt.find("\x1b", i + 1)
+            end = next_esc if next_esc != -1 else len(self.prompt)
+            _addstr(stdscr, y, x, self.prompt[i:end], attr)
+            y, x = Menu._stdscr.getyx()  # type: ignore
+            i = end
         _addstr(stdscr, y, x, " ")  # Add a space between label and text input
         y, x = Menu._stdscr.getyx()  # type: ignore
 
@@ -439,7 +489,6 @@ class Menu(Generic[T]):
         prompt_color: Union[str, Tuple[str, str]] = "white",
         follow=False,
         auto_complete=False,
-        header="",
         quick_select=False,
     ):
         self.close_on_selection: bool = close_on_selection
@@ -491,7 +540,6 @@ class Menu(Generic[T]):
 
         # Selection
         self.__follow = follow
-        self.__header: str = header
         self.__selected_row_begin: int = selected_index
         self.__selected_row_end: int = selected_index
         self.__multi_select_mode: bool = False
@@ -570,6 +618,13 @@ class Menu(Generic[T]):
 
     @staticmethod
     def __reload_menu():
+        import shlex
+
+        from .confirmmenu import confirm
+
+        cmdline = shlex.join([sys.executable, *sys.argv])
+        if not confirm(f"Reload menu? ({cmdline})"):
+            return
         os.environ["_MENU_RELOADED"] = "1"
         os.execl(sys.executable, sys.executable, *sys.argv)
 
@@ -693,15 +748,32 @@ class Menu(Generic[T]):
         return True
 
     def add_command(
-        self, func: Callable, hotkey: Optional[str] = None, name: Optional[str] = None
+        self,
+        func: Callable,
+        hotkey: Optional[str] = None,
+        name: Optional[str] = None,
+        pinned: bool = False,
     ) -> _Command:
-        command = _Command(hotkey=hotkey, func=func, name=name)
+        command = _Command(hotkey=hotkey, func=func, name=name, pinned=pinned)
         self.__custom_commands.append(command)
 
         if hotkey is not None:
             self.__hotkeys[hotkey] = command
 
         return command
+
+    def get_hotkey_bar(self) -> str:
+        # Build the hotkey bar (e.g. "--- [^a]diff all [!c]commit ---") from
+        # commands registered with pinned=True. Underscores in the command name
+        # are rendered as spaces.
+        parts = [
+            f"[{get_hotkey_abbr(cmd.hotkey)}]{cmd.name.replace('_', ' ')}"
+            for cmd in self.__custom_commands
+            if cmd.pinned and cmd.hotkey is not None
+        ]
+        if not parts:
+            return ""
+        return "--- " + " ".join(parts) + " ---"
 
     def delete_commands_if(self, condition: Callable[[_Command], bool]):
         for cmd in self.__custom_commands[:]:  # Iterate over a copy of the list
@@ -777,12 +849,9 @@ class Menu(Generic[T]):
         self.__input.prompt = prompt
         self.update_screen()
 
-    def set_header(self, header: str):
-        self.__header = header
+    def set_prompt_color(self, prompt_color: Union[str, Tuple[str, str]]):
+        self.__input.prompt_color = prompt_color
         self.update_screen()
-
-    def get_header(self) -> str:
-        return self.__header
 
     def clear_input(self, reset_selection=False) -> bool:
         if self.__input.text == "":
@@ -1445,13 +1514,14 @@ class Menu(Generic[T]):
                 f'row should be smaller than ymax, but row={row} yamx={ymax} s="{s}"'
             )
 
-        attr = Menu._get_color_pair(fg, bg)
+        default_attr = curses.A_NORMAL
         if bold:
-            attr |= curses.A_BOLD
+            default_attr |= curses.A_BOLD
         if dim:
-            attr |= curses.A_DIM
+            default_attr |= curses.A_DIM
         if reverse:
-            attr |= curses.A_REVERSE
+            default_attr |= curses.A_REVERSE
+        attr = Menu._get_color_pair(fg, bg) | default_attr
 
         # Draw left arrow
         if scroll_x > 0:
@@ -1476,39 +1546,9 @@ class Menu(Generic[T]):
 
             # Handle ANSI color codes
             if ch == "\\" or ch == "\x1b":
-                match = re.match(r"(?:\\x1b\[|\x1b\[)([0-9;]*)m", s[i:])
-                if match:
-                    i += match.end()
-                    for code in match.group(1).split(";"):
-                        if code in ("0", ""):
-                            attr = curses.A_NORMAL
-                            if bold:
-                                attr |= curses.A_BOLD
-                            if dim:
-                                attr |= curses.A_DIM
-                            if reverse:
-                                attr |= curses.A_REVERSE
-                        elif code == "1":
-                            attr |= curses.A_BOLD
-                        elif code == "2":
-                            attr |= curses.A_DIM
-                        elif code == "7":
-                            if reverse:
-                                attr &= ~curses.A_REVERSE
-                            else:
-                                attr |= curses.A_REVERSE
-                        elif code == "22":
-                            attr &= ~curses.A_BOLD
-                            attr &= ~curses.A_DIM
-                        elif code == "27":
-                            if reverse:
-                                attr |= curses.A_REVERSE
-                            else:
-                                attr &= ~curses.A_REVERSE
-                        elif code.isdigit() and 30 <= int(code) <= 37:
-                            attr = (attr & ~curses.A_COLOR) | Menu._get_color_pair(
-                                _get_ansi_color(int(code))
-                            )
+                result = _apply_ansi_escape(s, i, attr, default_attr)
+                if result is not None:
+                    attr, i = result
                     continue
 
             # Skip visible chars
@@ -1580,22 +1620,19 @@ class Menu(Generic[T]):
             show_enter_symbol=self.__should_trigger_search(),
         )
 
-        # Draw header (below prompt, above items)
+        # Draw the auto-generated hotkey bar (from commands with pinned=True)
+        # below the prompt, above the items.
         item_y = draw_input_result.last_y + 1
-        header = self.get_header()
-        if header:
-            header_lines = header.splitlines()
-            for header_line in header_lines:
-                if item_y >= item_y_max:
-                    break
-                self.__draw_text(
-                    row=item_y,
-                    col=0,
-                    s=header_line,
-                    fg=_to_curses_color("brightblack"),
-                    ymax=item_y_max,
-                )
-                item_y += 1
+        hotkey_bar = self.get_hotkey_bar()
+        if hotkey_bar and item_y < item_y_max:
+            self.__draw_text(
+                row=item_y,
+                col=0,
+                s=hotkey_bar,
+                fg=_to_curses_color("brightblack"),
+                ymax=item_y_max,
+            )
+            item_y += 1
 
         # Auto select last item
         item_indices = self.get_item_indices()

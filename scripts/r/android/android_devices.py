@@ -175,7 +175,7 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
         if ch == "0":
             set_variable("ANDROID_SERIAL", "")
             return True
-        elif type(ch) is str and ch >= "a" and ch <= "z":
+        elif type(ch) is str and len(ch) == 1 and "a" <= ch <= "z":
             for device in self.__devices:
                 if ch == device.key:
                     set_variable("ANDROID_SERIAL", device.serial)

@@ -7,12 +7,25 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
 from utils.jsonutil import load_json
+from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
 from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
 _MODULE_NAME = os.path.splitext(os.path.basename(__file__))[0]
-_HOTKEY_HINTS = "--- [!c]commit+sync [!a]amend+sync [!p]push [^r]refresh [^s]sync ---"
+_DEFAULT_COMMIT_MESSAGE = "commit with no message"
+
+
+def _prompt_commit_message() -> Optional[str]:
+    # Prompt for a commit message. Returns None if cancelled, or the default
+    # message when the input is left empty.
+    menu = InputMenu(prompt=f'Commit message (empty="{_DEFAULT_COMMIT_MESSAGE}")', prompt_color="green")
+    message = menu.request_input()
+    if message is None:
+        return None
+    if not message.strip():
+        return _DEFAULT_COMMIT_MESSAGE
+    return message
 
 
 def _run_vcs(path: str, cmd: str, *args: str) -> Optional[str]:
@@ -148,15 +161,20 @@ class RepoMenu(Menu[Repo]):
             prompt=_MODULE_NAME,
             quick_select=True,
         )
-        self.set_header(_HOTKEY_HINTS)
         self._last_refresh_time = 0.0
         self._refresh_thread: Optional[threading.Thread] = None
         self._refresh()
-        self.add_command(self._sync, hotkey="ctrl+s", name="sync (pull+push)")
-        self.add_command(self._amend_and_sync, hotkey="alt+a", name="amend+sync")
-        self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
-        self.add_command(self._push, hotkey="alt+p", name="push")
-        self.add_command(self._refresh, hotkey="ctrl+r", name="refresh")
+        self.add_command(
+            self._sync, hotkey="ctrl+s", name="sync (pull+push)", pinned=True
+        )
+        self.add_command(
+            self._amend_and_sync, hotkey="alt+a", name="amend+sync", pinned=True
+        )
+        self.add_command(
+            self._commit_and_sync, hotkey="alt+c", name="commit+sync", pinned=True
+        )
+        self.add_command(self._push, hotkey="alt+p", name="push", pinned=True)
+        self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
 
     def get_item_text(self, item: Repo) -> str:
         vcs_info = item.vcs_info
@@ -252,17 +270,24 @@ class RepoMenu(Menu[Repo]):
         repo = self.get_selected_item()
         if repo is None:
             return
+        message = _prompt_commit_message()
+        if message is None:
+            return
         if repo.is_git:
-            self._run_cmds(
-                ["git", "add", "-A"],
-                ["git", "commit", "-m", "commit with no message"],
+            # If something is already staged, commit only the staged files.
+            # Otherwise fall back to staging everything.
+            staged = _run_vcs(repo.path, "git", "diff", "--cached", "--name-only")
+            cmds = [] if staged else [["git", "add", "-A"]]
+            cmds += [
+                ["git", "commit", "-m", message],
                 ["git", "pull", "--rebase"],
                 ["git", "push"],
-            )
+            ]
+            self._run_cmds(*cmds)
         elif repo.is_hg:
             self._run_cmds(
                 ["hg", "addremove"],
-                ["hg", "commit", "-m", "commit with no message"],
+                ["hg", "commit", "-m", message],
                 ["hg", "push"],
             )
 
