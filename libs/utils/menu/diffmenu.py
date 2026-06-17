@@ -10,6 +10,7 @@ from _script import start_script
 from utils.git import get_git_root
 from utils.strutil import strip_ansi
 
+from .confirmmenu import confirm
 from .textmenu import TextMenu
 
 
@@ -163,9 +164,8 @@ class DiffMenu(TextMenu):
 
         self.add_command(self.__edit_file, hotkey="ctrl+e")
         self.add_command(self.__stage_lines, hotkey="ctrl+s")
+        self.add_command(self.__discard_lines, hotkey="ctrl+d")
         self.add_command(self.__refresh, hotkey="ctrl+r")
-        self.add_command(self.__scroll_up, hotkey="ctrl+u")
-        self.add_command(self.__scroll_down, hotkey="ctrl+d")
 
     def __generate_diff_lines(self) -> List[str]:
         if self.__diff_cmd:
@@ -212,22 +212,19 @@ class DiffMenu(TextMenu):
         if time.monotonic() - self.__last_refresh_time >= 5:
             self.__refresh()
 
-    def __scroll_up(self):
-        self._Menu__set_selection_by_offset(offset=-10, multi_select=False)
 
-    def __scroll_down(self):
-        self._Menu__set_selection_by_offset(offset=10, multi_select=False)
-
-    def __stage_lines(self):
-        # Only working-tree git diffs can be staged. file/cmd comparisons,
-        # committed ranges (HEAD...) and untracked (--no-index) diffs can't.
+    def __is_working_tree_diff(self) -> bool:
         if self.__files is not None or self.__diff_cmd is not None:
-            self.set_message("staging not supported for this diff")
-            return
+            return False
         if self.__git_args is not None and any(
             a == "--no-index" or a.startswith("HEAD") for a in self.__git_args
         ):
-            self.set_message("staging not supported for this diff")
+            return False
+        return True
+
+    def __apply_patch(self, action: str, extra_args: List[str]) -> None:
+        if not self.__is_working_tree_diff():
+            self.set_message(f"{action} not supported for this diff")
             return
 
         selected = set(self.get_selected_indices())
@@ -235,22 +232,30 @@ class DiffMenu(TextMenu):
             return
         patch = _build_stage_patch(self.__diff_lines, selected)
         if patch is None:
-            self.set_message("no changes in selection to stage")
+            self.set_message(f"no changes in selection to {action}")
             return
 
         result = subprocess.run(
-            ["git", "apply", "--cached", "--recount", "--ignore-whitespace"],
+            ["git", "apply", "--recount", "--ignore-whitespace"] + extra_args,
             input=patch.encode("utf-8"),
             capture_output=True,
             cwd=self.__root,
         )
         if result.returncode != 0:
             err = result.stderr.decode("utf-8", errors="replace").strip()
-            self.set_message(f"stage failed: {err}")
+            self.set_message(f"{action} failed: {err}")
             return
-        self.set_message("staged selection")
+        self.set_message(f"{action}d selection")
         self.set_multi_select(False)
         self.__refresh()
+
+    def __stage_lines(self):
+        self.__apply_patch("stage", ["--cached"])
+
+    def __discard_lines(self):
+        if not confirm("Discard selected changes?", prompt_color="red"):
+            return
+        self.__apply_patch("discard", ["--reverse"])
 
     def __edit_file(self):
         index = self.get_selected_index()

@@ -19,6 +19,9 @@ lines = 40
 [window]
 padding.x = 0
 padding.y = 0
+# macOS: treat Option as Alt instead of typing accented characters.
+# "Both" = both Option keys; use "OnlyLeft"/"OnlyRight" to keep one for accents.
+option_as_alt = "Both"
 
 [keyboard]
 bindings = [

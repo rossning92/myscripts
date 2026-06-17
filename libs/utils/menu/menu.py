@@ -599,12 +599,6 @@ class Menu(Generic[T]):
         self.__quick_select = quick_select
         if quick_select:
             self.__line_number = True
-            for i in range(26):
-                hotkey = f"alt+{chr(ord('a') + i)}"
-                self.__hotkeys[hotkey] = _Command(
-                    hotkey=hotkey,
-                    func=lambda i=i: self._select_by_shortcut_index(9 + i),
-                )
 
     def __goto(self):
         selected = self.get_selected_item()
@@ -1692,7 +1686,7 @@ class Menu(Generic[T]):
 
         if self.__line_number and len(item_indices) > 0:
             if self.__quick_select:
-                line_number_width = 4
+                line_number_width = 3
             else:
                 line_number_width = len(self.get_line_number_text(item_indices[-1]))
         else:
@@ -2020,10 +2014,8 @@ class Menu(Generic[T]):
     @staticmethod
     def __get_quick_select_label(index: int) -> str:
         if index < 9:
-            return f"[ {index + 1}]"
-        elif index < 35:
-            return f"[!{chr(ord('a') + index - 9)}]"
-        return "    "
+            return f"[{index + 1}]"
+        return "   "
 
     def _select_by_shortcut_index(self, index: int) -> bool:
         item_indices = list(self.get_item_indices())
