@@ -88,9 +88,11 @@ def main():
             last = mtime
             time.sleep(0.1)  # debounce so we read a fully-written file
             try:
+                start = time.perf_counter()
                 names = reshow()
+                elapsed = time.perf_counter() - start
                 if names is not None:
-                    print(f"Reloaded: {names}", flush=True)
+                    print(f"Reloaded: {names} in {elapsed:.2f}s", flush=True)
             except Exception as exc:
                 print(f"Reload failed: {exc}", file=sys.stderr, flush=True)
     except KeyboardInterrupt:

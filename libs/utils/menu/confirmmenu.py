@@ -1,10 +1,10 @@
-from .actionmenu import ActionMenu, action
+from .actionmenu import action, ActionMenu
 
 
 class ConfirmMenu(ActionMenu):
     def __init__(self, prompt="", prompt_color="green", **kwargs):
         super().__init__(
-            prompt=prompt + " (y/n)",
+            prompt=prompt,
             prompt_color=prompt_color,
             search_mode=False,
             line_number=False,

@@ -14,6 +14,7 @@ from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
 _MODULE_NAME = os.path.splitext(os.path.basename(__file__))[0]
 _DEFAULT_COMMIT_MESSAGE = "commit with no message"
+_RECENT_COMMIT_COUNT = 3
 
 
 def _prompt_commit_message() -> Optional[str]:
@@ -51,6 +52,7 @@ class Repo:
         self.dirty = False
         self.ahead = 0
         self.behind = 0
+        self.recent_commits: List[str] = []
 
     @property
     def vcs(self) -> Optional[str]:
@@ -88,6 +90,15 @@ class Repo:
             if len(parts) == 2:
                 self.ahead, self.behind = int(parts[0]), int(parts[1])
 
+        log = _run_vcs(
+            self.path,
+            "git",
+            "log",
+            f"-{_RECENT_COMMIT_COUNT}",
+            "--oneline",
+        )
+        self.recent_commits = log.splitlines() if log else []
+
     def _refresh_hg(self):
         self.branch = _run_vcs(
             self.path, "hg", "log", "-r", ".", "--template", "{activebookmark}"
@@ -102,6 +113,17 @@ class Repo:
         self.dirty = bool(status)
 
         self.ahead = self.behind = 0
+
+        log = _run_vcs(
+            self.path,
+            "sl",
+            "log",
+            "-T",
+            "{node|short}  {date|shortdate}  {pad(phabdiff, 12)} {desc|firstline}\n",
+            "-r",
+            "reverse(draft() & (::. + .::))",
+        )
+        self.recent_commits = log.splitlines() if log else []
 
     @property
     def display_path(self) -> str:
@@ -290,6 +312,16 @@ class RepoMenu(Menu[Repo]):
                 ["hg", "commit", "-m", message],
                 ["hg", "push"],
             )
+
+    def get_status_text(self) -> str:
+        # Prepend recent commits of the selected repo on top of the default
+        # status bar (message + position indicators).
+        status = super().get_status_text()
+        repo = self.get_selected_item()
+        if repo is not None and repo.recent_commits:
+            log = "\n".join(f"• {c}" for c in repo.recent_commits)
+            return f"{log}\n{status}"
+        return status
 
     def on_idle(self):
         if time.monotonic() - self._last_refresh_time >= 30:
