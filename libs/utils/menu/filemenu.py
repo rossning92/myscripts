@@ -743,5 +743,11 @@ class FileMenu(Menu[_File]):
             except Exception as e:
                 self.set_message(str(e))
 
+    def on_escape_pressed(self):
+        if self.__select_mode == FileMenu.SELECT_MODE_NONE:
+            self._goto_parent_directory()
+        else:
+            self.cancel()
+
     def get_status_text(self) -> str:
         return f"sort={self.__config.sort_by} {super().get_status_text()}"

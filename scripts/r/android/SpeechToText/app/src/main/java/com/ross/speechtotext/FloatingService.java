@@ -162,7 +162,6 @@ public class FloatingService extends Service {
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                if (isTranscribing) return true;
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
                         isDragging = false;
@@ -197,6 +196,7 @@ public class FloatingService extends Service {
         };
 
         floatingView.setOnClickListener(v -> {
+            if (isTranscribing) return;
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             if (!isDictating) {
                 enterDictationMode();
