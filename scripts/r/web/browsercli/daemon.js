@@ -1,6 +1,6 @@
 import { createServer } from "http";
 import { readFileSync } from "fs";
-import { getBrowser, getOrOpenPage } from "./browser-core.js";
+import { getBrowser, getOrOpenPage, getStatus } from "./browser-core.js";
 import { DAEMON_PORT, DEBUG_PORT } from "./config.js";
 import { close } from "./commands/close.js";
 import { getText } from "./commands/getText.js";
@@ -25,9 +25,10 @@ const commands = {
   async open({ url, headed }) {
     const browser = await getBrowser({ headed });
     await getOrOpenPage(browser, url);
+    return getStatus();
   },
 
-  async close() {
+  async "close-browser"() {
     await close();
     setTimeout(() => process.exit(0), 100);
   },

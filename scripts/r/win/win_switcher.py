@@ -64,7 +64,11 @@ class WinSwitcherMenu(Menu[WindowItem]):
         }
         self.items = get_windows(script_status=self.script_status)
         self.items.sort(
-            key=lambda w: (0 if w.title in self.__pinned else 1,)
+            key=lambda w: (
+                0
+                if w.get_status(self.script_status) == "done"
+                else 1 if w.title in self.__pinned else 2,
+            )
         )
 
         current_done_titles = {

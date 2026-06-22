@@ -58,7 +58,7 @@ async function ensureDaemon() {
     const { startTime } = await healthCheck();
     if (getLatestMtime(__dirname) <= startTime) return;
     console.error("Source changed, restarting daemon...");
-    await postCommand("close").catch(() => {});
+    await postCommand("close-browser").catch(() => {});
     await waitForDaemon(false);
   } catch {}
 
@@ -86,14 +86,19 @@ program
   .argument("[url]", "URL to open")
   .option("--headed", "Open browser in headed mode")
   .action(async (url, options) => {
-    await sendCommand("open", { url, headed: options.headed });
+    const status = await sendCommand("open", { url, headed: options.headed });
+    if (status) {
+      console.error(
+        `[browsercli] :${status.port} ${status.mode} profile=${status.profile}`,
+      );
+    }
   });
 
 program
-  .command("close")
-  .description("Close the browser")
+  .command("close-browser")
+  .description("Close the whole browser (quits Chrome and all its tabs)")
   .action(async () => {
-    await sendCommand("close");
+    await sendCommand("close-browser");
   });
 
 program

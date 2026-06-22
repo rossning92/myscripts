@@ -579,7 +579,7 @@ class Menu(Generic[T]):
             self.add_command(self.__logs, hotkey="alt+l")
             self.add_command(self.__prev_search_history, hotkey="alt+u")
             self.add_command(self.__reload_menu, hotkey="alt+r")
-            self.add_command(self.__select_all)
+            self.add_command(self.__select_all, hotkey="ctrl+a")
             self.add_command(self.__toggle_multi_select, hotkey="ctrl+x")
             self.add_command(self.__toggle_wrap, hotkey="alt+z")
             self.add_command(self.paste, hotkey="ctrl+v")

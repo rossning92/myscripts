@@ -202,8 +202,18 @@ export async function launchOrConnectBrowser({
 
 let _browser = null;
 let _onDisconnect = null;
+let _currentHeaded = false;
+
+export function getStatus() {
+  return {
+    port: DEBUG_PORT,
+    mode: _currentHeaded ? "headed" : "headless",
+    profile: USER_DATA_DIR,
+  };
+}
 
 export async function getBrowser(options) {
+  _currentHeaded = options?.headed ?? _currentHeaded;
   if (options?.headed && _browser && _browser.isConnected()) {
     // Detach the exit-on-disconnect handler first, otherwise this intentional
     // close fires it and kills the daemon mid-request (headed relaunch race).

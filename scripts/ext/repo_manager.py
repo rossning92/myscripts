@@ -4,6 +4,7 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from itertools import cycle
 from typing import List, Optional
 
 from utils.jsonutil import load_json
@@ -185,6 +186,7 @@ class RepoMenu(Menu[Repo]):
         )
         self._last_refresh_time = 0.0
         self._refresh_thread: Optional[threading.Thread] = None
+        self._spinner = cycle(["|", "/", "-", "\\"])
         self._refresh()
         self.add_command(
             self._sync, hotkey="ctrl+s", name="sync (pull+push)", pinned=True
@@ -324,6 +326,15 @@ class RepoMenu(Menu[Repo]):
         return status
 
     def on_idle(self):
+        # Animate the prompt while the background refresh runs. The
+        # "refreshing..." message alone is insufficient. it auto-clears after
+        # MESSAGE_TIMEOUT_SEC even while the refresh is still in flight, and it
+        # never animates so a slow/stuck refresh looks idle.
+        if self._refresh_thread and self._refresh_thread.is_alive():
+            self.set_prompt(f"{_MODULE_NAME} {next(self._spinner)}")
+            return
+        if self.get_prompt() != _MODULE_NAME:
+            self.set_prompt(_MODULE_NAME)
         if time.monotonic() - self._last_refresh_time >= 30:
             self._refresh()
 

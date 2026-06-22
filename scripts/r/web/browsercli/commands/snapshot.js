@@ -9,6 +9,7 @@ const INTERACTIVE_ROLES = new Set([
   "menuitem",
   "menuitemcheckbox",
   "menuitemradio",
+  "option",
   "radio",
   "searchbox",
   "slider",
