@@ -32,6 +32,7 @@ class ShellCmdMenu(Menu):
     ):
         super().__init__(
             prompt=prompt,
+            prompt_color="blue",
             search_mode=False,
             line_number=False,
             follow=True,

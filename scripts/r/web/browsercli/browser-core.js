@@ -201,15 +201,21 @@ export async function launchOrConnectBrowser({
 }
 
 let _browser = null;
+let _onDisconnect = null;
 
 export async function getBrowser(options) {
   if (options?.headed && _browser && _browser.isConnected()) {
+    // Detach the exit-on-disconnect handler first, otherwise this intentional
+    // close fires it and kills the daemon mid-request (headed relaunch race).
+    if (_onDisconnect) _browser.off("disconnected", _onDisconnect);
     await _browser.close().catch(() => {});
     _browser = null;
+    _onDisconnect = null;
   }
   if (_browser && _browser.isConnected()) return _browser;
   _browser = await launchOrConnectBrowser(options);
-  _browser.on("disconnected", () => process.exit(0));
+  _onDisconnect = () => process.exit(0);
+  _browser.on("disconnected", _onDisconnect);
   return _browser;
 }
 

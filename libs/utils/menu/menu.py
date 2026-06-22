@@ -620,6 +620,7 @@ class Menu(Generic[T]):
         if not confirm(f"Reload menu? ({cmdline})"):
             return
         os.environ["_MENU_RELOADED"] = "1"
+        Menu.destroy_curses()
         os.execl(sys.executable, sys.executable, *sys.argv)
 
     @staticmethod
@@ -1739,9 +1740,7 @@ class Menu(Generic[T]):
             # Draw line number / quick select label
             if self.__line_number:
                 if self.__quick_select:
-                    line_number_text = self.__get_quick_select_label(
-                        matched_item_index
-                    )
+                    line_number_text = self.__get_quick_select_label(matched_item_index)
                     gutter_fg = -1
                 else:
                     line_number_text = self.get_line_number_text(item_index)

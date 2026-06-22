@@ -127,6 +127,15 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.__refresh_windows()
         self.__auto_refresh_enabled = True
         self.__auto_refresh_last_time = time.time()
+        self.__highlight_first_done()
+
+    def __highlight_first_done(self):
+        for item in self.items:
+            if item.title in self.__pinned:
+                continue
+            if item.get_status(self.script_status) == "done":
+                self.set_selected_item(item)
+                break
 
     def on_focus_lost(self):
         self.__auto_refresh_enabled = False

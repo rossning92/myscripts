@@ -6,6 +6,7 @@ Requires: Accessibility permission in System Settings > Privacy & Security > Acc
 """
 
 import json
+import logging
 import os
 import signal
 import subprocess
@@ -27,9 +28,16 @@ from Quartz import (
     kCGEventFlagMaskControl,
     kCGEventFlagMaskShift,
     kCGEventKeyDown,
+    kCGEventTapDisabledByTimeout,
+    kCGEventTapDisabledByUserInput,
     kCGHeadInsertEventTap,
     kCGSessionEventTap,
 )
+
+# The listener lives in libs/, so adding its own directory to sys.path makes the
+# `utils` package importable for in-process window activation.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils.window import activate_window_by_name  # noqa: E402
 
 KEYCODE_MAP = {
     "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
@@ -98,18 +106,43 @@ def main():
     for entry in config:
         try:
             flags, keycode = parse_hotkey(entry["hotkey"])
-            hotkeys.append((flags, keycode, entry["command"]))
+            hotkeys.append(
+                (flags, keycode, entry.get("title"), entry.get("command"))
+            )
         except ValueError as e:
             print(f"Skipping hotkey {entry['hotkey']}: {e}", file=sys.stderr)
 
+    def handle_hotkey(title, command):
+        # Activate an existing window in-process first (fast - the DarwinWindowAPI
+        # singleton is reused across the process lifetime), and only spawn the
+        # fallback command when no matching window is found. This mirrors
+        # Hammerspoon's activateOrRun.
+        if title:
+            try:
+                if activate_window_by_name(title):
+                    return
+            except Exception:
+                logging.exception("Failed to activate window: %s", title)
+        if command:
+            subprocess.Popen(command, shell=True)
+
     def callback(proxy, event_type, event, refcon):
+        # macOS disables the tap if a callback runs too long or after certain
+        # input events; re-enable it so hotkeys keep working.
+        if event_type in (
+            kCGEventTapDisabledByTimeout,
+            kCGEventTapDisabledByUserInput,
+        ):
+            Quartz.CGEventTapEnable(tap, True)
+            return event
+
         keycode = CGEventGetIntegerValueField(
             event, Quartz.kCGKeyboardEventKeycode
         )
         flags = CGEventGetFlags(event) & MODIFIER_MASK
-        for hk_flags, hk_keycode, command in hotkeys:
+        for hk_flags, hk_keycode, title, command in hotkeys:
             if keycode == hk_keycode and flags == hk_flags:
-                subprocess.Popen(command, shell=True)
+                handle_hotkey(title, command)
                 return None
         return event
 

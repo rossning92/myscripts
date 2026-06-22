@@ -1245,6 +1245,10 @@ class Script:
                     chrome_executables.insert(
                         0, r"C:\Program Files\Google\Chrome\Application\chrome.exe"
                     )
+                elif sys.platform == "darwin":
+                    chrome_executables.insert(
+                        0, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+                    )
                 for chrome_exec in chrome_executables:
                     if shutil.which(chrome_exec):
                         args = [chrome_exec, f"--app={url}"]

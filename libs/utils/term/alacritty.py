@@ -13,24 +13,37 @@ def _get_settings_dir() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent / "settings" / "alacritty"
 
 
+def _force_symlink(src: Path, dest: Path):
+    """Point dest at src, replacing any existing file or symlink."""
+    if dest.is_symlink() and dest.resolve() == src.resolve():
+        return
+    if dest.is_symlink() or dest.exists():
+        dest.unlink()
+    os.symlink(src, dest)
+
+
 def setup_alacritty():
     if not is_alacritty_installed():
         raise FileNotFoundError("Alacritty is not installed")
 
-    src_config = (_get_settings_dir() / "alacritty.toml").resolve()
-
+    settings_dir = _get_settings_dir()
     config_dir = _get_alacritty_config_dir()
     config_dir.mkdir(parents=True, exist_ok=True)
-    dest_config = config_dir / "alacritty.toml"
 
-    if not (dest_config.is_symlink() and dest_config.resolve() == src_config):
-        if dest_config.is_symlink() or dest_config.exists():
-            dest_config.unlink()
-        os.symlink(src_config, dest_config)
+    _force_symlink(settings_dir / "alacritty.toml", config_dir / "alacritty.toml")
 
     current_theme = config_dir / "current-theme.toml"
     if not current_theme.is_symlink() and not current_theme.exists():
         os.symlink(_get_themes_dir() / "dracula.toml", current_theme)
+
+    # macOS-only font size: symlink font-mac.toml so the
+    # "~/.config/alacritty/font-mac.toml" import in alacritty.toml resolves.
+    # On other platforms remove it so the import is skipped.
+    dest_font = config_dir / "font-mac.toml"
+    if sys.platform == "darwin":
+        _force_symlink(settings_dir / "font-mac.toml", dest_font)
+    elif dest_font.is_symlink() or dest_font.exists():
+        dest_font.unlink()
 
 
 def _get_alacritty_config_dir() -> Path:
@@ -88,8 +101,8 @@ def wrap_args_alacritty(
             "window.dimensions.columns=0",
             "window.dimensions.lines=0",
         ]
-    if font_size is None and sys.platform == "darwin":
-        font_size = 14
+    # On macOS the default size comes from font.toml (imported by alacritty.toml).
+    # Only override here when a caller passes an explicit font_size.
     if font_size is not None:
         options += [
             f"font.size={font_size}",

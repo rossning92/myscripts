@@ -1,0 +1,6 @@
+# macOS-only font settings.
+# Imported by alacritty.toml via "~/.config/alacritty/font-mac.toml", which
+# setup_alacritty() only symlinks on macOS. On Linux/Windows the import path
+# does not exist and Alacritty silently skips it.
+[font]
+size = 14

@@ -278,6 +278,8 @@ class _DarwinWindowAPI:
                 continue
             pid = self._msg_int(app, self._sel("processIdentifier"))
 
+            app_name = self._pystr(self._msg(app, self._sel("localizedName")))
+
             ax_app = self._ax.AXUIElementCreateApplication(pid)
             if not ax_app:
                 continue
@@ -294,14 +296,17 @@ class _DarwinWindowAPI:
                 win_count = self._cf.CFArrayGetCount(wins_ref)
                 for j in range(win_count):
                     win = self._cf.CFArrayGetValueAtIndex(wins_ref, j)
+                    title = ""
                     title_ref = ctypes.c_void_p()
                     err = self._ax.AXUIElementCopyAttributeValue(
                         win, self._kAXTitle, ctypes.byref(title_ref)
                     )
-                    if err != 0 or not title_ref.value:
-                        continue
-                    title = self._pystr(title_ref.value)
-                    self._cf.CFRelease(title_ref)
+                    if err == 0 and title_ref.value:
+                        title = self._pystr(title_ref.value).strip()
+                        self._cf.CFRelease(title_ref)
+                    # Fall back to the app name when the window has no title.
+                    if not title:
+                        title = app_name
                     if title:
                         yield app, ax_app, wins_ref, win, title, pid, j + 1
             finally:

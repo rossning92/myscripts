@@ -142,31 +142,61 @@
         return ["left", "middle", "right"][e.button] || "left";
       }
 
-      canvas.addEventListener("mousedown", (e) => {
+      // Track which button is currently held so drags carry button state.
+      let pressedButton = null;
+
+      function buttonsMask() {
+        if (pressedButton === "left") return 1;
+        if (pressedButton === "right") return 2;
+        if (pressedButton === "middle") return 4;
+        return 0;
+      }
+
+      function sendMove(e) {
         const { x, y } = toPageCoords(e);
         send("Input.dispatchMouseEvent", {
-          type: "mousePressed",
+          type: "mouseMoved",
           x,
           y,
-          button: mouseButton(e),
-          clickCount: 1,
+          button: pressedButton || "none",
+          buttons: buttonsMask(),
         });
-      });
+      }
 
-      canvas.addEventListener("mouseup", (e) => {
+      function onWindowMouseUp(e) {
         const { x, y } = toPageCoords(e);
         send("Input.dispatchMouseEvent", {
           type: "mouseReleased",
           x,
           y,
           button: mouseButton(e),
+          buttons: 0,
           clickCount: 1,
         });
+        pressedButton = null;
+        window.removeEventListener("mousemove", sendMove);
+        window.removeEventListener("mouseup", onWindowMouseUp);
+      }
+
+      canvas.addEventListener("mousedown", (e) => {
+        const { x, y } = toPageCoords(e);
+        pressedButton = mouseButton(e);
+        send("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x,
+          y,
+          button: pressedButton,
+          buttons: buttonsMask(),
+          clickCount: 1,
+        });
+        // Follow the drag on window so it continues even off the canvas.
+        window.addEventListener("mousemove", sendMove);
+        window.addEventListener("mouseup", onWindowMouseUp);
       });
 
       canvas.addEventListener("mousemove", (e) => {
-        const { x, y } = toPageCoords(e);
-        send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+        // Hover moves only when not dragging (drag moves handled on window).
+        if (!pressedButton) sendMove(e);
       });
 
       canvas.addEventListener(

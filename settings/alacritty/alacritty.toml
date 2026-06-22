@@ -2,6 +2,9 @@
 import = [
   "~/.config/alacritty/current-theme.toml",
   "~/AppData/Roaming/alacritty/current-theme.toml",
+  # macOS-only font size. setup_alacritty() symlinks font-mac.toml here only on
+  # macOS. on Linux/Windows this path is absent and the import is skipped.
+  "~/.config/alacritty/font-mac.toml",
 ]
 
 [selection]

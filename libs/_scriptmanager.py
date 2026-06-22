@@ -258,13 +258,18 @@ def execute_script(
 def register_global_hotkeys_mac(scripts: List[Script]):
     import signal
 
+    root = get_my_script_root()
+
+    # Each entry has a "title" (the window to activate if it already exists) and
+    # a "command" (the fallback to launch when no such window is found). The
+    # listener focuses the existing window in-process - mirroring Hammerspoon's
+    # activateOrRun - so the common "window already open" path never pays the
+    # cost of spawning a Python interpreter.
     config = [
         {
             "hotkey": "ctrl+q",
-            "command": (
-                f"{sys.executable} {get_my_script_root()}/bin/run_script.py"
-                f' r/activate_window.py myscriptsmgr || open -n "{get_my_script_root()}/myscripts"'
-            ),
+            "title": "myscriptsmgr",
+            "command": f'open -n "{root}/myscripts"',
         }
     ]
 
@@ -281,8 +286,9 @@ def register_global_hotkeys_mac(scripts: List[Script]):
             config.append(
                 {
                     "hotkey": hotkeys[0],
+                    "title": script.get_window_title(),
                     "command": (
-                        f"python3 {get_my_script_root()}/bin/start_script.py"
+                        f'"{sys.executable}" "{root}/bin/start_script.py"'
                         f" --restart-instance=auto {script.script_path}"
                     ),
                 }
@@ -311,137 +317,13 @@ def register_global_hotkeys_mac(scripts: List[Script]):
     )
 
 
-_HAMMERSPOON_HEADER = """\
-require("hs.ipc")
-hs.window.animationDuration = 0
-
-hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", function(files)
-    local doReload = false
-    for _, file in pairs(files) do
-        if file:sub(-4) == ".lua" then doReload = true end
-    end
-    if doReload then hs.reload() end
-end):start()
-
-local searchApps = {
-    ["alacritty"] = true,
-    ["Terminal"] = true,
-    ["iTerm2"] = true,
-    ["Google Chrome"] = true,
-    ["VS Code @ Meta"] = true,
-    ["Finder"] = true,
-}
-
-local function activateOrRun(title, cmd)
-    -- hs.window.allWindows() aggregates windows across all processes, so it
-    -- finds the right one even when several alacritty/Terminal instances run.
-    for _, win in ipairs(hs.window.allWindows()) do
-        if searchApps[win:application():name()] and win:title():find(title, 1, true) then
-            win:focus()
-            return
-        end
-    end
-    hs.task.new("/bin/sh", nil, {"-c", cmd}):start()
-end
-"""
-
-
-def register_global_hotkeys_hammerspoon(scripts: List[Script]):
-    mod_map = {
-        "win": "cmd",
-        "cmd": "cmd",
-        "command": "cmd",
-        "ctrl": "ctrl",
-        "control": "ctrl",
-        "alt": "alt",
-        "option": "alt",
-        "opt": "alt",
-        "shift": "shift",
-    }
-
-    # Map myscripts key names to Hammerspoon's hs.keycodes.map names.
-    key_map = {
-        "del": "delete",  # backspace (keycode 51)
-        "delete": "forwarddelete",  # forward delete (keycode 117)
-        "enter": "return",
-        "esc": "escape",
-    }
-
-    def to_hs_hotkey(hotkey: str) -> Optional[Tuple[List[str], str]]:
-        parts = hotkey.lower().split("+")
-        key = parts[-1]
-        mods = parts[:-1]
-        if not key or key.startswith("button"):
-            return None
-        key = key_map.get(key, key)
-        hs_mods: List[str] = []
-        for m in mods:
-            mapped = mod_map.get(m)
-            if mapped is None:
-                return None
-            hs_mods.append(mapped)
-        return hs_mods, key
-
-    def lua_str(s: str) -> str:
-        return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-    def bind(mods: List[str], key: str, title: str, cmd: str) -> str:
-        mods_lua = "{" + ", ".join(lua_str(m) for m in mods) + "}"
-        return (
-            f"hs.hotkey.bind({mods_lua}, {lua_str(key)}, function()\n"
-            f"    activateOrRun({lua_str(title)}, {lua_str(cmd)})\n"
-            f"end)\n"
-        )
-
-    root = get_my_script_root()
-    blocks = [_HAMMERSPOON_HEADER]
-
-    # Built-in hotkey to open / activate the script manager.
-    blocks.append(bind(["ctrl"], "q", "myscriptsmgr", f'open -n "{root}/myscripts"'))
-
-    for script in scripts:
-        hotkey_chain_def = script.cfg["globalHotkey"]
-        assert isinstance(hotkey_chain_def, str)
-        if not hotkey_chain_def or not script.is_supported():
-            continue
-
-        hotkeys = hotkey_chain_def.split()
-        if len(hotkeys) > 1:
-            logging.warning(
-                f'Hotkey chain "{hotkey_chain_def}" is not supported on hammerspoon'
-            )
-            continue
-
-        parsed = to_hs_hotkey(hotkeys[0])
-        if parsed is None:
-            logging.warning(f'Hotkey "{hotkeys[0]}" is not supported on hammerspoon')
-            continue
-
-        mods, key = parsed
-        cmd = (
-            f"python3 {root}/bin/start_script.py"
-            f" --restart-instance=auto {script.script_path}"
-        )
-        blocks.append(bind(mods, key, script.get_window_title(), cmd))
-
-    init_lua = os.path.join(os.path.expanduser("~"), ".hammerspoon", "init.lua")
-    os.makedirs(os.path.dirname(init_lua), exist_ok=True)
-    with open(init_lua, "w") as f:
-        f.write("\n".join(blocks))
-
-    # Trigger a reload immediately if the Hammerspoon `hs` CLI is available;
-    # otherwise the pathwatcher in the generated config reloads on file change.
-    if shutil.which("hs"):
-        subprocess.run(["hs", "-c", "hs.reload()"], check=False)
-
-
 def register_global_hotkeys(scripts):
     if sys.platform == "win32":
         register_global_hotkeys_win(scripts)
     elif sys.platform == "linux":
         register_global_hotkeys_linux(scripts)
     elif sys.platform == "darwin":
-        register_global_hotkeys_hammerspoon(scripts)
+        register_global_hotkeys_mac(scripts)
 
 
 def _get_next_scheduled_script_run_time_file():

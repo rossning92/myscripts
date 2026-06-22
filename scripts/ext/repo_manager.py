@@ -20,7 +20,7 @@ _RECENT_COMMIT_COUNT = 3
 def _prompt_commit_message() -> Optional[str]:
     # Prompt for a commit message. Returns None if cancelled, or the default
     # message when the input is left empty.
-    menu = InputMenu(prompt=f'Commit message (empty="{_DEFAULT_COMMIT_MESSAGE}")', prompt_color="green")
+    menu = InputMenu(prompt=f'Commit message (empty="{_DEFAULT_COMMIT_MESSAGE}"):', prompt_color="green")
     message = menu.request_input()
     if message is None:
         return None
@@ -95,7 +95,7 @@ class Repo:
             "git",
             "log",
             f"-{_RECENT_COMMIT_COUNT}",
-            "--oneline",
+            "--format=%h %as %s",
         )
         self.recent_commits = log.splitlines() if log else []
 
@@ -119,7 +119,7 @@ class Repo:
             "sl",
             "log",
             "-T",
-            "{node|short}  {date|shortdate}  {pad(phabdiff, 12)} {desc|firstline}\n",
+            "{node|short} {date|shortdate} {pad(phabdiff, 12)} {desc|firstline}\n",
             "-r",
             "reverse(draft() & (::. + .::))",
         )
@@ -326,6 +326,9 @@ class RepoMenu(Menu[Repo]):
     def on_idle(self):
         if time.monotonic() - self._last_refresh_time >= 30:
             self._refresh()
+
+    def on_focus_gained(self):
+        self._refresh()
 
     def _refresh(self):
         if self._refresh_thread and self._refresh_thread.is_alive():
