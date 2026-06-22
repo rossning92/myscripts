@@ -271,7 +271,10 @@ def _apply_ansi_escape(
     if not m:
         return None
     reverse_initial = bool(default_attr & curses.A_REVERSE)
-    for code in m.group(1).split(";"):
+    codes = m.group(1).split(";")
+    j = 0
+    while j < len(codes):
+        code = codes[j]
         if code in ("0", ""):
             attr = default_attr
         elif code == "1":
@@ -294,6 +297,13 @@ def _apply_ansi_escape(
             attr = (attr & ~curses.A_COLOR) | Menu._get_color_pair(
                 _get_ansi_color(int(code))
             )
+        elif code == "38" and j + 2 < len(codes) and codes[j + 1] == "5":
+            # 256-color foreground.
+            attr = (attr & ~curses.A_COLOR) | Menu._get_color_pair(int(codes[j + 2]))
+            j += 2
+        elif code == "39":  # Reset foreground to the default color.
+            attr = (attr & ~curses.A_COLOR) | (default_attr & curses.A_COLOR)
+        j += 1
     return attr, m.end()
 
 

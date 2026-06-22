@@ -1,11 +1,14 @@
 import os
 import threading
 import time
+from itertools import cycle
 from typing import List, Optional, Tuple
 
 from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
+
+from git.vcs import prepend_recent_commits
 
 
 def _default_commit_message(filenames: List[str]) -> str:
@@ -18,6 +21,9 @@ class VcsDiffMenu(Menu):
         self.__prompt_prefix = prompt_prefix
         self.__last_refresh_time = 0.0
         self.__refresh_thread: Optional[threading.Thread] = None
+        self.__spinner = cycle(["|", "/", "-", "\\"])
+        self.__base_prompt = os.path.basename(os.getcwd())
+        self.__recent_commits: List[str] = []
         self._is_clean: bool = False
         self.add_command(
             self._diff_all, hotkey="ctrl+a", name="diff all", pinned=True
@@ -40,6 +46,9 @@ class VcsDiffMenu(Menu):
 
     def _get_vcs_prompt(self, is_clean: bool) -> str:
         raise NotImplementedError
+
+    def _get_recent_commits(self) -> List[str]:
+        return []
 
     def _get_filename(self, item: str) -> str:
         raise NotImplementedError
@@ -76,19 +85,36 @@ class VcsDiffMenu(Menu):
         def worker():
             items, is_clean = self._get_status_items()
             prompt = self._get_vcs_prompt(is_clean)
-            self.post_event(lambda: self.__apply_refresh(items, is_clean, prompt))
+            recent_commits = self._get_recent_commits()
+            self.post_event(
+                lambda: self.__apply_refresh(items, is_clean, prompt, recent_commits)
+            )
 
-        self.set_message("refreshing...")
         self.__refresh_thread = threading.Thread(target=worker, daemon=True)
         self.__refresh_thread.start()
 
-    def __apply_refresh(self, items: List[str], is_clean: bool, prompt: str) -> None:
+    def __apply_refresh(
+        self,
+        items: List[str],
+        is_clean: bool,
+        prompt: str,
+        recent_commits: List[str],
+    ) -> None:
         self._is_clean = is_clean
-        self.set_prompt(prompt if is_clean else f"\x1b[33m{prompt}\x1b[0m")
+        self.__base_prompt = prompt if is_clean else f"\x1b[33m{prompt}\x1b[0m"
+        self.__recent_commits = recent_commits
+        self.set_prompt(self.__base_prompt)
         self.items[:] = items
-        self.set_message("refreshed")
+
+    def get_status_text(self) -> str:
+        return prepend_recent_commits(super().get_status_text(), self.__recent_commits)
 
     def on_idle(self) -> None:
+        # Animate the prompt while the background refresh runs so a slow refresh
+        # does not look idle.
+        if self.__refresh_thread and self.__refresh_thread.is_alive():
+            self.set_prompt(f"{self.__base_prompt} {next(self.__spinner)}")
+            return
         if time.monotonic() - self.__last_refresh_time >= 10:
             self._refresh()
 

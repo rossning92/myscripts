@@ -8,14 +8,21 @@ from itertools import cycle
 from typing import List, Optional
 
 from utils.jsonutil import load_json
+from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
 from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
+from git.vcs import (
+    get_git_recent_commits,
+    get_hg_recent_commits,
+    prepend_recent_commits,
+    run_vcs,
+)
+
 _MODULE_NAME = os.path.splitext(os.path.basename(__file__))[0]
 _DEFAULT_COMMIT_MESSAGE = "commit with no message"
-_RECENT_COMMIT_COUNT = 3
 
 
 def _prompt_commit_message() -> Optional[str]:
@@ -28,20 +35,6 @@ def _prompt_commit_message() -> Optional[str]:
     if not message.strip():
         return _DEFAULT_COMMIT_MESSAGE
     return message
-
-
-def _run_vcs(path: str, cmd: str, *args: str) -> Optional[str]:
-    try:
-        r = subprocess.run(
-            [cmd, *args],
-            cwd=path,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        return r.stdout.strip() if r.returncode == 0 else None
-    except Exception:
-        return None
 
 
 class Repo:
@@ -71,14 +64,14 @@ class Repo:
 
     def _refresh_git(self):
         self.branch = (
-            _run_vcs(self.path, "git", "rev-parse", "--abbrev-ref", "HEAD") or "?"
+            run_vcs(self.path, "git", "rev-parse", "--abbrev-ref", "HEAD") or "?"
         )
 
-        status = _run_vcs(self.path, "git", "status", "--porcelain")
+        status = run_vcs(self.path, "git", "status", "--porcelain")
         self.dirty = bool(status)
 
         self.ahead = self.behind = 0
-        counts = _run_vcs(
+        counts = run_vcs(
             self.path,
             "git",
             "rev-list",
@@ -91,40 +84,24 @@ class Repo:
             if len(parts) == 2:
                 self.ahead, self.behind = int(parts[0]), int(parts[1])
 
-        log = _run_vcs(
-            self.path,
-            "git",
-            "log",
-            f"-{_RECENT_COMMIT_COUNT}",
-            "--format=%h %as %s",
-        )
-        self.recent_commits = log.splitlines() if log else []
+        self.recent_commits = get_git_recent_commits(self.path)
 
     def _refresh_hg(self):
-        self.branch = _run_vcs(
+        self.branch = run_vcs(
             self.path, "hg", "log", "-r", ".", "--template", "{activebookmark}"
         )
         if not self.branch:
             self.branch = (
-                _run_vcs(self.path, "hg", "log", "-r", ".", "--template", "{branch}")
+                run_vcs(self.path, "hg", "log", "-r", ".", "--template", "{branch}")
                 or "?"
             )
 
-        status = _run_vcs(self.path, "hg", "status")
+        status = run_vcs(self.path, "hg", "status")
         self.dirty = bool(status)
 
         self.ahead = self.behind = 0
 
-        log = _run_vcs(
-            self.path,
-            "sl",
-            "log",
-            "-T",
-            "{node|short} {date|shortdate} {pad(phabdiff, 12)} {desc|firstline}\n",
-            "-r",
-            "reverse(draft() & (::. + .::))",
-        )
-        self.recent_commits = log.splitlines() if log else []
+        self.recent_commits = get_hg_recent_commits(self.path)
 
     @property
     def display_path(self) -> str:
@@ -188,16 +165,13 @@ class RepoMenu(Menu[Repo]):
         self._refresh_thread: Optional[threading.Thread] = None
         self._spinner = cycle(["|", "/", "-", "\\"])
         self._refresh()
-        self.add_command(
-            self._sync, hotkey="ctrl+s", name="sync (pull+push)", pinned=True
-        )
-        self.add_command(
-            self._amend_and_sync, hotkey="alt+a", name="amend+sync", pinned=True
-        )
-        self.add_command(
-            self._commit_and_sync, hotkey="alt+c", name="commit+sync", pinned=True
-        )
+        self.add_command(self._sync, hotkey="ctrl+s", name="sync", pinned=True)
+        self.add_command(self._amend, hotkey="alt+a", name="amend", pinned=True)
+        self.add_command(self._commit, hotkey="alt+c", name="commit", pinned=True)
         self.add_command(self._push, hotkey="alt+p", name="push", pinned=True)
+        self.add_command(
+            self._amend_and_push, hotkey="alt+f", name="amend+push", pinned=True
+        )
         self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
 
     def get_item_text(self, item: Repo) -> str:
@@ -265,21 +239,19 @@ class RepoMenu(Menu[Repo]):
                 ["hg", "push"],
             )
 
-    def _amend_and_sync(self):
+    def _amend(self):
         repo = self.get_selected_item()
-        if repo is None:
+        if repo is None or not repo.vcs:
+            return
+        if not confirm(f"Amend in {repo.display_path}?"):
             return
         if repo.is_git:
             self._run_cmds(
                 ["git", "add", "-A"],
                 ["git", "commit", "--amend", "--no-edit"],
-                ["git", "push", "--force-with-lease"],
             )
         elif repo.is_hg:
-            self._run_cmds(
-                ["hg", "amend"],
-                ["hg", "push"],
-            )
+            self._run_cmds(["hg", "amend"])
 
     def _push(self):
         repo = self.get_selected_item()
@@ -290,9 +262,24 @@ class RepoMenu(Menu[Repo]):
         elif repo.is_hg:
             self._run_cmds(["hg", "push"])
 
-    def _commit_and_sync(self):
+    def _amend_and_push(self):
         repo = self.get_selected_item()
-        if repo is None:
+        if repo is None or not repo.vcs:
+            return
+        if repo.is_hg:
+            self.set_message("amend+push is not supported for hg")
+            return
+        if not confirm(f"Amend and push {repo.display_path}?", prompt_color="red"):
+            return
+        self._run_cmds(
+            ["git", "add", "-A"],
+            ["git", "commit", "--amend", "--no-edit"],
+            ["git", "push", "--force-with-lease"],
+        )
+
+    def _commit(self):
+        repo = self.get_selected_item()
+        if repo is None or not repo.vcs:
             return
         message = _prompt_commit_message()
         if message is None:
@@ -300,30 +287,22 @@ class RepoMenu(Menu[Repo]):
         if repo.is_git:
             # If something is already staged, commit only the staged files.
             # Otherwise fall back to staging everything.
-            staged = _run_vcs(repo.path, "git", "diff", "--cached", "--name-only")
+            staged = run_vcs(repo.path, "git", "diff", "--cached", "--name-only")
             cmds = [] if staged else [["git", "add", "-A"]]
-            cmds += [
-                ["git", "commit", "-m", message],
-                ["git", "pull", "--rebase"],
-                ["git", "push"],
-            ]
+            cmds += [["git", "commit", "-m", message]]
             self._run_cmds(*cmds)
         elif repo.is_hg:
             self._run_cmds(
                 ["hg", "addremove"],
                 ["hg", "commit", "-m", message],
-                ["hg", "push"],
             )
 
     def get_status_text(self) -> str:
         # Prepend recent commits of the selected repo on top of the default
         # status bar (message + position indicators).
-        status = super().get_status_text()
         repo = self.get_selected_item()
-        if repo is not None and repo.recent_commits:
-            log = "\n".join(f"• {c}" for c in repo.recent_commits)
-            return f"{log}\n{status}"
-        return status
+        recent_commits = repo.recent_commits if repo is not None else []
+        return prepend_recent_commits(super().get_status_text(), recent_commits)
 
     def on_idle(self):
         # Animate the prompt while the background refresh runs. The

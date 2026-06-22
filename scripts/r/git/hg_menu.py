@@ -4,6 +4,7 @@ import subprocess
 from utils.menu.diffmenu import DiffMenu
 from utils.menu.shellcmdmenu import ShellCmdMenu
 
+from git.vcs import get_hg_recent_commits
 from git.vcs_menu import VcsDiffMenu
 
 
@@ -16,7 +17,22 @@ def _hg(*args):
         return ""
 
 
+def build_hg_diff_cmd(*extra_args):
+    return [
+        "hg",
+        "diff",
+        "-U10",
+        "--color=always",
+        "--config", "color.diff.inserted=green",
+        "--config", "color.diff.deleted=red",
+        *extra_args,
+    ]
+
+
 class HgMenu(VcsDiffMenu):
+    def _get_recent_commits(self):
+        return get_hg_recent_commits()
+
     def _get_status_items(self):
         status = _hg("status")
         if status:
@@ -74,16 +90,18 @@ class HgMenu(VcsDiffMenu):
         ShellCmdMenu(shell_cmd).exec()
 
     def __build_diff_cmd(self, *extra_args):
-        cmd = [
-            "hg",
-            "diff",
-            "-U10",
-            "--color=always",
-            "--config", "color.diff.inserted=green",
-            "--config", "color.diff.deleted=red",
-        ]
-        cmd.extend(extra_args)
-        return cmd
+        return build_hg_diff_cmd(*extra_args)
+
+    def _init_extra_commands(self):
+        self.add_command(self._diff_incl_head)
+
+    def _diff_incl_head(self):
+        # Diff from the parent of the current commit through the working tree,
+        # i.e. the current commit's own changes plus any uncommitted edits.
+        diff_cmd = self.__build_diff_cmd("-r", ".^")
+        DiffMenu(
+            root=os.getcwd(), diff_cmd=diff_cmd, prompt_prefix=self.get_prompt()
+        ).exec()
 
     def _diff_all(self):
         if self._is_clean:

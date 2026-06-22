@@ -4,10 +4,14 @@ import subprocess
 from utils.menu.diffmenu import DiffMenu
 from utils.menu.shellcmdmenu import ShellCmdMenu
 
+from git.vcs import get_git_recent_commits
 from git.vcs_menu import VcsDiffMenu
 
 
 class GitMenu(VcsDiffMenu):
+    def _get_recent_commits(self):
+        return get_git_recent_commits()
+
     def _init_extra_commands(self):
         self.add_command(self.__stage, hotkey="ctrl+s", name="stage", pinned=True)
         self.add_command(self.__unstage, hotkey="alt+u", name="unstage", pinned=True)
