@@ -207,6 +207,18 @@ def _add_margin(im, top=0, right=0, bottom=0, left=0, color="black"):
     return result
 
 
+def _labels_from_files(file_list, parse_file_name=None):
+    names = [os.path.splitext(os.path.basename(f))[0] for f in file_list]
+    if parse_file_name is not None:
+        return [parse_file_name(n) for n in names]
+    if len(set(names)) < len(names):
+        names = [
+            os.path.basename(os.path.dirname(f)) + "/" + n
+            for f, n in zip(file_list, names)
+        ]
+    return [n.replace("_", " ") for n in names]
+
+
 def combine_images(
     image_files=None,
     images=None,
@@ -246,7 +258,7 @@ def combine_images(
             print("Scaling image by %g" % scale)
             imgs = [
                 im.resize(
-                    (int(im.width * scale), int(im.height * scale)), Image.NEAREST
+                    (int(im.width * scale), int(im.height * scale)), Image.LANCZOS
                 )
                 for im in imgs
             ]
@@ -266,7 +278,7 @@ def combine_images(
         ]
 
     if not cols:
-        cols = math.ceil(math.sqrt(len(imgs)))
+        cols = 1
 
     # Adjust column size if it's smaller than the number of files
     if len(imgs) < cols:
@@ -274,21 +286,13 @@ def combine_images(
 
     # Add text
     if draw_label:
-        for i in range(len(imgs)):
-            im = imgs[i]
+        if labels is None and file_list is not None:
+            labels = _labels_from_files(file_list, parse_file_name)
 
-            if labels is not None:
-                text = labels[i]
-            elif file_list is not None:
-                text = os.path.splitext(os.path.basename(file_list[i]))[0]
-                if parse_file_name is not None:
-                    text = parse_file_name(text)
-                else:
-                    text = text.replace("_", " ")
-            else:
-                draw_label = False
-
-            if draw_label:
+        if labels is None:
+            draw_label = False
+        else:
+            for im, text in zip(imgs, labels):
                 draw_text(
                     im,
                     text,
