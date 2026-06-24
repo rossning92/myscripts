@@ -579,7 +579,7 @@ class Menu(Generic[T]):
             self.indices = [x[1] for x in sorted_items]
 
         # Commands and hotkeys
-        self.__hotkeys: Dict[str, _Command] = {}
+        self.__hotkeys: Dict[str, List[_Command]] = {}
         self.__custom_commands: List[_Command] = []
         if enable_command_palette:
             self.add_command(self.ask_ai, hotkey="alt+i")
@@ -763,7 +763,7 @@ class Menu(Generic[T]):
         self.__custom_commands.append(command)
 
         if hotkey is not None:
-            self.__hotkeys[hotkey] = command
+            self.__hotkeys.setdefault(hotkey, []).append(command)
 
         return command
 
@@ -784,6 +784,13 @@ class Menu(Generic[T]):
         for cmd in self.__custom_commands[:]:  # Iterate over a copy of the list
             if condition(cmd):
                 self.__custom_commands.remove(cmd)
+                # Keep __hotkeys in sync, else a deleted command still appears in the picker.
+                if cmd.hotkey is not None and cmd.hotkey in self.__hotkeys:
+                    commands = self.__hotkeys[cmd.hotkey]
+                    if cmd in commands:
+                        commands.remove(cmd)
+                    if not commands:
+                        del self.__hotkeys[cmd.hotkey]
 
     def get_history_file(self):
         from utils.script.path import get_data_dir
@@ -1162,7 +1169,7 @@ class Menu(Generic[T]):
                     self.on_keyboard_interrupt()
 
             elif ch == "@" and "@" in self.__hotkeys:
-                self.__hotkeys["@"].func()
+                self.__trigger_hotkey("@")
 
             elif (
                 ch == " "
@@ -1176,12 +1183,12 @@ class Menu(Generic[T]):
                     and self.__input.text[self.__input.caret_pos - 1] == " "
                 ):
                     self.__input.on_char(curses.KEY_BACKSPACE)
-                self.__hotkeys["space space"].func()
+                self.__trigger_hotkey("space space")
                 self.update_screen()
                 ch = -1
 
             elif ch == " " and self.__input.text == "" and "space" in self.__hotkeys:
-                self.__hotkeys["space"].func()
+                self.__trigger_hotkey("space")
 
             elif ch in ("\n", "\r"):
                 if self.__allow_input:
@@ -1202,7 +1209,7 @@ class Menu(Generic[T]):
             elif (
                 ch in (curses.KEY_LEFT, 452) and "left" in self.__hotkeys
             ):  # curses.KEY_B3
-                self.__hotkeys["left"].func()
+                self.__trigger_hotkey("left")
 
             elif ch in (curses.KEY_LEFT, 452) and self.__can_scroll:  # curses.KEY_B1
                 self.__scroll_x = max(self.__scroll_x - self.get_scroll_distance(), 0)
@@ -1211,7 +1218,7 @@ class Menu(Generic[T]):
             elif (
                 ch in (curses.KEY_RIGHT, 454) and "right" in self.__hotkeys
             ):  # curses.KEY_B3
-                self.__hotkeys["right"].func()
+                self.__trigger_hotkey("right")
 
             elif ch in (curses.KEY_RIGHT, 454) and self.__can_scroll:  # curses.KEY_B3
                 self.__scroll_x += self.get_scroll_distance()
@@ -1252,7 +1259,7 @@ class Menu(Generic[T]):
                         self.__update_input_from_selection(end)
 
             elif ch == curses.KEY_DC and "delete" in self.__hotkeys:
-                self.__hotkeys["delete"].func()
+                self.__trigger_hotkey("delete")
 
             elif self._check_ctrl_hotkey(ch):
                 pass
@@ -1265,7 +1272,7 @@ class Menu(Generic[T]):
                 and ch == 0x211
                 and "alt+enter" in self.__hotkeys
             ):
-                self.__hotkeys["alt+enter"].func()
+                self.__trigger_hotkey("alt+enter")
 
             elif ch == "\x1b":  # escape key
                 self.on_escape_pressed()
@@ -1366,9 +1373,15 @@ class Menu(Generic[T]):
                 self.on_matched_items_updated()
 
     def on_escape_pressed(self):
+        # If in multi-select mode, exit multi-select mode first instead of
+        # cancelling the menu.
+        if self.__multi_select_mode:
+            self.set_multi_select(False)
+            return True
+
         if "escape" in self.__hotkeys:
             logging.debug("Hotkey pressed: escape")
-            self.__hotkeys["escape"].func()
+            self.__trigger_hotkey("escape")
             return True
         else:
             if self.__cancellable:
@@ -1393,20 +1406,20 @@ class Menu(Generic[T]):
             for htk in htks:
                 if htk in self.__hotkeys:
                     logging.debug(f"Hotkey pressed: {htk}")
-                    self.__hotkeys[htk].func()
+                    self.__trigger_hotkey(htk)
                     return True
         return False
 
     def _check_shift_hotkey(self, ch: Union[str, int]) -> bool:
         if isinstance(ch, str):
             if ch in self.__hotkeys:
-                self.__hotkeys[ch].func()
+                self.__trigger_hotkey(ch)
                 return True
             elif len(ch) == 1 and ch.isupper():
                 htk = "shift+" + ch.lower()
                 if htk in self.__hotkeys:
                     logging.debug(f"Hotkey pressed: {htk}")
-                    self.__hotkeys[htk].func()
+                    self.__trigger_hotkey(htk)
                     return True
         return False
 
@@ -1416,7 +1429,7 @@ class Menu(Generic[T]):
                 htk = "alt+" + chr(ord("a") + (ch - 0x1A1))
                 if htk in self.__hotkeys:
                     logging.debug(f"Hotkey pressed: {htk}")
-                    self.__hotkeys[htk].func()
+                    self.__trigger_hotkey(htk)
                 return True
 
         return False
@@ -1869,7 +1882,7 @@ class Menu(Generic[T]):
 
         elif isinstance(ch, str) and ch in self.__hotkeys:
             logging.debug(f"Hotkey pressed: {ch}")
-            self.__hotkeys[ch].func()
+            self.__trigger_hotkey(ch)
             return True
 
         else:
@@ -1910,7 +1923,7 @@ class Menu(Generic[T]):
 
     def on_tab_pressed(self) -> bool:
         if "tab" in self.__hotkeys:
-            self.__hotkeys["tab"].func()
+            self.__trigger_hotkey("tab")
             return True
         else:
             item = self.get_selected_item()
@@ -1975,6 +1988,32 @@ class Menu(Generic[T]):
         self.set_input(new_text)
         if new_text != text:
             self.on_enter_pressed()
+
+    def __trigger_hotkey(self, hotkey: str):
+        commands = self.__hotkeys.get(hotkey)
+        if not commands:
+            return
+
+        if len(commands) == 1:
+            commands[0].func()
+            return
+
+        class _HotkeyMenu(Menu):
+            # All items share the same hotkey, so showing "[!a]" per item is redundant.
+            def get_item_text(self, item):
+                return item.name
+
+        menu = _HotkeyMenu(
+            prompt=f"hotkey pressed: {hotkey}",
+            items=commands,
+            enable_command_palette=False,
+            quick_select=True,
+        )
+        menu.exec()
+        selected = menu.get_selected_item()
+        if selected is not None:
+            selected.func()
+        self.update_screen()
 
     def __command_palette(self):
         menu = Menu(

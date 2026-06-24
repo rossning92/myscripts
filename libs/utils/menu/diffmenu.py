@@ -1,5 +1,7 @@
+import functools
 import os
 import re
+import shutil
 import subprocess
 import threading
 import time
@@ -116,9 +118,29 @@ def _build_stage_patch(diff_lines: List[str], selected: Set[int]) -> Optional[st
     return "\n".join(patch) + "\n"
 
 
+@functools.lru_cache(maxsize=1)
+def _find_diff_highlight() -> Optional[str]:
+    # git ships `diff-highlight` in contrib/ for word-level highlighting, but it's
+    # not a core command. use it when present, fall back to plain diff otherwise.
+    found = shutil.which("diff-highlight")
+    if found:
+        return found
+    for c in (
+        "/usr/share/git-core/contrib/diff-highlight",
+        "/usr/share/git-core/contrib/diff-highlight/diff-highlight",
+        "/usr/share/doc/git/contrib/diff-highlight/diff-highlight",
+    ):
+        if os.access(c, os.X_OK):
+            return c
+    return None
+
+
 def _run_diff_cmd(cmd: List[str]) -> List[str]:
-    cp = subprocess.run(cmd, capture_output=True)
-    return cp.stdout.decode("utf-8", errors="replace").replace("\r", "").splitlines()
+    out = subprocess.run(cmd, capture_output=True).stdout
+    diff_highlight = _find_diff_highlight()
+    if diff_highlight:
+        out = subprocess.run([diff_highlight], input=out, capture_output=True).stdout
+    return out.decode("utf-8", errors="replace").replace("\r", "").splitlines()
 
 
 def _build_git_diff_cmd(args: List[str]) -> List[str]:
@@ -169,12 +191,11 @@ class DiffMenu(TextMenu):
 
     def __generate_diff_lines(self) -> List[str]:
         if self.__diff_cmd:
-            return _run_diff_cmd(self.__diff_cmd)
+            lines = _run_diff_cmd(self.__diff_cmd)
         elif self.__files:
-            lines: List[str] = []
+            lines = []
             for f1, f2 in self.__files:
                 lines.extend(_run_diff_cmd(_build_git_diff_cmd(["--no-index", f1, f2])))
-            return lines
         else:
             if not self.__root:
                 git_root = get_git_root()
@@ -188,7 +209,9 @@ class DiffMenu(TextMenu):
                 if subprocess.run(["git", "diff", "--quiet"]).returncode == 0:
                     args.extend(["HEAD~1", "HEAD"])
 
-            return _run_diff_cmd(_build_git_diff_cmd(args))
+            lines = _run_diff_cmd(_build_git_diff_cmd(args))
+
+        return lines
 
     def __refresh(self):
         if self.__refresh_thread and self.__refresh_thread.is_alive():

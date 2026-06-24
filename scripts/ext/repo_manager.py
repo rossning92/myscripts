@@ -8,7 +8,6 @@ from itertools import cycle
 from typing import List, Optional
 
 from utils.jsonutil import load_json
-from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
 from utils.menu.shellcmdmenu import ShellCmdMenu
@@ -169,9 +168,8 @@ class RepoMenu(Menu[Repo]):
         self.add_command(self._amend, hotkey="alt+a", name="amend", pinned=True)
         self.add_command(self._commit, hotkey="alt+c", name="commit", pinned=True)
         self.add_command(self._push, hotkey="alt+p", name="push", pinned=True)
-        self.add_command(
-            self._amend_and_push, hotkey="alt+f", name="amend+push", pinned=True
-        )
+        self.add_command(self._amend_and_push, hotkey="alt+a", name="amend+push")
+        self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
         self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
 
     def get_item_text(self, item: Repo) -> str:
@@ -224,32 +222,32 @@ class RepoMenu(Menu[Repo]):
         menu.exec()
         self._refresh()
 
+    @staticmethod
+    def _sync_cmds(repo: Repo) -> List[List[str]]:
+        if repo.is_git:
+            return [["git", "pull", "--rebase"], ["git", "push"]]
+        elif repo.is_hg:
+            return [["hg", "pull"], ["hg", "push"]]
+        return []
+
     def _sync(self):
         repo = self.get_selected_item()
         if repo is None:
             return
-        if repo.is_git:
-            self._run_cmds(
-                ["git", "pull", "--rebase"],
-                ["git", "push"],
-            )
-        elif repo.is_hg:
-            self._run_cmds(
-                ["hg", "pull"],
-                ["hg", "push"],
-            )
+        self._run_cmds(*self._sync_cmds(repo))
 
-    def _amend(self):
+    def _amend(self, push: bool = False):
         repo = self.get_selected_item()
         if repo is None or not repo.vcs:
             return
-        if not confirm(f"Amend in {repo.display_path}?"):
+        if push and repo.is_hg:
+            self.set_message("amend+push is not supported for hg")
             return
         if repo.is_git:
-            self._run_cmds(
-                ["git", "add", "-A"],
-                ["git", "commit", "--amend", "--no-edit"],
-            )
+            cmds = [["git", "add", "-A"], ["git", "commit", "--amend", "--no-edit"]]
+            if push:
+                cmds += [["git", "push", "--force-with-lease"]]
+            self._run_cmds(*cmds)
         elif repo.is_hg:
             self._run_cmds(["hg", "amend"])
 
@@ -263,21 +261,9 @@ class RepoMenu(Menu[Repo]):
             self._run_cmds(["hg", "push"])
 
     def _amend_and_push(self):
-        repo = self.get_selected_item()
-        if repo is None or not repo.vcs:
-            return
-        if repo.is_hg:
-            self.set_message("amend+push is not supported for hg")
-            return
-        if not confirm(f"Amend and push {repo.display_path}?", prompt_color="red"):
-            return
-        self._run_cmds(
-            ["git", "add", "-A"],
-            ["git", "commit", "--amend", "--no-edit"],
-            ["git", "push", "--force-with-lease"],
-        )
+        self._amend(push=True)
 
-    def _commit(self):
+    def _commit(self, sync: bool = False):
         repo = self.get_selected_item()
         if repo is None or not repo.vcs:
             return
@@ -290,12 +276,16 @@ class RepoMenu(Menu[Repo]):
             staged = run_vcs(repo.path, "git", "diff", "--cached", "--name-only")
             cmds = [] if staged else [["git", "add", "-A"]]
             cmds += [["git", "commit", "-m", message]]
-            self._run_cmds(*cmds)
         elif repo.is_hg:
-            self._run_cmds(
-                ["hg", "addremove"],
-                ["hg", "commit", "-m", message],
-            )
+            cmds = [["hg", "addremove"], ["hg", "commit", "-m", message]]
+        else:
+            return
+        if sync:
+            cmds += self._sync_cmds(repo)
+        self._run_cmds(*cmds)
+
+    def _commit_and_sync(self):
+        self._commit(sync=True)
 
     def get_status_text(self) -> str:
         # Prepend recent commits of the selected repo on top of the default

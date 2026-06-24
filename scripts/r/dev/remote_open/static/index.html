@@ -2,13 +2,80 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Remote Open</title>
+<style>
+:root {
+    --bg: #1e1e1e;
+    --fg: #e0e0e0;
+    --muted: #888;
+    --border: #333;
+    --link: #4ea1ff;
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 16px;
+}
+h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 16px;
+}
+#status {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--muted);
+}
+#empty {
+    color: var(--muted);
+}
+ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+li {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+li a {
+    color: var(--link);
+    text-decoration: none;
+    word-break: break-all;
+}
+li a:hover {
+    text-decoration: underline;
+}
+li small {
+    color: var(--muted);
+    margin-left: auto;
+    white-space: nowrap;
+    font-size: 12px;
+}
+#popup-warning {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #4a1f1f;
+    color: #ff9b9b;
+    border-radius: 4px;
+    font-size: 13px;
+}
+</style>
 </head>
 <body>
 <h2>Remote Open <span id="status">(connecting...)</span></h2>
 <div id="empty">waiting for files ...</div>
 <ul id="list"></ul>
-<div id="popup-warning" style="display:none;color:red">
+<div id="popup-warning" style="display:none">
     Pop-ups blocked - please allow pop-ups for this site
 </div>
 <script>
@@ -22,7 +89,7 @@ function esc(s) {
 }
 
 function itemUrl(it) {
-    return it.type === "url" ? it.path : "/view.html?id=" + it.id;
+    return it.type === "url" ? it.path : "/view.html?path=" + encodeURIComponent(it.path);
 }
 
 function render() {

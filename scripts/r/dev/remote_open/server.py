@@ -65,9 +65,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/events":
             return self._handle_sse()
 
-        if path.startswith("/api/item/"):
-            return self._handle_item(path[10:])
-
         if path.startswith("/api/file/"):
             return self._serve_file(urllib.parse.unquote(path[9:]))
 
@@ -110,16 +107,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with lock:
                 if q in sse_clients:
                     sse_clients.remove(q)
-
-    def _handle_item(self, raw_id):
-        try:
-            item_id = int(raw_id)
-        except ValueError:
-            return self._json_err(400, "invalid id")
-        item = next((it for it in opened_items if it["id"] == item_id), None)
-        if not item:
-            return self._json_err(404, "not found")
-        self._json_ok(item)
 
     def _handle_open(self):
         length = int(self.headers.get("Content-Length", 0))

@@ -8,15 +8,85 @@
       * {
         margin: 0;
         padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
       }
       body {
         display: flex;
         flex-direction: column;
-        align-items: center;
         margin: 0;
+        overflow: hidden;
+        font-family: system-ui, sans-serif;
+      }
+      #toolbar {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 3px 6px;
+        background: #2b2c2f;
+        flex: 0 0 auto;
+      }
+      #toolbar button {
+        width: 24px;
+        height: 24px;
+        border: none;
+        border-radius: 4px;
+        background: transparent;
+        color: #ccc;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+        flex: 0 0 auto;
+      }
+      #toolbar button svg {
+        width: 16px;
+        height: 16px;
+        display: block;
+        margin: auto;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      #toolbar button:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      #toolbar button:disabled {
+        color: #666;
+        cursor: default;
+        background: transparent;
+      }
+      #addr {
+        flex: 1 1 auto;
+        height: 24px;
+        margin-left: 4px;
+        padding: 0 10px;
+        border: none;
+        border-radius: 12px;
+        background: #1c1d1f;
+        color: #eee;
+        font-size: 13px;
+        outline: none;
+      }
+      #addr::placeholder {
+        color: #777;
+      }
+      #stage {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: #202124;
       }
       canvas {
         max-width: 100%;
+        max-height: 100%;
         cursor: pointer;
       }
       #hiddenInput {
@@ -46,7 +116,36 @@
     </style>
   </head>
   <body>
-    <canvas id="screen"></canvas>
+    <div id="toolbar">
+      <button id="backBtn" title="Back" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" />
+        </svg>
+      </button>
+      <button id="fwdBtn" title="Forward" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+      <button id="reloadBtn" title="Reload">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 11a8 8 0 1 0-.6 4" />
+          <path d="M20 4v6h-6" />
+        </svg>
+      </button>
+      <input
+        id="addr"
+        type="text"
+        placeholder="Enter URL and press Enter"
+        autocomplete="off"
+        autocapitalize="none"
+        autocorrect="off"
+        spellcheck="false"
+      />
+    </div>
+    <div id="stage">
+      <canvas id="screen"></canvas>
+    </div>
     <input
       id="hiddenInput"
       type="text"
@@ -64,12 +163,65 @@
         pageHeight = 1;
       let ws = null;
       let currentWsUrl = null;
+      // Pending CDP command responses, keyed by request id.
+      const pending = new Map();
 
       function send(method, params = {}) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ id: id++, method, params }));
-        }
+        return new Promise((resolve) => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            const myId = id++;
+            pending.set(myId, resolve);
+            ws.send(JSON.stringify({ id: myId, method, params }));
+          } else {
+            resolve(null);
+          }
+        });
       }
+
+      const addr = document.getElementById("addr");
+      const backBtn = document.getElementById("backBtn");
+      const fwdBtn = document.getElementById("fwdBtn");
+      const reloadBtn = document.getElementById("reloadBtn");
+
+      // Pull the current navigation history to sync the address bar and the
+      // enabled/disabled state of the back/forward buttons.
+      async function refreshNav() {
+        const msg = await send("Page.getNavigationHistory");
+        const r = msg && msg.result;
+        if (!r) return;
+        const entry = r.entries[r.currentIndex];
+        if (entry && document.activeElement !== addr) {
+          addr.value = entry.url;
+        }
+        backBtn.disabled = r.currentIndex <= 0;
+        fwdBtn.disabled = r.currentIndex >= r.entries.length - 1;
+      }
+
+      async function navHistory(delta) {
+        const msg = await send("Page.getNavigationHistory");
+        const r = msg && msg.result;
+        if (!r) return;
+        const target = r.entries[r.currentIndex + delta];
+        if (target) await send("Page.navigateToHistoryEntry", { entryId: target.id });
+      }
+
+      function go() {
+        let url = addr.value.trim();
+        if (!url) return;
+        // Prefix a scheme when the user types a bare host like "example.com".
+        if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^about:/i.test(url)) {
+          url = "https://" + url;
+        }
+        send("Page.navigate", { url });
+        canvas.focus && canvas.focus();
+      }
+
+      backBtn.addEventListener("click", () => navHistory(-1));
+      fwdBtn.addEventListener("click", () => navHistory(1));
+      reloadBtn.addEventListener("click", () => send("Page.reload"));
+      addr.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") go();
+      });
 
       function startScreencast() {
         send("Page.startScreencast", {
@@ -88,10 +240,28 @@
         document.title = "Screencast";
         ws = new WebSocket(wsUrl);
 
-        ws.onopen = () => startScreencast();
+        ws.onopen = () => {
+          startScreencast();
+          send("Page.enable");
+          refreshNav();
+        };
 
         ws.onmessage = (e) => {
           const msg = JSON.parse(e.data);
+          // Resolve awaited command responses.
+          if (msg.id !== undefined && pending.has(msg.id)) {
+            pending.get(msg.id)(msg);
+            pending.delete(msg.id);
+            return;
+          }
+          // Keep the address bar / buttons in sync on main-frame navigations.
+          if (
+            msg.method === "Page.frameNavigated" &&
+            msg.params.frame &&
+            !msg.params.frame.parentId
+          ) {
+            refreshNav();
+          }
           if (msg.method === "Page.screencastFrame") {
             const meta = msg.params.metadata;
             pageWidth = meta.deviceWidth;
@@ -111,6 +281,7 @@
 
         ws.onclose = () => {
           currentWsUrl = null;
+          pending.clear();
         };
       }
 
@@ -125,6 +296,8 @@
           const { ws: activeWs } = await res.json();
           if (activeWs && activeWs !== currentWsUrl) {
             connect(activeWs);
+          } else if (ws && ws.readyState === WebSocket.OPEN) {
+            refreshNav();
           }
         } catch (e) {}
       }
@@ -242,6 +415,8 @@
       }
 
       document.addEventListener("keydown", (e) => {
+        // Let the local toolbar inputs handle their own keystrokes.
+        if (e.target.tagName === "INPUT") return;
         e.preventDefault();
         send("Input.dispatchKeyEvent", {
           type: e.key.length === 1 ? "keyDown" : "rawKeyDown",
@@ -260,6 +435,7 @@
       });
 
       document.addEventListener("keyup", (e) => {
+        if (e.target.tagName === "INPUT") return;
         e.preventDefault();
         send("Input.dispatchKeyEvent", {
           type: "keyUp",

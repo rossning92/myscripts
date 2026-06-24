@@ -15,7 +15,7 @@ function getLatestMtime(dir) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       latest = Math.max(latest, getLatestMtime(full));
-    } else if (entry.name.endsWith(".js")) {
+    } else if (entry.name.endsWith(".js") || entry.name.endsWith(".html")) {
       latest = Math.max(latest, fs.statSync(full).mtimeMs);
     }
   }
@@ -65,6 +65,8 @@ async function ensureDaemon() {
   const child = spawn("node", [path.join(__dirname, "daemon.js")], {
     detached: true,
     stdio: "ignore",
+    // Enable the rebrowser Runtime.enable leak fix (anti-bot evasion).
+    env: { ...process.env, REBROWSER_PATCHES_RUNTIME_FIX_MODE: "addBinding" },
   });
   child.unref();
   await waitForDaemon(true, { retries: 30, delay: 200 });

@@ -1,8 +1,7 @@
 import { spawn } from "child_process";
 import fs from "fs";
-import puppeteerCore from "puppeteer-core";
 import puppeteerExtra from "puppeteer-extra";
-import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import puppeteerCore from "rebrowser-puppeteer-core";
 import {
   BROWSER_URL,
   DEBUG_PORT,
@@ -12,7 +11,6 @@ import {
 } from "./config.js";
 
 const puppeteer = puppeteerExtra.addExtra(puppeteerCore);
-puppeteer.use(StealthPlugin());
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -36,10 +34,15 @@ async function launchDetachedChrome(headed = false) {
     `--remote-debugging-port=${DEBUG_PORT}`,
     `--user-data-dir=${USER_DATA_DIR}`,
     "--remote-allow-origins=*",
-    "--no-sandbox",
     `--window-size=${WINDOW_WIDTH},${WINDOW_HEIGHT}`,
     "--disable-blink-features=AutomationControlled",
   ];
+
+  // --no-sandbox is an automation fingerprint and is only needed on headless
+  // Linux/Android servers. Skip it on desktop OSes to look more like a real browser.
+  if (process.platform === "linux" || process.platform === "android") {
+    chromeArgs.push("--no-sandbox");
+  }
 
   if (
     !headed &&
@@ -56,7 +59,7 @@ async function launchDetachedChrome(headed = false) {
       {
         detached: true,
         stdio: "ignore",
-      },
+      }
     );
     chromeProcess.on("error", () => {
       const fallbackProcess = spawn(
@@ -65,7 +68,7 @@ async function launchDetachedChrome(headed = false) {
         {
           detached: true,
           stdio: "ignore",
-        },
+        }
       );
       fallbackProcess.unref();
     });
@@ -89,7 +92,7 @@ async function getActivePage(browser) {
     pages.map(async (p) => {
       const state = await p.evaluate(() => document.webkitHidden);
       return !state;
-    }),
+    })
   );
   let visiblePage = pages.filter((_v, index) => vis_results[index])[0];
   return visiblePage;
@@ -109,7 +112,7 @@ export async function getOrOpenPage(browser, url) {
     const response = await page.goto(url, { waitUntil: "domcontentloaded" });
     if (response && !response.ok() && response.status() !== 304) {
       throw new Error(
-        `Failed to load page: ${response.status()} ${response.statusText()}`,
+        `Failed to load page: ${response.status()} ${response.statusText()}`
       );
     }
     await sleep(3000);
@@ -176,7 +179,7 @@ export async function launchOrConnectBrowser({
 
   const handleDialog = async (dialog) => {
     console.log(
-      `Automatically accepting dialog: [${dialog.type()}] ${dialog.message()}`,
+      `Automatically accepting dialog: [${dialog.type()}] ${dialog.message()}`
     );
     await dialog.accept().catch(() => {});
   };
@@ -288,7 +291,7 @@ export const runAction = ({ type, text } = {}) => {
     if (el.id) {
       try {
         const labelEl = document.querySelector(
-          `label[for="${CSS.escape(el.id)}"]`,
+          `label[for="${CSS.escape(el.id)}"]`
         );
         if (labelEl) return labelEl.innerText;
       } catch (e) {}
@@ -393,7 +396,7 @@ export const runAction = ({ type, text } = {}) => {
 
     // If one element contains another, return the contained one.
     elements = elements.filter(
-      (x) => !elements.some((y) => x.el.contains(y.el) && !(x == y)),
+      (x) => !elements.some((y) => x.el.contains(y.el) && !(x == y))
     );
     return elements;
   }

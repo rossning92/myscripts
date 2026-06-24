@@ -192,12 +192,6 @@
       "packages": ["voidtools.Everything"]
     }
   },
-  "f3d": {
-    "executables": ["C:\\Program Files\\F3D\\bin\\f3d.exe"],
-    "winget": {
-      "packages": ["f3d-app.f3d"]
-    }
-  },
   "expect": {
     "apt": {
       "packages": ["expect"]
@@ -210,6 +204,12 @@
     },
     "termux": {
       "packages": ["expect"]
+    }
+  },
+  "f3d": {
+    "executables": ["C:\\Program Files\\F3D\\bin\\f3d.exe"],
+    "winget": {
+      "packages": ["f3d-app.f3d"]
     }
   },
   "ffmpeg": {
@@ -469,6 +469,9 @@
   },
   "miniconda3": {
     "choco": {
+      "packages": ["miniconda3"]
+    },
+    "yay": {
       "packages": ["miniconda3"]
     }
   },
@@ -1020,7 +1023,6 @@
     }
   },
   "xvfb": {
-    "winget": { "packages": [] },
     "apt": {
       "packages": ["xvfb"]
     },
@@ -1029,6 +1031,9 @@
     },
     "termux": {
       "packages": ["x11-repo", "xorg-xauth", "xorg-server-xvfb"]
+    },
+    "winget": {
+      "packages": []
     }
   },
   "xxd": {

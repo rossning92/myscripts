@@ -13,7 +13,7 @@
     "commander": "^14.0.3",
     "puppeteer-core": "^24.35.0",
     "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "rebrowser-puppeteer-core": "^24.8.1",
     "turndown": "^7.2.1"
   }
 }

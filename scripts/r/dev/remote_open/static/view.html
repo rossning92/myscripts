@@ -2,7 +2,69 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Loading...</title>
+<style>
+:root {
+    --bg: #1e1e1e;
+    --fg: #e0e0e0;
+    --muted: #888;
+    --border: #333;
+}
+* { box-sizing: border-box; }
+html, body {
+    margin: 0;
+    height: 100%;
+}
+body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+#path {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    overflow-x: auto;
+}
+#viewer {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    overflow: auto;
+}
+#viewer img,
+#viewer video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+#viewer iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+#viewer pre {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    padding: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+</style>
 </head>
 <body>
 <div id="path"></div>
@@ -21,32 +83,29 @@ function esc(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-var id = new URLSearchParams(location.search).get("id");
-if (id) {
-    fetch("/api/item/" + id)
-        .then(function (r) { return r.json(); })
-        .then(function (it) {
-            document.title = it.name;
-            document.getElementById("path").textContent = it.path;
+var path = new URLSearchParams(location.search).get("path");
+if (path) {
+    var name = path.split("/").pop().split("?")[0];
+    document.title = name;
+    document.getElementById("path").textContent = path;
 
-            var v = document.getElementById("viewer");
-            var e = ext(it.name);
-            var src = "/api/file" + it.path;
+    var v = document.getElementById("viewer");
+    var e = ext(name);
+    var src = "/api/file" + path.split("/").map(encodeURIComponent).join("/");
 
-            if (IMG.indexOf(e) >= 0) {
-                v.innerHTML = '<img src="' + src + '">';
-            } else if (VID.indexOf(e) >= 0) {
-                v.innerHTML = '<video controls src="' + src + '"></video>';
-            } else if (AUD.indexOf(e) >= 0) {
-                v.innerHTML = '<audio controls src="' + src + '"></audio>';
-            } else if (e === "pdf") {
-                v.innerHTML = '<iframe src="' + src + '" style="width:100%;height:90vh;border:none"></iframe>';
-            } else {
-                fetch(src)
-                    .then(function (r) { return r.text(); })
-                    .then(function (t) { v.innerHTML = "<pre>" + esc(t) + "</pre>"; });
-            }
-        });
+    if (IMG.indexOf(e) >= 0) {
+        v.innerHTML = '<img src="' + src + '">';
+    } else if (VID.indexOf(e) >= 0) {
+        v.innerHTML = '<video controls src="' + src + '"></video>';
+    } else if (AUD.indexOf(e) >= 0) {
+        v.innerHTML = '<audio controls src="' + src + '"></audio>';
+    } else if (e === "pdf") {
+        v.innerHTML = '<iframe src="' + src + '"></iframe>';
+    } else {
+        fetch(src)
+            .then(function (r) { return r.text(); })
+            .then(function (t) { v.innerHTML = "<pre>" + esc(t) + "</pre>"; });
+    }
 }
 </script>
 </body>
