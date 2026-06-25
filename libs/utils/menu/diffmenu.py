@@ -175,7 +175,7 @@ class DiffMenu(TextMenu):
         lines = self.__generate_diff_lines()
         self.__diff_lines = [strip_ansi(line) for line in lines]
 
-        prompt = f"{prompt_prefix} > diff" if prompt_prefix else "diff"
+        prompt = f"{prompt_prefix} ❯ diff" if prompt_prefix else "diff"
         super().__init__(
             prompt=prompt,
             text="\n".join(lines) if lines else "(no diff)",

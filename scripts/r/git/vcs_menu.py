@@ -74,7 +74,7 @@ class VcsDiffMenu(Menu):
 
     def set_prompt(self, prompt: str) -> None:
         if self.__prompt_prefix:
-            prompt = f"{self.__prompt_prefix} > {prompt}"
+            prompt = f"{self.__prompt_prefix} ❯ {prompt}"
         super().set_prompt(prompt)
 
     def _refresh(self) -> None:

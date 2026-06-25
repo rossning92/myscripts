@@ -203,12 +203,16 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
         if device is None:
             return
 
+        label = f"{device.product_name} ({device.serial})"
+        self.set_message(f"Toggling sleep on {label}...")
+
         def do_toggle():
             subprocess.run(
                 ["adb", "-s", device.serial, "shell", "input", "keyevent", "KEYCODE_POWER"],
                 timeout=5,
             )
             _refresh_device_status(device)
+            self.set_message(f"Toggled sleep on {label}: {device.wakefulness or 'n/a'}")
 
         threading.Thread(target=do_toggle, daemon=True).start()
 

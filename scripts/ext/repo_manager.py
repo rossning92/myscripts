@@ -20,7 +20,7 @@ from git.vcs import (
     run_vcs,
 )
 
-_MODULE_NAME = os.path.splitext(os.path.basename(__file__))[0]
+_MODULE_NAME = "repos"
 _DEFAULT_COMMIT_MESSAGE = "commit with no message"
 
 

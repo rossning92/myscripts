@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Remote Open</title>
+<link rel="icon" href="/favicon.svg">
 <style>
 :root {
     --bg: #1e1e1e;
@@ -110,7 +111,9 @@ function addItem(it) {
     render();
 
     if (!isReplay) {
-        var w = window.open(itemUrl(it), "_blank");
+        var feat = "popup,left=0,top=0,width=" + screen.availWidth +
+                   ",height=" + screen.availHeight;
+        var w = window.open(itemUrl(it), "_blank", feat);
         if (!w || w.closed) {
             document.getElementById("popup-warning").style.display = "block";
         }

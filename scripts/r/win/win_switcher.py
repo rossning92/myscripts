@@ -66,8 +66,8 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.items.sort(
             key=lambda w: (
                 0
-                if w.get_status(self.script_status) == "done"
-                else 1 if w.title in self.__pinned else 2,
+                if w.title in self.__pinned
+                else 1 if w.get_status(self.script_status) == "done" else 2,
             )
         )
 
