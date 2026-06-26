@@ -6,7 +6,7 @@ import os
 import sys
 import time
 
-from build123d import BuildPart
+from build123d import BuildPart, export_stl
 
 
 def load_module(path):
@@ -40,6 +40,12 @@ def discover_parts(module):
 def main():
     parser = argparse.ArgumentParser(description="Live browser viewer for build123d scripts (yacv).")
     parser.add_argument("model")
+    parser.add_argument(
+        "export_dir",
+        nargs="?",
+        default=None,
+        help="if given, export each discovered part to <export_dir>/<model>_<part>.stl on every reload",
+    )
     args = parser.parse_args()
 
     if not os.path.isfile(args.model):
@@ -58,6 +64,15 @@ def main():
 
     from yacv_server import show  # importing starts the server
 
+    def export_parts(parts):
+        if not args.export_dir:
+            return
+        os.makedirs(args.export_dir, exist_ok=True)
+        stem = os.path.splitext(os.path.basename(args.model))[0]
+        for name, obj in parts:
+            export_stl(obj, os.path.join(args.export_dir, f"{stem}_{name}.stl"))
+        print(f"Exported {len(parts)} STL(s) to {args.export_dir}", flush=True)
+
     def reshow():
         parts = discover_parts(load_module(args.model))
         if not parts:
@@ -66,6 +81,7 @@ def main():
         names = [n for n, _ in parts]
         objs = [obj for _, obj in parts]
         show(*objs, names=names)
+        export_parts(parts)
         return names
 
     if reshow() is None:
