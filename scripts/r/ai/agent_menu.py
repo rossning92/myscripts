@@ -3,6 +3,7 @@ import glob
 import os
 import shlex
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypedDict, cast
 
@@ -35,6 +36,7 @@ from utils.jsonschema import JSONSchema
 from utils.jsonutil import load_json
 from utils.menu.confirmmenu import ConfirmMenu
 from utils.menu.filemenu import FileMenu
+from utils.menu.menu import PROCESS_EVENT_INTERVAL_SEC
 
 MODULE_NAME = Path(__file__).stem
 DATA_DIR = os.path.join(".config", MODULE_NAME)
@@ -168,6 +170,31 @@ class AgentMenu(ChatMenu):
     def __get_tool_uses(self, message: Message) -> List[ToolUse]:
         return list(message.get("tool_use", []))
 
+    def __run_blocking(self, func: Callable[[], Any]) -> Any:
+        # Run a blocking tool call on a worker thread while pumping the curses
+        # event loop on this (main) thread, so the UI stays responsive while we
+        # wait. Mirrors how a nested menu.exec() loop keeps the parent live.
+        result: Dict[str, Any] = {}
+        done = threading.Event()
+
+        def worker():
+            try:
+                result["value"] = func()
+            except BaseException as ex:  # noqa: BLE001 - re-raised on main below.
+                result["error"] = ex
+            finally:
+                done.set()
+
+        threading.Thread(target=worker, daemon=True).start()
+
+        while not done.is_set():
+            if self.process_events(timeout_sec=PROCESS_EVENT_INTERVAL_SEC):
+                break  # Menu was closed; stop pumping.
+
+        if "error" in result:
+            raise result["error"]
+        return result.get("value")
+
     def __execute_tool(self, tool_use: ToolUse):
         tool_name = tool_use["tool_name"]
         tool = next(
@@ -181,6 +208,7 @@ class AgentMenu(ChatMenu):
                     allowed_commands=ALLOWED_COMMANDS,
                     save_path=str(ALLOWED_COMMANDS_FILE),
                 )
+                return self.__run_blocking(lambda: tool(**tool_use["args"]))
             return tool(**tool_use["args"])
 
         client = next(

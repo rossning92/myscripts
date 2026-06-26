@@ -25,11 +25,36 @@ import urllib.parse
 
 DEFAULT_PORT = 8765
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+HISTORY_FILE = os.path.join(
+    os.path.expanduser("~/.cache"), "ropen_history.json"
+)
+MAX_HISTORY = 100
 
 item_id_counter = 0
 opened_items = []
 sse_clients = []
 lock = threading.Lock()
+
+
+def load_history():
+    global item_id_counter, opened_items
+    try:
+        with open(HISTORY_FILE) as f:
+            opened_items = json.load(f)[-MAX_HISTORY:]
+    except (OSError, ValueError):
+        opened_items = []
+    item_id_counter = max((it["id"] for it in opened_items), default=0)
+
+
+def save_history():
+    try:
+        os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
+        tmp = HISTORY_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(opened_items[-MAX_HISTORY:], f)
+        os.replace(tmp, HISTORY_FILE)
+    except OSError:
+        pass
 
 
 def next_id():
@@ -129,7 +154,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "type": "url" if is_url else "file",
             "time": time.strftime("%H:%M:%S"),
         }
-        opened_items.append(item)
+        with lock:
+            opened_items.append(item)
+            del opened_items[:-MAX_HISTORY]
+            save_history()
         broadcast(item)
         self._json_ok({"ok": True, "id": item["id"]})
         print(f"  opened: {fpath}")
@@ -178,6 +206,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def start_server(port):
+    load_history()
     server = http.server.ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(f"serving on http://localhost:{port}")
     print(f"open files: ./ropen.sh <file_or_url>")

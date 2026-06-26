@@ -16,10 +16,44 @@ class DeviceInfo:
     wakefulness: Optional[str]
     key: Optional[str]
     is_current: bool
+    mode: str = "adb"
+
+
+_MODE_ORDER = ("adb", "fastboot")
+
+
+def _assign_keys(devices: List[DeviceInfo]):
+    used_keys = set()
+    for device in devices:
+        device.key = None
+    for device in devices:
+        for ch in device.product_name.lower():
+            if "a" <= ch <= "z" and ch not in used_keys:
+                device.key = ch
+                used_keys.add(ch)
+                break
+
+
+def _replace_mode(
+    devices: List[DeviceInfo],
+    lock: threading.Lock,
+    mode: str,
+    replacement: List[DeviceInfo],
+):
+    with lock:
+        by_mode = {m: [] for m in _MODE_ORDER}
+        for d in devices:
+            if d.mode != mode:
+                by_mode[d.mode].append(d)
+        by_mode[mode] = replacement
+        merged = [d for m in _MODE_ORDER for d in by_mode[m]]
+        _assign_keys(merged)
+        devices[:] = merged
 
 
 def _update_device_list(
     devices: List[DeviceInfo],
+    lock: threading.Lock,
     stop_event: threading.Event,
 ):
     proc: Optional[subprocess.Popen[str]] = None
@@ -59,19 +93,12 @@ def _update_device_list(
                             wakefulness=None,
                             key=None,
                             is_current=parts[0] == current_serial,
+                            mode="adb",
                         )
                     )
 
-            # Update key
-            used_keys = set()
-            for device in new_devices:
-                for ch in device.product_name.lower():
-                    if "a" <= ch <= "z" and ch not in used_keys:
-                        device.key = ch
-                        used_keys.add(ch)
-                        break
-
-            existing = {d.serial: d for d in devices}
+            with lock:
+                existing = {d.serial: d for d in devices if d.mode == "adb"}
             for device in new_devices:
                 old = existing.get(device.serial)
                 if old:
@@ -79,7 +106,8 @@ def _update_device_list(
                     device.wakefulness = old.wakefulness
                 else:
                     _refresh_device_status(device)
-            devices[:] = new_devices
+
+            _replace_mode(devices, lock, "adb", new_devices)
 
     except Exception:
         logging.exception("Failed to track adb devices")
@@ -128,39 +156,129 @@ def _query_wakefulness(serial: str) -> Optional[str]:
 
 
 def _refresh_device_status(device: DeviceInfo):
+    if device.mode != "adb":
+        return
     device.battery_level = _query_battery_level(device.serial)
     device.wakefulness = _query_wakefulness(device.serial)
 
 
 def _poll_device_status(
     devices: List[DeviceInfo],
+    lock: threading.Lock,
     stop_event: threading.Event,
 ):
     while not stop_event.is_set():
-        for device in list(devices):
+        with lock:
+            snapshot = list(devices)
+        for device in snapshot:
             if stop_event.is_set():
                 break
             _refresh_device_status(device)
         stop_event.wait(10)
 
 
+def _list_fastboot_devices() -> List[str]:
+    try:
+        res = subprocess.run(
+            ["fastboot", "devices"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception:
+        return []
+    serials = []
+    for line in res.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[1] == "fastboot":
+            serials.append(parts[0])
+    return serials
+
+
+def _query_fastboot_product(serial: str) -> str:
+    try:
+        res = subprocess.run(
+            ["fastboot", "-s", serial, "getvar", "product"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        # `getvar` writes "product: <name>" to stderr.
+        for line in (res.stderr + res.stdout).splitlines():
+            line = line.strip()
+            if line.startswith("product:"):
+                return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    return "fastboot"
+
+
+def _poll_fastboot_devices(
+    devices: List[DeviceInfo],
+    lock: threading.Lock,
+    stop_event: threading.Event,
+):
+    while not stop_event.is_set():
+        serials = _list_fastboot_devices()
+
+        with lock:
+            existing = {d.serial: d for d in devices if d.mode == "fastboot"}
+
+        current_serial = get_variable("ANDROID_SERIAL")
+        new_fastboot = []
+        for serial in serials:
+            old = existing.get(serial)
+            if old:
+                old.is_current = serial == current_serial
+                new_fastboot.append(old)
+            else:
+                new_fastboot.append(
+                    DeviceInfo(
+                        serial=serial,
+                        product_name=_query_fastboot_product(serial),
+                        battery_level=None,
+                        wakefulness=None,
+                        key=None,
+                        is_current=serial == current_serial,
+                        mode="fastboot",
+                    )
+                )
+
+        _replace_mode(devices, lock, "fastboot", new_fastboot)
+
+        stop_event.wait(2)
+
+
 class DeviceSelectMenu(Menu[DeviceInfo]):
     def __init__(self):
         self.__devices: List[DeviceInfo] = []
+        self.__lock = threading.Lock()
 
         self.__stop_event = threading.Event()
 
         self.__device_update_thread = threading.Thread(
-            target=lambda: _update_device_list(self.__devices, self.__stop_event),
+            target=lambda: _update_device_list(
+                self.__devices, self.__lock, self.__stop_event
+            ),
             daemon=True,
         )
         self.__device_update_thread.start()
 
         self.__status_update_thread = threading.Thread(
-            target=lambda: _poll_device_status(self.__devices, self.__stop_event),
+            target=lambda: _poll_device_status(
+                self.__devices, self.__lock, self.__stop_event
+            ),
             daemon=True,
         )
         self.__status_update_thread.start()
+
+        self.__fastboot_update_thread = threading.Thread(
+            target=lambda: _poll_fastboot_devices(
+                self.__devices, self.__lock, self.__stop_event
+            ),
+            daemon=True,
+        )
+        self.__fastboot_update_thread.start()
 
         super().__init__(items=self.__devices, prompt="devices")
 
@@ -170,6 +288,7 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
         self.__stop_event.set()
         self.__device_update_thread.join()
         self.__status_update_thread.join()
+        self.__fastboot_update_thread.join()
 
     def on_char(self, ch: int | str) -> bool:
         if ch == "0":
@@ -187,6 +306,8 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
             return super().on_char(ch)
 
     def get_item_text(self, item: DeviceInfo) -> str:
+        if item.mode == "fastboot":
+            return f"[{item.key}] {item.product_name:<12} {item.serial:<15}  fastboot"
         bat = f"{item.battery_level:>3}%" if item.battery_level is not None else "n/a"
         wake = item.wakefulness or "n/a"
         s = f"[{item.key}] {item.product_name:<12} {item.serial:<15}  bat={bat}  {wake}"
@@ -201,6 +322,9 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
     def __toggle_sleep(self):
         device = self.get_selected_item()
         if device is None:
+            return
+        if device.mode != "adb":
+            self.set_message("Toggle sleep is only available for adb devices")
             return
 
         label = f"{device.product_name} ({device.serial})"

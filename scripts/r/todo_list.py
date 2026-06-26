@@ -82,9 +82,9 @@ class TodoMenu(ListEditMenu[TodoItem]):
         self.__sort_tasks()
 
         self.add_command(self.__duplicate_task, hotkey="ctrl+d")
-        self.add_command(self.__edit_description, hotkey="ctrl+e")
+        self.add_command(self.__edit_description, hotkey="ctrl+e", override=True)
         self.add_command(self.__edit_due, hotkey="alt+d")
-        self.add_command(self.__new_task, hotkey="ctrl+n")
+        self.add_command(self.__new_task, hotkey="ctrl+n", override=True)
         self.add_command(self.__reload_and_sort, hotkey="ctrl+r")
         self.add_command(self.__set_status_wip, hotkey="alt+w")
         self.add_command(self.__toggle_status, hotkey="alt+x")

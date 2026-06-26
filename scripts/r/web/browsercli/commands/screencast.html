@@ -212,8 +212,20 @@
         if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^about:/i.test(url)) {
           url = "https://" + url;
         }
-        send("Page.navigate", { url });
-        canvas.focus && canvas.focus();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          send("Page.navigate", { url });
+        } else {
+          // No live page target to drive (e.g. last tab was closed). Ask the
+          // daemon to open a tab; the poll loop will then connect to it.
+          fetch("/command", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: "open", args: { url } }),
+          }).catch(() => {});
+        }
+        // Drop focus from the address bar so subsequent keystrokes are
+        // forwarded to the page (the document keydown handler ignores INPUTs).
+        addr.blur();
       }
 
       backBtn.addEventListener("click", () => navHistory(-1));

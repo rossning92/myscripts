@@ -758,8 +758,15 @@ class Menu(Generic[T]):
         hotkey: Optional[str] = None,
         name: Optional[str] = None,
         pinned: bool = False,
+        override: bool = False,
     ) -> _Command:
         command = _Command(hotkey=hotkey, func=func, name=name, pinned=pinned)
+
+        if hotkey is not None and override:
+            for old in self.__hotkeys.get(hotkey, []):
+                self.__custom_commands.remove(old)
+            self.__hotkeys[hotkey] = []
+
         self.__custom_commands.append(command)
 
         if hotkey is not None:
