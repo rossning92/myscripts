@@ -417,9 +417,6 @@ class AgentMenu(ChatMenu):
     def get_status_text(self) -> str:
         s = f"cwd={os.getcwd()}"
 
-        if self.__tools:
-            s += "  tools=" + "|".join([tool.name for tool in self.__tools])
-
         return s + "\n" + super().get_status_text()
 
     def on_close(self):

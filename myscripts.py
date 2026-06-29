@@ -393,6 +393,7 @@ class _MyScriptMenu(Menu[Script]):
                 lambda script=script: self._run_hotkey(script),
                 hotkey=hotkey,
                 name="run: " + script.name,
+                override=True,
             )
 
     def _reload_scripts(self):
