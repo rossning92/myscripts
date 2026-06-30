@@ -26,7 +26,7 @@ class VcsDiffMenu(Menu):
         self.__recent_commits: List[str] = []
         self._is_clean: bool = False
         self.add_command(
-            self._diff_all, hotkey="ctrl+a", name="diff all", pinned=True
+            self._diff_all, hotkey="ctrl+a", name="diff all", pinned=True, override=True
         )
         self._init_extra_commands()
         self.add_command(self.__discard, hotkey="ctrl+d", name="discard", pinned=True)

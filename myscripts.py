@@ -261,7 +261,8 @@ class _MyScriptMenu(Menu[Script]):
         self.add_command(self._set_cmdline_args, hotkey="alt+a")
 
     def _reload(self):
-        self.run_raw(lambda: restart_program())
+        if confirm("Reload myscripts?"):
+            self.run_raw(lambda: restart_program())
 
     def _list_scheduled_scripts(self):
         _ScheduledScriptMenu(script_manager=self.script_manager).exec()
