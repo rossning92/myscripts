@@ -1,8 +1,46 @@
 import json
+import shlex
 from fnmatch import fnmatch
 
 from ai.utils.tools import Settings
 from utils.menu.confirmmenu import ConfirmMenu
+
+# Operators that sequence independent commands. We split on these and require
+# every sub-command to be allowed, so an allowed prefix can't carry an extra
+# command (e.g. "git x; rm -rf ~").
+_SPLIT_OPERATORS = {";", "&&", "||", "|"}
+
+# Characters shlex groups into operator tokens. Any operator run other than the
+# sequencing operators above (redirect, subshell, backgrounding, &>, |&, ...)
+# can't be vetted by prefix matching, so the command is never auto-allowed.
+_PUNCTUATION = set("();<>|&")
+
+
+def _split_commands(command: str) -> list[list[str]] | None:
+    # Returns the sub-commands (each a list of args), or None when the command
+    # uses shell features we won't auto-vet or can't be parsed.
+    if "\n" in command or "\r" in command:
+        # Newlines separate commands in shell but are plain whitespace to shlex,
+        # which would merge them into one (mis-matched) command.
+        return None
+    lex = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lex.whitespace_split = True
+    lex.commenters = ""  # never silently drop a '#...' remainder of the command
+    try:
+        tokens = list(lex)
+    except ValueError:
+        return None
+    commands: list[list[str]] = [[]]
+    for tok in tokens:
+        if tok in _SPLIT_OPERATORS:
+            commands.append([])
+        elif tok and all(ch in _PUNCTUATION for ch in tok):
+            return None
+        elif "$" in tok or "`" in tok:
+            return None
+        else:
+            commands[-1].append(tok)
+    return commands
 
 
 def is_command_allowed(
@@ -10,11 +48,20 @@ def is_command_allowed(
     allowed_commands: list[str],
     ignore_case: bool = False,
 ) -> bool:
-    cmd = command.strip()
-    return any(
-        fnmatch(cmd.lower() if ignore_case else cmd, p.lower() if ignore_case else p)
-        for p in allowed_commands
-    )
+    commands = _split_commands(command.strip())
+    if commands is None:
+        return False
+    parts = [c for c in commands if c]
+    if not parts:
+        return False
+
+    def matches(cmd: str) -> bool:
+        return any(
+            fnmatch(cmd.lower() if ignore_case else cmd, p.lower() if ignore_case else p)
+            for p in allowed_commands
+        )
+
+    return all(matches(" ".join(args)) for args in parts)
 
 
 class ConfirmCommandMenu(ConfirmMenu):

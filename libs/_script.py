@@ -432,6 +432,7 @@ def _is_in_x_window_system() -> bool:
 class Script:
     def __init__(self, script_path: str, name=None):
         self.__cached_source: Optional[str] = None
+        self.__cached_variable_names: Optional[List[str]] = None
 
         if os.path.isfile(script_path):
             script_path = os.path.abspath(script_path)
@@ -506,6 +507,8 @@ class Script:
 
             # Reload script config
             self.cfg = self.load_config()
+
+            self.__cached_variable_names = None
 
             return True
         else:
@@ -1672,6 +1675,9 @@ class Script:
             return True
 
     def get_variable_names(self) -> List[str]:
+        if self.__cached_variable_names is not None:
+            return self.__cached_variable_names
+
         VARIABLE_NAME_PATT = r"\b([A-Z_$][A-Z_$0-9]{4,})\b"
         if self.cfg["variableNames"] == "auto":
             if self.ext in SCRIPT_EXTENSIONS:
@@ -1704,6 +1710,7 @@ class Script:
         # Sort the variable names
         variable_names = sorted(variable_names)
 
+        self.__cached_variable_names = variable_names
         return variable_names
 
     def update_script_access_time(self):

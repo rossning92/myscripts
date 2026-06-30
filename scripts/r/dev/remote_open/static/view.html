@@ -87,7 +87,7 @@ function esc(s) {
 var path = new URLSearchParams(location.search).get("path");
 if (path) {
     var name = path.split("/").pop().split("?")[0];
-    document.title = name;
+    document.title = "ropen - " + name;
     document.getElementById("path").textContent = path;
 
     var v = document.getElementById("viewer");
