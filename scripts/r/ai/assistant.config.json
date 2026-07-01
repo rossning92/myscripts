@@ -1,7 +1,0 @@
-{
-  "dynamicTitle": true,
-  "enableNotify": false,
-  "hotkey": "space space",
-  "singleInstance": false,
-  "workingDir": "{HOME}/chat_menu"
-}
