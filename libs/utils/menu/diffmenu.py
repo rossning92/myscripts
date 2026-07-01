@@ -184,7 +184,7 @@ class DiffMenu(TextMenu):
             **kwargs,
         )
 
-        self.add_command(self.__edit_file, hotkey="ctrl+e")
+        self.add_command(self.__edit_file, hotkey="ctrl+e", override=True)
         self.add_command(self.__stage_lines, hotkey="ctrl+s")
         self.add_command(self.__discard_lines, hotkey="ctrl+d")
         self.add_command(self.__refresh, hotkey="ctrl+r")

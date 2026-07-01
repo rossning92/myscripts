@@ -160,9 +160,10 @@ class RepoMenu(Menu[Repo]):
             prompt=_MODULE_NAME,
             quick_select=True,
         )
-        self._last_refresh_time = 0.0
         self._refresh_thread: Optional[threading.Thread] = None
         self._spinner = cycle(["|", "/", "-", "\\"])
+        self._last_refresh_time = 0.0
+        self._focused = True
         self._refresh()
         self.add_command(self._sync, hotkey="ctrl+s", name="sync", pinned=True)
         self.add_command(self._amend, hotkey="alt+a", name="amend", pinned=True)
@@ -304,11 +305,17 @@ class RepoMenu(Menu[Repo]):
             return
         if self.get_prompt() != _MODULE_NAME:
             self.set_prompt(_MODULE_NAME)
-        if time.monotonic() - self._last_refresh_time >= 30:
+        # Auto-refresh every 10s, but only while the window is focused. to avoid
+        # dragging system perf down when running unfocused in the background.
+        if self._focused and time.monotonic() - self._last_refresh_time >= 10:
             self._refresh()
 
     def on_focus_gained(self):
+        self._focused = True
         self._refresh()
+
+    def on_focus_lost(self):
+        self._focused = False
 
     def _refresh(self):
         if self._refresh_thread and self._refresh_thread.is_alive():

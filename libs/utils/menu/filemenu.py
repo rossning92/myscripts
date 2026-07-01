@@ -180,7 +180,7 @@ class FileMenu(Menu[_File]):
         if allow_cd:
             self.add_command(self._goto_parent_directory, hotkey="left")
             self.add_command(self._goto_selected_directory, hotkey="right")
-            self.add_command(self._goto_dir, hotkey="ctrl+g")
+            self.add_command(self._goto_dir, hotkey="ctrl+g", override=True)
 
         if goto is not None:
             if goto == ".":
