@@ -242,7 +242,7 @@ class _MyScriptMenu(Menu[Script]):
             text=input_text,
         )
 
-        self.add_command(self._copy_cmdline, hotkey="ctrl+y")
+        self.add_command(self._copy_cmdline, hotkey="ctrl+y", override=True)
         self.add_command(self._copy_to)
         self.add_command(self._copy_file_path, hotkey="alt+y")
         self.add_command(self._delete_file, hotkey="ctrl+k")
@@ -255,12 +255,12 @@ class _MyScriptMenu(Menu[Script]):
         self.add_command(self._run_script_local)
         self.add_command(self._run_script_background)
         self.add_command(self._reload_scripts, hotkey="ctrl+r")
-        self.add_command(self._reload, hotkey="alt+r")
+        self.add_command(self._reload_myscripts, hotkey="alt+r", override=True)
         self.add_command(self._rename_script, hotkey="alt+n")
         self.add_command(self._rename_script_replace_all)
         self.add_command(self._set_cmdline_args, hotkey="alt+a")
 
-    def _reload(self):
+    def _reload_myscripts(self):
         if confirm("Reload myscripts?"):
             self.run_raw(lambda: restart_program())
 
