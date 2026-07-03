@@ -14,12 +14,15 @@ rclone_wrapper() {
     local_dir="$2"
 
     extra_args=''
-    if [[ -n "$_DRY_RUN" ]]; then
+    if [[ -n "$SYNCGDRIVE_DRYRUN" ]]; then
         extra_args+=' --dry-run'
     fi
     if [[ ! -d "$local_dir" ]]; then
         extra_args+=' --resync'
         mkdir "$local_dir"
+    fi
+    if [[ -n "$SYNCGDRIVE_RESYNC" ]]; then
+        extra_args+=' --resync'
     fi
 
     rclone bisync "drive:$1" "$local_dir" \
@@ -31,7 +34,7 @@ rclone_wrapper() {
         --resilient \
         --exclude=__pycache__/** \
         --exclude=.config/** \
-		--exclude=.git \
+        --exclude=.git \
         --exclude=.mypy_cache/** \
         --exclude=node_modules/** \
         --exclude=tmp/** \

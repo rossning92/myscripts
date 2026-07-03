@@ -192,7 +192,7 @@ class _Command:
 
     def __str__(self) -> str:
         if self.hotkey is not None:
-            return "[%s] %s" % (get_hotkey_abbr(self.hotkey), self.name)
+            return "%s [%s]" % (self.name, get_hotkey_abbr(self.hotkey))
         else:
             return self.name
 
@@ -726,6 +726,8 @@ class Menu(Generic[T]):
                 os.remove(out_file)
 
     def __select_all(self):
+        if len(self.get_item_indices()) == 0:
+            return
         self.set_selection(0, -1)
 
     def __prev_search_history(self):
@@ -2027,6 +2029,7 @@ class Menu(Generic[T]):
             prompt="cmd",
             items=self.__custom_commands,
             enable_command_palette=False,
+            quick_select=True,
         )
         menu.exec()
         hotkey = menu.get_selected_item()

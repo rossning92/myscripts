@@ -119,6 +119,10 @@ class VcsDiffMenu(Menu):
             self._refresh()
 
     def _after_action(self) -> None:
+        # Collapse to the first row of the selection instead of the last so the
+        # cursor lands where the selection started, which is more intuitive.
+        begin, _ = self.get_selected_row_range()
+        self.set_selected_row(begin)
         self.set_multi_select(False)
         self._refresh()
 

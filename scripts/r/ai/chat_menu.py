@@ -267,6 +267,7 @@ class ChatMenu(Menu[Line]):
         self.__context: Optional[str] = context
         self.__image_urls: List[str] = image_urls if image_urls else []
         self.__is_generating = False
+        self.__spinner_index = 0
         self.__last_yanked_line: Optional[Line] = None
         self.__lines: List[Line] = []
         self.__prompt = prompt
@@ -1149,12 +1150,22 @@ class ChatMenu(Menu[Line]):
     def on_response(self, text: str, done: bool):
         pass
 
+    _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
     def get_status_text(self) -> str:
         s = "chat: "
+        if self.__is_generating:
+            s += self._SPINNER_FRAMES[self.__spinner_index % len(self._SPINNER_FRAMES)]
+            s += " "
         s += f"tokens={self.__usage} "
-        s += "cfg=" + str(self.__settings_menu.data) + "\n"
+        s += "model=" + str(self.get_settings().get("model", "")) + "\n"
         s += super().get_status_text()
         return s
+
+    def on_idle(self):
+        if self.__is_generating:
+            self.__spinner_index += 1
+            self.update_screen()
 
     def get_system_prompt(self) -> str:
         return self.__system_prompt

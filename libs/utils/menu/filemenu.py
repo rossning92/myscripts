@@ -22,6 +22,8 @@ from .confirmmenu import confirm
 from .inputmenu import InputMenu
 from .menu import Menu
 
+SortBy = Literal["name", "mtime", "size"]
+
 
 def get_download_dir():
     if is_termux():
@@ -35,7 +37,7 @@ class _Config:
         self.cur_dir: str = get_home_path()
         self.selected_file = ""
         self.path_history: List[str] = [get_home_path(), get_download_dir()]
-        self.sort_by: Literal["name", "mtime"] = "name"
+        self.sort_by: SortBy = "name"
 
     def load(self, config_file: str):
         if not os.path.exists(config_file):
@@ -64,7 +66,7 @@ class _Config:
         }
 
 
-def get_dir_size(full_path: str) -> int:
+def calc_dir_size(full_path: str) -> int:
     return sum(f.stat().st_size for f in Path(full_path).glob("**/*") if f.is_file())
 
 
@@ -77,6 +79,7 @@ class _File:
         show_size: bool,
         show_mtime: bool,
         relative_path=False,
+        dir_size: Optional[int] = None,
     ) -> None:
         self.name = name
         self.is_dir = is_dir
@@ -84,8 +87,8 @@ class _File:
         self.relative_path = relative_path
         self.show_size = show_size
         self.show_mtime = show_mtime
+        self.dir_size = dir_size if dir_size is not None else 0
         self.__stat: Optional[os.stat_result] = None
-        self.__dir_size = 0
 
     def __str__(self) -> str:
         return self.name
@@ -105,12 +108,9 @@ class _File:
     @property
     def size(self) -> int:
         if self.is_dir:
-            return self.__dir_size
+            return self.dir_size
         else:
             return self.__get_stat().st_size
-
-    def update_dir_size(self):
-        self.__dir_size = get_dir_size(self.full_path)
 
 
 class FileMenu(Menu[_File]):
@@ -126,7 +126,7 @@ class FileMenu(Menu[_File]):
         recursive=False,
         show_mtime=True,
         show_size=True,
-        sort_by: Literal["name", "mtime"] = "name",
+        sort_by: SortBy = "name",
         allow_cd=True,
         config: Optional[_Config] = None,
         config_dir: Optional[str] = None,
@@ -149,6 +149,8 @@ class FileMenu(Menu[_File]):
         self.__show_size = show_size
         self.__allow_cd = allow_cd
         self.__recursive = recursive
+        self.__dir_size_cache: Dict[str, int] = {}
+        self.__show_dir_sizes = False
 
         super().__init__(
             items=self.__files,
@@ -164,7 +166,7 @@ class FileMenu(Menu[_File]):
         self.add_command(self._create_new_dir, hotkey="ctrl+n")
         self.add_command(self._delete_files, hotkey="ctrl+k")
         self.add_command(self._edit_text_file, hotkey="ctrl+e")
-        self.add_command(self._get_dir_size, hotkey="alt+s")
+        self.add_command(self._calc_dir_size, hotkey="alt+s")
         self.add_command(self._toggle_recursive, hotkey="ctrl+l")
         self.add_command(self._move_to, hotkey="alt+m")
         self.add_command(self._open_terminal, hotkey="ctrl+t")
@@ -176,6 +178,7 @@ class FileMenu(Menu[_File]):
         self.add_command(self._preview_image)
         self.add_command(lambda: self.sort_by("name"), name="sort_by_name")
         self.add_command(lambda: self.sort_by("mtime"), name="sort_by_mtime")
+        self.add_command(lambda: self.sort_by("size"), name="sort_by_size")
 
         if allow_cd:
             self.add_command(self._goto_parent_directory, hotkey="left")
@@ -209,6 +212,8 @@ class FileMenu(Menu[_File]):
         self._refresh_cur_dir()
 
     def get_item_color(self, item: _File) -> str:
+        if item.name.startswith("."):
+            return "darkgray"
         return "blue" if item.is_dir else "white"
 
     def get_item_text(self, item: _File) -> str:
@@ -261,11 +266,21 @@ class FileMenu(Menu[_File]):
             set_clip(file_full_path)
             self.set_message(f"Path copied: {file_full_path}")
 
-    def _get_dir_size(self):
+    def _calc_dir_size(self):
+        self.__show_dir_sizes = True
         for file in self.items:
             if file.is_dir:
-                file.update_dir_size()
+                size = calc_dir_size(file.full_path)
+                self.__dir_size_cache[file.full_path] = size
+                file.dir_size = size
+        self._sort_files()
         self.update_screen()
+
+    def _sort_files(self):
+        if self.__config.sort_by == "mtime":
+            self.__files.sort(key=lambda x: x.mtime, reverse=True)
+        elif self.__config.sort_by == "size":
+            self.__files.sort(key=lambda x: x.size, reverse=True)
 
     def _edit_text_file(self):
         file_full_path = self.get_selected_file_full_path()
@@ -292,6 +307,7 @@ class FileMenu(Menu[_File]):
                         self.set_message(str(e))
                 self._refresh_cur_dir()
                 self.set_selected_row(selected_index)
+                self.set_multi_select(False)
 
             self.update_screen()
 
@@ -345,6 +361,7 @@ class FileMenu(Menu[_File]):
                                 shutil.move(src, dest_dir)
 
                 self.goto_directory(dest_dir, selected_file=os.path.basename(files[0]))
+                self.set_multi_select(False)
 
     def copy_to(self, file: Optional[str] = None):
         self._copy_or_move_files(file=file, copy=True)
@@ -605,6 +622,11 @@ class FileMenu(Menu[_File]):
                                 is_dir=True,
                                 show_mtime=self.__show_mtime,
                                 show_size=self.__show_size,
+                                dir_size=(
+                                    self.__dir_size_cache.get(full_path)
+                                    if self.__show_dir_sizes
+                                    else None
+                                ),
                             )
                         )
                     else:
@@ -628,10 +650,9 @@ class FileMenu(Menu[_File]):
             self.__files.extend(dir_items)
             self.__files.extend(file_items)
 
-            if self.__config.sort_by == "mtime":
-                self.__files.sort(key=lambda x: x.mtime, reverse=True)
+            self._sort_files()
 
-    def sort_by(self, by: Literal["name", "mtime"]):
+    def sort_by(self, by: SortBy):
         self.__config.sort_by = by
         if self.__config_file:
             self.__config.save(self.__config_file)
