@@ -27,4 +27,8 @@ if [[ "$ENABLED" != *"$SVC"* ]]; then
 fi
 adb shell settings put secure accessibility_enabled 1
 
+adb shell appops set com.ross.keylab WRITE_SETTINGS allow
+
+adb shell settings put secure accessibility_sticky_keys 1
+
 adb shell am start -n com.ross.keylab/.MainActivity

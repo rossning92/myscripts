@@ -93,6 +93,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path.startswith("/api/file/"):
             return self._serve_file(urllib.parse.unquote(path[9:]))
 
+        if path.startswith("/api/stat/"):
+            return self._serve_stat(urllib.parse.unquote(path[9:]))
+
         # Static files (view.html, etc.)
         if path.startswith("/"):
             return self._serve_static(path.lstrip("/"))
@@ -152,7 +155,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "path": fpath,
             "name": fpath if is_url else fpath.split("/")[-1].split("?")[0],
             "type": "url" if is_url else "file",
-            "time": time.strftime("%H:%M:%S"),
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
         }
         with lock:
             opened_items.append(item)
@@ -175,6 +178,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         with open(fpath, "rb") as f:
             self.wfile.write(f.read())
+
+    def _serve_stat(self, fpath):
+        if not os.path.isfile(fpath):
+            return self._json_err(404, "not found")
+        st = os.stat(fpath)
+        self._json_ok({"mtime": st.st_mtime, "size": st.st_size})
 
     def _serve_file(self, fpath):
         if not os.path.isfile(fpath):

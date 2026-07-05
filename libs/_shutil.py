@@ -1021,7 +1021,10 @@ def setup_nodejs(install=True):
 def npm_install(cwd="."):
     cwd = os.path.abspath(cwd)
     if not os.path.exists(os.path.join(cwd, "node_modules")):
-        call_echo("yarn", cwd=cwd)
+        from _pkgmanager import require_package
+
+        require_package("npm")
+        call_echo("npm install", cwd=cwd)
 
 
 def get_next_file_name(file: str, initial_postfix="_2"):

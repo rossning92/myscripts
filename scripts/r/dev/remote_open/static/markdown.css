@@ -1,0 +1,50 @@
+#viewer.md {
+    display: block;
+    align-items: initial;
+    justify-content: initial;
+}
+.markdown-body {
+    width: 100%;
+    max-width: 860px;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+.markdown-body h1,
+.markdown-body h2 {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: .3em;
+}
+.markdown-body a { color: #4ea1ff; }
+.markdown-body code {
+    background: #2a2a2a;
+    padding: .2em .4em;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 85%;
+}
+.markdown-body pre {
+    background: #161616;
+    padding: 12px;
+    border-radius: 6px;
+    overflow: auto;
+}
+.markdown-body pre code {
+    background: none;
+    padding: 0;
+    font-size: 90%;
+}
+.markdown-body table {
+    border-collapse: collapse;
+}
+.markdown-body th,
+.markdown-body td {
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+}
+.markdown-body blockquote {
+    margin: 0;
+    padding-left: 12px;
+    border-left: 3px solid var(--border);
+    color: var(--muted);
+}
+.markdown-body img { max-width: 100%; }

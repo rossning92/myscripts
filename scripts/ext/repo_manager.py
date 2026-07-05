@@ -4,7 +4,6 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from itertools import cycle
 from typing import List, Optional
 
 from utils.jsonutil import load_json
@@ -161,7 +160,7 @@ class RepoMenu(Menu[Repo]):
             quick_select=True,
         )
         self._refresh_thread: Optional[threading.Thread] = None
-        self._spinner = cycle(["|", "/", "-", "\\"])
+        self._spinner_index = 0
         self._last_refresh_time = 0.0
         self._focused = True
         self._refresh()
@@ -288,23 +287,24 @@ class RepoMenu(Menu[Repo]):
     def _commit_and_sync(self):
         self._commit(sync=True)
 
+    _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
     def get_status_text(self) -> str:
         # Prepend recent commits of the selected repo on top of the default
         # status bar (message + position indicators).
+        s = ""
+        if self._refresh_thread and self._refresh_thread.is_alive():
+            s += self._SPINNER_FRAMES[self._spinner_index % len(self._SPINNER_FRAMES)]
+            s += " refreshing...\n"
         repo = self.get_selected_item()
         recent_commits = repo.recent_commits if repo is not None else []
-        return prepend_recent_commits(super().get_status_text(), recent_commits)
+        return s + prepend_recent_commits(super().get_status_text(), recent_commits)
 
     def on_idle(self):
-        # Animate the prompt while the background refresh runs. The
-        # "refreshing..." message alone is insufficient. it auto-clears after
-        # MESSAGE_TIMEOUT_SEC even while the refresh is still in flight, and it
-        # never animates so a slow/stuck refresh looks idle.
         if self._refresh_thread and self._refresh_thread.is_alive():
-            self.set_prompt(f"{_MODULE_NAME} {next(self._spinner)}")
+            self._spinner_index += 1
+            self.update_screen()
             return
-        if self.get_prompt() != _MODULE_NAME:
-            self.set_prompt(_MODULE_NAME)
         # Auto-refresh every 10s, but only while the window is focused. to avoid
         # dragging system perf down when running unfocused in the background.
         if self._focused and time.monotonic() - self._last_refresh_time >= 10:
@@ -328,13 +328,13 @@ class RepoMenu(Menu[Repo]):
                 pool.map(Repo.refresh, repos)
             self.post_event(lambda: self._apply_refresh(repos))
 
-        self.set_message("refreshing...")
         self._refresh_thread = threading.Thread(target=worker, daemon=True)
         self._refresh_thread.start()
 
     def _apply_refresh(self, repos):
         self.items[:] = repos
-        self.set_message("refreshed")
+        self._refresh_thread = None
+        self.update_screen()
 
 
 if __name__ == "__main__":

@@ -13,6 +13,8 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ServiceInfo;
+import android.provider.Settings;
 import androidx.preference.PreferenceManager;
 import android.content.res.Configuration;
 
@@ -45,6 +47,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class FloatingService extends Service {
+    static void startIfReady(Context context) {
+        String key = PreferenceManager.getDefaultSharedPreferences(context)
+                .getString(MainActivity.KEY_OPENAI_API_KEY, "");
+        if (Settings.canDrawOverlays(context) && !key.isEmpty()) {
+            context.startForegroundService(new Intent(context, FloatingService.class));
+        }
+    }
+
     private WindowManager windowManager;
     private FloatingActionButton floatingView;
     private WindowManager.LayoutParams params;
@@ -76,6 +86,7 @@ public class FloatingService extends Service {
     private DataOutputStream rootStdin;
     private static final String CHANNEL_ID = "FloatingServiceChannel";
     private Context themedContext;
+    private Notification notification;
 
     private String getPrefSuffix() {
         return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -119,12 +130,12 @@ public class FloatingService extends Service {
         super.onCreate();
         createNotificationChannel();
 
-        Notification notification = new Notification.Builder(this, CHANNEL_ID)
+        notification = new Notification.Builder(this, CHANNEL_ID)
                 .setContentTitle("Speech To Text")
                 .setContentText("Service is running")
                 .setSmallIcon(R.drawable.ic_graphic_eq)
                 .build();
-        startForeground(1, notification);
+        startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         themedContext = com.google.android.material.color.DynamicColors.wrapContextIfAvailable(
@@ -318,6 +329,9 @@ public class FloatingService extends Service {
 
     private void startRecording() {
         try {
+            startForeground(1, notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                            | ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
             audioFile = new File(getCacheDir(), "recording.m4a");
             recorder = new MediaRecorder();
             recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
@@ -343,6 +357,10 @@ public class FloatingService extends Service {
             }
             recorder.release();
             recorder = null;
+        }
+        try {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } catch (Exception ignored) {
         }
     }
 

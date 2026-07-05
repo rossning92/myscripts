@@ -8,49 +8,15 @@ from utils.textutil import truncate_output
 
 
 def _run_bash(command: str) -> str:
-    # Use a temporary file to capture command output
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        log_file = f.name
-
-    session_name = f"ai_bash_{uuid.uuid4().hex}"
-
-    # Start the command in a detached screen session.
-    # -D -m starts screen in detached mode but doesn't fork, so it blocks until finished.
-    # This allows the command to run in a real TTY while being backgrounded.
-    try:
-        subprocess.run(
-            [
-                "screen",
-                "-L",
-                "-Logfile",
-                log_file,
-                "-DmS",
-                session_name,
-                "bash",
-                "-c",
-                command,
-            ],
-            check=False,
-        )
-    except KeyboardInterrupt:
-        # If the user interrupts (Ctrl+C), kill the background session
-        subprocess.run(["screen", "-S", session_name, "-X", "quit"], check=False)
-        raise
-
-    try:
-        # Read the captured output
-        if os.path.exists(log_file):
-            with open(log_file, "r") as f:
-                output = f.read()
-        else:
-            output = ""
-
-        # Remove carriage returns (common in screen/TTY output) and strip whitespace
-        return output.replace("\r", "").strip()
-    finally:
-        # Clean up the temporary file
-        if os.path.exists(log_file):
-            os.remove(log_file)
+    result = subprocess.run(
+        command,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="replace",
+    )
+    return result.stdout.strip()
 
 
 def _save_full_output(output: str, tool_name: str) -> str:

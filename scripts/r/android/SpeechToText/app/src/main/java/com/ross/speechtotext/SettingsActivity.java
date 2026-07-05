@@ -10,7 +10,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.preference.PreferenceManager;
 import androidx.preference.SwitchPreferenceCompat;
 
 public class SettingsActivity extends AppCompatActivity {
@@ -26,16 +25,7 @@ public class SettingsActivity extends AppCompatActivity {
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle("Settings");
         }
-    }
-
-    @Override
-    public void finish() {
-        String key = PreferenceManager.getDefaultSharedPreferences(this)
-                .getString(MainActivity.KEY_OPENAI_API_KEY, "");
-        if (!key.isEmpty()) {
-            startForegroundService(new Intent(this, FloatingService.class));
-        }
-        super.finish();
+        FloatingService.startIfReady(this);
     }
 
     public static class SettingsFragment extends PreferenceFragmentCompat {

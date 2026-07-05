@@ -227,7 +227,7 @@ return {
         branch = 'main',
         build = ':TSUpdate',
         config = function()
-            require('nvim-treesitter').install({ 'bash', 'markdown', 'markdown_inline' })
+            require('nvim-treesitter').install({ 'bash', 'html', 'markdown', 'markdown_inline' })
         end,
     },
 

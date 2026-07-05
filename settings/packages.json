@@ -557,6 +557,9 @@
     "pacman": {
       "packages": ["nodejs"]
     },
+    "termux": {
+      "packages": ["nodejs"]
+    },
     "winget": {
       "packages": ["OpenJS.NodeJS"]
     }
@@ -568,6 +571,9 @@
   },
   "npm": {
     "pacman": {
+      "packages": ["npm"]
+    },
+    "termux": {
       "packages": ["npm"]
     },
     "post_install": [

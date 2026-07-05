@@ -26,7 +26,7 @@ body {
 }
 #path {
     flex: 0 0 auto;
-    padding: 8px 12px;
+    padding: 8px 48px 8px 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
     color: var(--muted);
@@ -34,6 +34,24 @@ body {
     white-space: nowrap;
     overflow-x: auto;
 }
+#copybtn {
+    position: fixed;
+    top: 5px;
+    right: 12px;
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    color: var(--muted);
+    background: #2a2a2a;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 0;
+}
+#copybtn:hover { background: #383838; color: var(--fg); }
+#copybtn svg { width: 15px; height: 15px; }
 #viewer {
     flex: 1 1 auto;
     min-height: 0;
@@ -68,12 +86,107 @@ body {
 </style>
 </head>
 <body>
+<button id="copybtn" title="Copy as rich text (c)"></button>
 <div id="path"></div>
 <div id="viewer"></div>
 <script>
 var IMG = ["png","jpg","jpeg","gif","webp","svg","bmp","ico","tiff"];
 var VID = ["mp4","webm","mov","avi","mkv"];
 var AUD = ["mp3","wav","ogg","flac","aac"];
+var MD = ["md","markdown","mdown","mkd"];
+
+function loadScript(url) {
+    return new Promise(function (res, rej) {
+        var s = document.createElement("script");
+        s.src = url;
+        s.onload = res;
+        s.onerror = rej;
+        document.head.appendChild(s);
+    });
+}
+
+function loadStyle(url) {
+    if (document.querySelector('link[href="' + url + '"]')) return;
+    var link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = url;
+    document.head.appendChild(link);
+}
+
+function renderMarkdown(v, text) {
+    var CDN = "https://cdn.jsdelivr.net/npm/";
+    loadStyle("/markdown.css");
+    var markedReady = window.marked
+        ? Promise.resolve()
+        : loadScript(CDN + "marked/marked.min.js");
+    return markedReady
+        .then(function () {
+            v.classList.add("md");
+            v.innerHTML = '<div class="markdown-body"></div>';
+            var body = v.querySelector(".markdown-body");
+            body.innerHTML = marked.parse(text);
+            loadStyle(CDN + "highlight.js/styles/github-dark.min.css");
+            return window.hljs
+                ? Promise.resolve()
+                : loadScript(CDN + "highlight.js/lib/common.min.js").catch(function () {});
+        })
+        .then(function () {
+            if (window.hljs) {
+                v.querySelectorAll("pre code").forEach(function (b) { hljs.highlightElement(b); });
+            }
+        })
+        .catch(function () {
+            v.innerHTML = "<pre>" + esc(text) + "</pre>";
+        });
+}
+
+var copyBtn = document.getElementById("copybtn");
+var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+var ICON_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+var ICON_FAIL = '<svg viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+copyBtn.innerHTML = ICON_COPY;
+
+function flashBtn(icon) {
+    copyBtn.innerHTML = icon;
+    setTimeout(function () { copyBtn.innerHTML = ICON_COPY; }, 1200);
+}
+
+function copyViaSelection(el) {
+    var range = document.createRange();
+    range.selectNodeContents(el);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) {}
+    sel.removeAllRanges();
+    flashBtn(ok ? ICON_OK : ICON_FAIL);
+}
+
+function copyRich() {
+    var body = document.querySelector(".markdown-body");
+    if (!body) return;
+    if (navigator.clipboard && window.ClipboardItem) {
+        navigator.clipboard
+            .write([
+                new ClipboardItem({
+                    "text/html": new Blob([body.innerHTML], { type: "text/html" }),
+                    "text/plain": new Blob([body.innerText], { type: "text/plain" }),
+                }),
+            ])
+            .then(function () { flashBtn(ICON_OK); })
+            .catch(function () { copyViaSelection(body); });
+    } else {
+        copyViaSelection(body);
+    }
+}
+
+copyBtn.addEventListener("click", copyRich);
+document.addEventListener("keydown", function (e) {
+    if (e.key === "c" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (copyBtn.style.display !== "none") copyRich();
+    }
+});
 
 function ext(name) {
     var parts = name.split(".");
@@ -92,21 +205,76 @@ if (path) {
 
     var v = document.getElementById("viewer");
     var e = ext(name);
-    var src = "/api/file" + path.split("/").map(encodeURIComponent).join("/");
+    var encPath = path.split("/").map(encodeURIComponent).join("/");
+    var fileUrl = "/api/file" + encPath;
+    var statUrl = "/api/stat" + encPath;
 
-    if (IMG.indexOf(e) >= 0) {
-        v.innerHTML = '<img src="' + src + '">';
-    } else if (VID.indexOf(e) >= 0) {
-        v.innerHTML = '<video controls src="' + src + '"></video>';
-    } else if (AUD.indexOf(e) >= 0) {
-        v.innerHTML = '<audio controls src="' + src + '"></audio>';
-    } else if (e === "pdf") {
-        v.innerHTML = '<iframe src="' + src + '"></iframe>';
-    } else {
-        fetch(src)
-            .then(function (r) { return r.text(); })
-            .then(function (t) { v.innerHTML = "<pre>" + esc(t) + "</pre>"; });
+    function snapshotScroll() {
+        var pre = v.querySelector("pre");
+        return { v: v.scrollTop, pre: pre ? pre.scrollTop : 0 };
     }
+
+    function restoreScroll(s) {
+        if (!s) return;
+        var apply = function () {
+            v.scrollTop = s.v;
+            var pre = v.querySelector("pre");
+            if (pre) pre.scrollTop = s.pre;
+        };
+        apply();
+        requestAnimationFrame(function () { apply(); requestAnimationFrame(apply); });
+    }
+
+    function render(bust) {
+        var src = fileUrl + (bust ? "?t=" + bust : "");
+        var scroll = bust ? snapshotScroll() : null;
+        if (IMG.indexOf(e) >= 0) {
+            v.innerHTML = '<img src="' + src + '">';
+            restoreScroll(scroll);
+        } else if (VID.indexOf(e) >= 0) {
+            v.innerHTML = '<video controls src="' + src + '"></video>';
+        } else if (AUD.indexOf(e) >= 0) {
+            v.innerHTML = '<audio controls src="' + src + '"></audio>';
+        } else if (e === "pdf") {
+            v.innerHTML = '<iframe src="' + src + '"></iframe>';
+        } else if (MD.indexOf(e) >= 0) {
+            fetch(src)
+                .then(function (r) { return r.text(); })
+                .then(function (t) { return renderMarkdown(v, t); })
+                .then(function () {
+                    restoreScroll(scroll);
+                    copyBtn.style.display = "flex";
+                });
+        } else {
+            fetch(src)
+                .then(function (r) { return r.text(); })
+                .then(function (t) {
+                    v.innerHTML = "<pre>" + esc(t) + "</pre>";
+                    restoreScroll(scroll);
+                });
+        }
+    }
+
+    function watch() {
+        var last = null;
+        setInterval(function () {
+            fetch(statUrl)
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (s) {
+                    if (!s) return;
+                    var sig = s.mtime + ":" + s.size;
+                    if (last === null) { last = sig; return; }
+                    if (sig !== last) {
+                        last = sig;
+                        render(s.mtime);
+                    }
+                })
+                .catch(function () {});
+        }, 1000);
+    }
+
+    render();
+    watch();
 }
 </script>
 </body>
