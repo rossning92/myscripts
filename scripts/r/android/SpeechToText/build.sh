@@ -24,6 +24,11 @@ fi
 adb shell appops set com.ross.speechtotext SYSTEM_ALERT_WINDOW allow
 adb shell pm grant com.ross.speechtotext android.permission.RECORD_AUDIO
 adb shell pm grant com.ross.speechtotext android.permission.POST_NOTIFICATIONS
+# Lets the app swap the active keyboard for its silent IME while dictating.
+adb shell pm grant com.ross.speechtotext android.permission.WRITE_SECURE_SETTINGS
+
+# Enable the silent IME so the app can switch to it.
+adb shell ime enable com.ross.speechtotext/.SilentIme
 
 # Enable accessibility service (for auto-typing)
 ENABLED=$(adb shell settings get secure enabled_accessibility_services)

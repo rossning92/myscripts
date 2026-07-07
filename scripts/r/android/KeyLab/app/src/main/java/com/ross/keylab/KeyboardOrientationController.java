@@ -9,7 +9,8 @@ import android.view.Surface;
 
 /**
  * Pins the display to landscape while an external physical keyboard is connected,
- * and restores the user's prior rotation settings when it disconnects.
+ * and restores the user's prior rotation settings when it disconnects. Only active
+ * while the user toggle is on (persisted, off by default); when off it does nothing.
  *
  * Mechanism: USER_ROTATION is honored only while auto-rotate is off, so we toggle
  * both. This needs the "Modify system settings" permission and only affects surfaces
@@ -21,8 +22,26 @@ final class KeyboardOrientationController {
 
     private static final int LANDSCAPE = Surface.ROTATION_90;
 
+    private static final String PREFS = "keylab";
+    private static final String KEY_ENABLED = "auto_landscape";
+
+    /** Whether the auto-landscape feature is toggled on. Off by default. */
+    static boolean isEnabled(Context context) {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getBoolean(KEY_ENABLED, false);
+    }
+
+    /** Persist the toggle without needing a live controller (service may be off). */
+    static void setEnabledPref(Context context, boolean value) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putBoolean(KEY_ENABLED, value).apply();
+    }
+
     private final Context context;
     private final InputManager inputManager;
+
+    // Mirrors the persisted toggle; when false the feature does nothing.
+    private boolean enabled;
 
     // While forcing landscape we hold the user's pre-existing settings to restore them.
     private boolean forced;
@@ -39,6 +58,20 @@ final class KeyboardOrientationController {
     KeyboardOrientationController(Context context) {
         this.context = context;
         this.inputManager = (InputManager) context.getSystemService(Context.INPUT_SERVICE);
+        this.enabled = isEnabled(context);
+    }
+
+    /** Flip the feature on/off at runtime. Persists and applies immediately. */
+    void setEnabled(boolean value) {
+        setEnabledPref(context, value);
+        enabled = value;
+        sync();
+    }
+
+    /** Flip the current state and apply. Returns the new enabled state. */
+    boolean toggle() {
+        setEnabled(!enabled);
+        return enabled;
     }
 
     /** Begin watching for keyboard connect/disconnect. Callbacks run on {@code handler}. */
@@ -71,7 +104,7 @@ final class KeyboardOrientationController {
     // Reconciles the current lock with whether a keyboard is present.
     private void sync() {
         if (!canWrite()) return;
-        if (hasExternalKeyboard()) {
+        if (enabled && hasExternalKeyboard()) {
             if (forced) return; // already forced -> don't re-snapshot our own values
             savedAutoRotate = get(Settings.System.ACCELEROMETER_ROTATION, 1);
             savedUserRotation = get(Settings.System.USER_ROTATION, Surface.ROTATION_0);

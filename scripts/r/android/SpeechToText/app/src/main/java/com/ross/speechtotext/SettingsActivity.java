@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.TextUtils;
+import android.view.inputmethod.InputMethodInfo;
+import android.view.inputmethod.InputMethodManager;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.EditTextPreference;
@@ -48,12 +50,20 @@ public class SettingsActivity extends AppCompatActivity {
                     return false;
                 });
             }
+            SwitchPreferenceCompat imePref = findPreference("ime_status");
+            if (imePref != null) {
+                imePref.setOnPreferenceChangeListener((pref, newValue) -> {
+                    startActivity(new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS));
+                    return false;
+                });
+            }
         }
 
         @Override
         public void onResume() {
             super.onResume();
             updateAccessibilityStatus();
+            updateImeStatus();
         }
 
         private void updateAccessibilityStatus() {
@@ -64,6 +74,21 @@ public class SettingsActivity extends AppCompatActivity {
                     Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
             String component = new ComponentName(requireContext(), TypeAccessibilityService.class).flattenToString();
             pref.setChecked(!TextUtils.isEmpty(enabled) && enabled.contains(component));
+        }
+
+        private void updateImeStatus() {
+            SwitchPreferenceCompat pref = findPreference("ime_status");
+            if (pref == null) return;
+            String id = new ComponentName(requireContext(), SilentIme.class).flattenToShortString();
+            InputMethodManager imm = requireContext().getSystemService(InputMethodManager.class);
+            boolean enabled = false;
+            for (InputMethodInfo info : imm.getEnabledInputMethodList()) {
+                if (id.equals(info.getId())) {
+                    enabled = true;
+                    break;
+                }
+            }
+            pref.setChecked(enabled);
         }
     }
 }

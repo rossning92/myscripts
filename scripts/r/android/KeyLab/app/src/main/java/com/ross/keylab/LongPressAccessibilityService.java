@@ -5,19 +5,18 @@ import android.accessibilityservice.InputMethod;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
+import android.widget.Toast;
 
 import java.util.Map;
 
 /**
  * Intercepts hardware keyboard events for tap-vs-hold gestures. A tracked key
  * that is tapped types its normal character; held past its threshold it runs a
- * hold action instead - typing a mapped symbol, or (for Space) launching the
- * browser.
+ * hold action instead - typing a mapped symbol.
  *
  * The normal character is deliberately deferred until key-up (or the hold fires),
  * which is the only way to tell a tap from a hold.
@@ -32,9 +31,6 @@ public class LongPressAccessibilityService extends AccessibilityService {
     public static LongPressAccessibilityService getInstance() {
         return instance;
     }
-
-    // How long Space must be held to fire the global hotkey action.
-    private static final long SPACE_HOLD_MS = 600;
 
     private static final String TERMUX_PACKAGE = "com.termux";
 
@@ -60,6 +56,17 @@ public class LongPressAccessibilityService extends AccessibilityService {
         orientation.start(handler);
     }
 
+    /** Turn auto-landscape on/off while the service is running (called from the UI toggle). */
+    public void setAutoLandscapeEnabled(boolean enabled) {
+        if (orientation != null) orientation.setEnabled(enabled);
+    }
+
+    private void toggleAutoLandscape() {
+        if (orientation == null) return;
+        boolean on = orientation.toggle();
+        Toast.makeText(this, "Auto-landscape " + (on ? "on" : "off"), Toast.LENGTH_SHORT).show();
+    }
+
     @Override
     public boolean onKeyEvent(KeyEvent event) {
         // On the lock screen our commit() can't reach the secure PIN field, so
@@ -82,6 +89,14 @@ public class LongPressAccessibilityService extends AccessibilityService {
             return true;
         }
 
+        // Win+R toggles auto-landscape. Fire once on key-down, overriding the default.
+        if (event.getKeyCode() == KeyEvent.KEYCODE_R && (meta & KeyEvent.META_META_ON) != 0) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                toggleAutoLandscape();
+            }
+            return true;
+        }
+
         // Never intercept modifier combos (Ctrl/Alt/Meta) so shortcuts keep working.
         if ((meta & (KeyEvent.META_CTRL_ON | KeyEvent.META_ALT_ON | KeyEvent.META_META_ON)) != 0) {
             return passThrough();
@@ -89,24 +104,14 @@ public class LongPressAccessibilityService extends AccessibilityService {
 
         // Resolve what this key does when tracked: the char to type on a tap, the
         // action to run on a hold, and the hold threshold. Untracked keys pass through.
-        String normalOnTap;
-        Runnable holdAction;
-        long holdMs;
-
-        if (event.getKeyCode() == KeyEvent.KEYCODE_SPACE) {
-            normalOnTap = " ";
-            holdAction = this::launchBrowser;
-            holdMs = SPACE_HOLD_MS;
-        } else {
-            int base = event.getUnicodeChar(0);
-            if (base == 0) return passThrough(); // non-printable key (Enter, arrows, ...)
-            String symbol = symbolByBase.get(Character.toLowerCase((char) base));
-            if (symbol == null) return passThrough(); // unmapped -> normal behavior
-            int normal = event.getUnicodeChar(meta); // respect Shift/CapsLock
-            normalOnTap = normal == 0 ? null : new String(Character.toChars(normal));
-            holdAction = () -> commit(symbol);
-            holdMs = Mapping.LONGPRESS_MS;
-        }
+        int base = event.getUnicodeChar(0);
+        if (base == 0) return passThrough(); // non-printable key (Enter, arrows, ...)
+        String symbol = symbolByBase.get(Character.toLowerCase((char) base));
+        if (symbol == null) return passThrough(); // unmapped -> normal behavior
+        int normal = event.getUnicodeChar(meta); // respect Shift/CapsLock
+        String normalOnTap = normal == 0 ? null : new String(Character.toChars(normal));
+        Runnable holdAction = () -> commit(symbol);
+        long holdMs = Mapping.LONGPRESS_MS;
 
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             // Arm on the first press; consume auto-repeats so the key can't repeat.
@@ -131,9 +136,9 @@ public class LongPressAccessibilityService extends AccessibilityService {
 
     /**
      * Arms tap-vs-hold tracking for a key. Released early it types {@code normalOnTap};
-     * held past {@code holdMs} it runs {@code holdAction} instead (type a symbol,
-     * launch the browser, ...). Every event of a tracked key is consumed, so the
-     * input dispatcher never generates its own character auto-repeat.
+     * held past {@code holdMs} it runs {@code holdAction} instead (type a symbol).
+     * Every event of a tracked key is consumed, so the input dispatcher never
+     * generates its own character auto-repeat.
      */
     private void beginPending(int keyCode, String normalOnTap, Runnable holdAction, long holdMs) {
         flushPendingAsTap(); // a different key was still pending -> resolve it as a tap
@@ -145,22 +150,6 @@ public class LongPressAccessibilityService extends AccessibilityService {
             longPressFired = true;
         };
         handler.postDelayed(longPressRunnable, holdMs);
-    }
-
-    // The action bound to the Space hotkey. Kept trivial on purpose - swap this
-    // body (or make it configurable) to change what the hotkey does.
-    private void launchBrowser() {
-        try {
-            startActivity(new Intent(Intent.ACTION_MAIN)
-                    .addCategory(Intent.CATEGORY_APP_BROWSER)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        } catch (Exception e) {
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            } catch (Exception ignored) {
-            }
-        }
     }
 
     private void launchApp(String pkg) {

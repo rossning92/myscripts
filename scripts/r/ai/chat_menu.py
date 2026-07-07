@@ -870,12 +870,13 @@ class ChatMenu(Menu[Line]):
         self.append_item(line)
         self.process_events()
 
-    def __complete_chat(self, status: str = "generating"):
+    def __complete_chat(self, status: Optional[str] = None):
         if self.__is_generating:
             return
 
         self.on_generating()
-        self.set_message(status)
+        if status:
+            self.set_message(status)
         self.__is_generating = True
         self.__update_terminal_title(state="generating")
 
@@ -956,7 +957,6 @@ class ChatMenu(Menu[Line]):
         text = self._out_message["text"]
         self.get_messages().append(self._out_message)
         self.save_chat()
-        self.set_message("cancelled" if cancelled else "done")
         self._out_message = None
 
         if not cancelled:
@@ -1012,7 +1012,6 @@ class ChatMenu(Menu[Line]):
         os.makedirs(os.path.dirname(self.__chat_file), exist_ok=True)
         save_json(self.__chat_file, self.__messages)
         self.__history_manager.delete_old_files()
-        self.set_message(f"chat saved to {self.__chat_file}")
 
     def __refresh_lines(self):
         self.__lines[:] = []
@@ -1153,14 +1152,17 @@ class ChatMenu(Menu[Line]):
     _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
     def get_status_text(self) -> str:
-        s = "chat: "
+        parts = []
         if self.__is_generating:
-            s += self._SPINNER_FRAMES[self.__spinner_index % len(self._SPINNER_FRAMES)]
-            s += " "
-        s += f"tokens={self.__usage} "
-        s += "model=" + str(self.get_settings().get("model", "")) + "\n"
-        s += super().get_status_text()
-        return s
+            parts.append(
+                self._SPINNER_FRAMES[self.__spinner_index % len(self._SPINNER_FRAMES)]
+            )
+        model = str(self.get_settings().get("model", "")).split("/")[-1]
+        if model:
+            parts.append(model)
+        if self.__usage.total_tokens or self.__usage.input_tokens:
+            parts.append(f"{self.__usage}")
+        return " ".join(parts) + "\n" + super().get_status_text()
 
     def on_idle(self):
         if self.__is_generating:

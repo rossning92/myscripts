@@ -12,11 +12,13 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
 
     private TextView status;
+    private Switch autoLandscape;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,10 +87,16 @@ public class MainActivity extends Activity {
 
         TextView rotateBlurb = new TextView(this);
         rotateBlurb.setPadding(0, dp(20), 0, dp(4));
-        rotateBlurb.setText("Auto-landscape: when an external keyboard connects, the screen is "
-                + "pinned to landscape (and auto-rotate returns when it disconnects). This needs "
-                + "\"Modify system settings\" - grant it below.");
+        rotateBlurb.setText("Auto-landscape: when the toggle below is on and an external keyboard "
+                + "connects, the screen is pinned to landscape (and auto-rotate returns when it "
+                + "disconnects). This needs \"Modify system settings\" - grant it below.");
         root.addView(rotateBlurb);
+
+        autoLandscape = new Switch(this);
+        autoLandscape.setText("Auto-landscape with keyboard (Win + R to toggle)");
+        autoLandscape.setChecked(KeyboardOrientationController.isEnabled(this));
+        autoLandscape.setOnCheckedChangeListener((v, isChecked) -> setAutoLandscape(isChecked));
+        root.addView(autoLandscape);
 
         Button writeSettings = new Button(this);
         writeSettings.setText("Grant Modify system settings");
@@ -117,6 +125,19 @@ public class MainActivity extends Activity {
         status.setText(on
                 ? "Service: ENABLED"
                 : "Service: OFF - enable \"KeyLab\" under Accessibility.");
+
+        // The Win+R hotkey can flip this while we were backgrounded - reflect the real state.
+        autoLandscape.setChecked(KeyboardOrientationController.isEnabled(this));
+    }
+
+    // Persist the toggle, and apply it live if the service is already running.
+    private void setAutoLandscape(boolean on) {
+        LongPressAccessibilityService svc = LongPressAccessibilityService.getInstance();
+        if (svc != null) {
+            svc.setAutoLandscapeEnabled(on);
+        } else {
+            KeyboardOrientationController.setEnabledPref(this, on);
+        }
     }
 
     private int dp(int v) {

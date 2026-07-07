@@ -12,12 +12,12 @@
         <SwitchPreferenceCompat
             android:key="accessibility_status"
             android:title="Accessibility Service"
-            android:summary="Type dictated text into focused fields without root"
+            android:summary="Type dictated text into focused fields"
             android:persistent="false" />
         <SwitchPreferenceCompat
-            android:key="enable_root"
-            android:title="Root"
-            android:summary="Use 'input text' command to type when accessibility can't connect to the focused app"
-            android:defaultValue="true" />
+            android:key="ime_status"
+            android:title="Silent Keyboard"
+            android:summary="Type into apps like AVNC that only accept keyboard input"
+            android:persistent="false" />
     </PreferenceCategory>
 </PreferenceScreen>

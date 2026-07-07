@@ -46,7 +46,7 @@ def get_relative_time_str(ts: float) -> str:
 
 
 def get_pretty_ts(ts):
-    date_str = format_timestamp(ts, show_hhmm=False).ljust(5)
+    date_str = format_timestamp(ts, show_hhmm=True)
     time_diff_str = get_relative_time_str(ts)
     return f"{time_diff_str:>7} {date_str}"
 
@@ -357,7 +357,7 @@ def _edit_todo(
 
 def _get_todo_str(item: TodoItem) -> str:
     ts = item.get("due_ts")
-    due_str = format_timestamp(ts, show_year=True) if ts else "None"
+    due_str = format_timestamp(ts, show_year=True, show_hhmm=True) if ts else "None"
 
     desc = item.get("description", "")
     if "\n" in desc:

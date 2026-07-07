@@ -2,6 +2,9 @@ package com.ross.speechtotext;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.InputMethod;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 
 public class TypeAccessibilityService extends AccessibilityService {
@@ -9,6 +12,42 @@ public class TypeAccessibilityService extends AccessibilityService {
 
     public static TypeAccessibilityService getInstance() {
         return instance;
+    }
+
+    // Holding Space past this delay toggles dictation instead of typing a space.
+    private static final long LONG_PRESS_MS = 300;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean longPressFired = false;
+    private final Runnable longPress = () -> {
+        FloatingService fs = FloatingService.getInstance();
+        if (fs == null) return; // No dictation target; release still types a space.
+        longPressFired = true;
+        fs.onHotkey();
+    };
+
+    @Override
+    protected boolean onKeyEvent(KeyEvent event) {
+        // Only plain Space is a hotkey; leave modified combos (Ctrl+Space, etc.)
+        // for the focused app.
+        if (event.getKeyCode() != KeyEvent.KEYCODE_SPACE || !event.hasNoModifiers()) {
+            return false;
+        }
+        // Swallow Space and re-inject it on a quick tap. A long-press must not
+        // leak a space into the field, so we cannot let the key through on down.
+        switch (event.getAction()) {
+            case KeyEvent.ACTION_DOWN:
+                if (event.getRepeatCount() == 0) {
+                    longPressFired = false;
+                    handler.postDelayed(longPress, LONG_PRESS_MS);
+                }
+                return true;
+            case KeyEvent.ACTION_UP:
+                handler.removeCallbacks(longPress);
+                if (!longPressFired) typeText(" ");
+                longPressFired = false;
+                return true;
+        }
+        return false;
     }
 
     @Override

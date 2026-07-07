@@ -18,11 +18,19 @@ fi
 echo 'Reduce status bar height (hole cutout emulation)...'
 adb shell cmd overlay enable com.android.internal.display.cutout.emulation.hole
 
+echo 'Show battery percentage in the status bar...'
+adb shell settings put system status_bar_show_battery_percent 1
+
 echo 'Set screen timeout to 5 minutes...'
 adb shell settings put system screen_off_timeout 300000
 
 echo 'Disable adaptive tone (Pixel only)...'
 adb shell settings put secure display_white_balance_enabled 0
+
+echo 'Turn on Battery saver (sticky) and keep "turn off at 90%" disabled...'
+adb shell settings put global low_power 1
+adb shell settings put global low_power_sticky 1
+adb shell settings put global low_power_sticky_auto_disable_enabled 0
 
 install_fdroid() {
     pkg=$1
@@ -47,3 +55,6 @@ install_fdroid com.termux.api
 
 echo 'Install Island...'
 install_fdroid com.oasisfeng.island.fdroid
+
+echo 'Install MuPDF...'
+install_fdroid com.artifex.mupdf.viewer.app
