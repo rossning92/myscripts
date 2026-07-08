@@ -13,6 +13,7 @@ MODELS = [
     "gpt-image-2",
     "openrouter:google/gemini-3-flash-preview",
     "local_llm",
+    "openrouter:x-ai/grok-4.5",
     "openrouter:x-ai/grok-imagine-image-quality",
     "openrouter:deepseek/deepseek-v4-pro",
     "openrouter:z-ai/glm-5.2",

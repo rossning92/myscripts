@@ -175,6 +175,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(os.path.getsize(fpath)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         with open(fpath, "rb") as f:
             self.wfile.write(f.read())

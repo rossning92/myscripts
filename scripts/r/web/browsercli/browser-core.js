@@ -143,24 +143,19 @@ export async function launchOrConnectBrowser({
   };
   let browser;
 
-  if (headed) {
-    // Kill any existing browser so we can relaunch in headed mode
-    try {
-      const tmp = await puppeteer.connect({ browserURL, defaultViewport });
-      const cdp = await tmp.target().createCDPSession();
-      await cdp.send("Browser.close");
-      await sleep(1000);
-    } catch {}
-  }
-
+  // Reuse whatever browser is already on the debug port, regardless of the
+  // headed flag. To switch an existing session between headed and headless,
+  // run close-browser first, then open again.
   try {
     browser = await puppeteer.connect({ browserURL, defaultViewport });
   } catch (err) {
     console.log("Unable to connect, launching a new browser instance...");
 
     await launchDetachedChrome(headed);
-    const maxRetries = 5;
-    const retryDelay = 1000;
+    // A heavyweight profile (session restore, extensions) can take well over 5s
+    // to open the debug port on a cold start, so give it up to ~30s.
+    const maxRetries = 60;
+    const retryDelay = 500;
     let connected = false;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
@@ -217,14 +212,6 @@ export function getStatus() {
 
 export async function getBrowser(options) {
   _currentHeaded = options?.headed ?? _currentHeaded;
-  if (options?.headed && _browser && _browser.isConnected()) {
-    // Detach the exit-on-disconnect handler first, otherwise this intentional
-    // close fires it and kills the daemon mid-request (headed relaunch race).
-    if (_onDisconnect) _browser.off("disconnected", _onDisconnect);
-    await _browser.close().catch(() => {});
-    _browser = null;
-    _onDisconnect = null;
-  }
   if (_browser && _browser.isConnected()) return _browser;
   _browser = await launchOrConnectBrowser(options);
   _onDisconnect = () => process.exit(0);

@@ -11,6 +11,7 @@ cd "$HOME"
 
 rclone_wrapper() {
     logfile="$(mktemp)"
+    echo "Log file: $logfile"
     local_dir="$2"
 
     extra_args=''
@@ -45,20 +46,27 @@ rclone_wrapper() {
     ret=${PIPESTATUS[0]}
     if [[ "$ret" != "0" ]]; then
         echo "ERROR: rclone returned $ret"
-        if [[ "$ret" == 7 ]]; then
+        if [[ "$ret" == 7 ]] && grep -Eiq 'rate limit|ratelimit|quota exceeded|user rate limit' "$logfile"; then
             echo 'ERROR: Rate limit exceeded'
             exit 0
-        elif grep -q ' --resync' "$logfile"; then
-            read -p "Resync? (y/n): " ans
-            if [[ "$ans" == "y" ]]; then
+        elif grep -Eiq 'cannot find prior Path1 or Path2 listings|cannot find prior Path[12]|prior Path[12].*listings|Path1: .*\.path1\.lst|Path2: .*\.path2\.lst' "$logfile"; then
+            read -r -p "Prior bisync listings are missing. Resync? (y/n): " ans
+            if [[ "$ans" =~ ^[Yy]$ ]]; then
                 rclone_wrapper "$@" --resync
             else
                 return 1
             fi
-        elif grep -q 'force' "$logfile"; then
-            read -p "Force sync? (y/n): " ans
-            if [[ "$ans" == "y" ]]; then
+        elif grep -Eiq '(^|[[:space:]])--force([[:space:]]|$)|force' "$logfile"; then
+            read -r -p "Force sync? (y/n): " ans
+            if [[ "$ans" =~ ^[Yy]$ ]]; then
                 rclone_wrapper "$@" --force
+            else
+                return 1
+            fi
+        elif grep -Eiq '(^|[[:space:]])--resync([[:space:]]|$)|resync' "$logfile"; then
+            read -r -p "Resync? (y/n): " ans
+            if [[ "$ans" =~ ^[Yy]$ ]]; then
+                rclone_wrapper "$@" --resync
             else
                 return 1
             fi

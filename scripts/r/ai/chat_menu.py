@@ -289,7 +289,7 @@ class ChatMenu(Menu[Line]):
         create_gitignore(self.__data_dir)
 
         self.__data_dir_menu = FileMenu(
-            prompt="data dir", goto=self.__data_dir, sort_by="mtime"
+            prompt="data dir", goto=self.__data_dir, sort_by="mtime", esc_to_close=True
         )
         self.__add_file_menu = FileMenu(
             prompt="add file", goto=self.__data_dir, sort_by="mtime"

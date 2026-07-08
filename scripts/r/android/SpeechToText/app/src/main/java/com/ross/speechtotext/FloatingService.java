@@ -19,6 +19,7 @@ import android.provider.Settings;
 import androidx.preference.PreferenceManager;
 import android.content.res.Configuration;
 
+import android.graphics.Insets;
 import android.graphics.PixelFormat;
 import android.media.MediaRecorder;
 import android.os.Handler;
@@ -28,7 +29,10 @@ import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.WindowMetrics;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.appcompat.view.ContextThemeWrapper;
@@ -65,13 +69,14 @@ public class FloatingService extends Service {
     }
 
     private WindowManager windowManager;
-    private FloatingActionButton floatingView;
+    private LinearLayout container;
     private WindowManager.LayoutParams params;
 
+    private FloatingActionButton floatingView;
     private FloatingActionButton cancelView;
-    private WindowManager.LayoutParams cancelParams;
     private WaveformView waveformView;
-    private WindowManager.LayoutParams waveformParams;
+    private boolean onLeft = true;
+    private int waveW, waveH;
     private boolean isDictating = false;
     private boolean isTranscribing = false;
     private ObjectAnimator spinAnimator;
@@ -115,10 +120,22 @@ public class FloatingService extends Service {
         String suffix = getPrefSuffix();
         params.x = prefs.getInt("x" + suffix, prefs.getInt("x", 100));
         params.y = prefs.getInt("y" + suffix, prefs.getInt("y", 100));
-        windowManager.updateViewLayout(floatingView, params);
-        if (isDictating) {
-            updateActionButtonPositions();
-        }
+        windowManager.updateViewLayout(container, params);
+        // Re-dock to the nearest edge once laid out. getWidth() and the cutout
+        // insets are only valid post-layout, and the saved x must be re-snapped
+        // to this orientation's usable width (insets differ per orientation).
+        container.post(this::savePositionToEdge);
+    }
+
+    // Width available to the container, excluding system bars and display cutout.
+    // The window is positioned relative to this inset content area, so pinning
+    // the right edge must use this (not the full display width), or the WM clamps
+    // the window and it no longer sits flush.
+    private int usableWidth() {
+        WindowMetrics metrics = windowManager.getCurrentWindowMetrics();
+        Insets insets = metrics.getWindowInsets().getInsets(
+                WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+        return metrics.getBounds().width() - insets.left - insets.right;
     }
 
     @Override
@@ -152,10 +169,13 @@ public class FloatingService extends Service {
         int layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 
+        float density = getResources().getDisplayMetrics().density;
+        waveW = (int) (72 * density);
+        waveH = (int) (40 * density);
+
         floatingView = createFab(R.drawable.ic_graphic_eq);
         floatingView.setHapticFeedbackEnabled(true);
-
-        params = createOverlayLayoutParams(layoutType, flags);
+        floatingView.setOnClickListener(v -> toggleDictation());
 
         cancelView = createFab(R.drawable.ic_close);
         cancelView.setVisibility(View.GONE);
@@ -164,14 +184,12 @@ public class FloatingService extends Service {
             cancelDictation();
         });
 
-        cancelParams = createOverlayLayoutParams(layoutType, flags);
-
-        float density = getResources().getDisplayMetrics().density;
         waveformView = new WaveformView(themedContext);
         waveformView.setVisibility(View.GONE);
-        waveformParams = createOverlayLayoutParams(layoutType, flags);
-        waveformParams.width = (int) (72 * density);
-        waveformParams.height = (int) (40 * density);
+
+        container = new LinearLayout(themedContext);
+        container.setOrientation(LinearLayout.HORIZONTAL);
+        container.setGravity(Gravity.CENTER_VERTICAL);
 
         View.OnTouchListener dragTouchListener = new View.OnTouchListener() {
             private int initialX, initialY;
@@ -196,10 +214,7 @@ public class FloatingService extends Service {
                             isDragging = true;
                             params.x = initialX + (int) (event.getRawX() - initialTouchX);
                             params.y = initialY + (int) (event.getRawY() - initialTouchY);
-                            windowManager.updateViewLayout(floatingView, params);
-                            if (isDictating) {
-                                updateActionButtonPositions();
-                            }
+                            windowManager.updateViewLayout(container, params);
                         }
                         return true;
                     case MotionEvent.ACTION_UP:
@@ -213,17 +228,35 @@ public class FloatingService extends Service {
                 return false;
             }
         };
-
-        floatingView.setOnClickListener(v -> toggleDictation());
-
         floatingView.setOnTouchListener(dragTouchListener);
         waveformView.setOnTouchListener(dragTouchListener);
         cancelView.setOnTouchListener(dragTouchListener);
 
-        windowManager.addView(floatingView, params);
-        windowManager.addView(cancelView, cancelParams);
-        windowManager.addView(waveformView, waveformParams);
+        applyChildOrder();
+
+        params = createOverlayLayoutParams(layoutType, flags);
+        windowManager.addView(container, params);
         updatePositionFromPrefs();
+    }
+
+    private LinearLayout.LayoutParams fabLayoutParams() {
+        return new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    // The FAB hugs the docked edge and the action buttons grow inward, so their
+    // order reverses with the edge.
+    private void applyChildOrder() {
+        container.removeAllViews();
+        if (onLeft) {
+            container.addView(floatingView, fabLayoutParams());
+            container.addView(waveformView, new LinearLayout.LayoutParams(waveW, waveH));
+            container.addView(cancelView, fabLayoutParams());
+        } else {
+            container.addView(cancelView, fabLayoutParams());
+            container.addView(waveformView, new LinearLayout.LayoutParams(waveW, waveH));
+            container.addView(floatingView, fabLayoutParams());
+        }
     }
 
     private FloatingActionButton createFab(int iconRes) {
@@ -231,6 +264,7 @@ public class FloatingService extends Service {
         fab.setImageResource(iconRes);
         fab.setSize(FloatingActionButton.SIZE_MINI);
         fab.setUseCompatPadding(true);
+        fab.setCompatElevation(0f);
         return fab;
     }
 
@@ -262,8 +296,8 @@ public class FloatingService extends Service {
         floatingView.setImageResource(R.drawable.ic_check);
         waveformView.clear();
         waveformView.setVisibility(View.VISIBLE);
-        updateActionButtonPositions();
         cancelView.setVisibility(View.VISIBLE);
+        repinToEdge();
         startRecording();
         mainHandler.post(amplitudePollRunnable);
     }
@@ -341,6 +375,7 @@ public class FloatingService extends Service {
         isDictating = false;
         resetFabToDefault();
         cancelView.setVisibility(View.GONE);
+        repinToEdge();
     }
 
     private void startRecording() {
@@ -494,52 +529,40 @@ public class FloatingService extends Service {
         previousImeId = null;
     }
 
-    private void savePositionToEdge() {
-        int screenWidth = windowManager.getCurrentWindowMetrics().getBounds().width();
-        int viewWidth = floatingView.getWidth();
-        int targetX = (params.x + viewWidth / 2 < screenWidth / 2) ? 0 : screenWidth - viewWidth;
-
-        ValueAnimator animator = ValueAnimator.ofInt(params.x, targetX);
-        animator.setDuration(200);
-        animator.addUpdateListener(animation -> {
-            params.x = (int) animation.getAnimatedValue();
-            windowManager.updateViewLayout(floatingView, params);
-            if (isDictating) {
-                updateActionButtonPositions();
-            }
-        });
-        animator.addListener(new AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(Animator animation) {
-                savePosition();
-            }
-        });
-        animator.start();
+    private int edgeTargetX() {
+        return onLeft ? 0 : usableWidth() - container.getWidth();
     }
 
-    private void updateActionButtonPositions() {
-        int screenWidth = windowManager.getCurrentWindowMetrics().getBounds().width();
-        int fabW = floatingView.getWidth();
-        int fabH = floatingView.getHeight();
-        int waveW = waveformParams.width;
-        int waveH = waveformParams.height;
-        boolean onLeft = params.x + fabW / 2 < screenWidth / 2;
+    // Re-pin the docked edge after the container's width changes (entering or
+    // leaving dictation grows/shrinks it). Posted so the new width is measured.
+    private void repinToEdge() {
+        container.post(() -> {
+            params.x = edgeTargetX();
+            windowManager.updateViewLayout(container, params);
+        });
+    }
 
-        if (onLeft) {
-            waveformParams.x = params.x + fabW;
-            cancelParams.x = params.x + fabW + waveW;
-        } else {
-            waveformParams.x = params.x - waveW;
-            cancelParams.x = params.x - waveW - fabW;
+    private void savePositionToEdge() {
+        boolean left = params.x + container.getWidth() / 2 < usableWidth() / 2;
+        if (left != onLeft) {
+            onLeft = left;
+            applyChildOrder();
         }
-
-        waveformParams.y = params.y + (fabH - waveH) / 2;
-        if (waveformView.getVisibility() == View.VISIBLE) {
-            windowManager.updateViewLayout(waveformView, waveformParams);
-        }
-
-        cancelParams.y = params.y;
-        windowManager.updateViewLayout(cancelView, cancelParams);
+        container.post(() -> {
+            ValueAnimator animator = ValueAnimator.ofInt(params.x, edgeTargetX());
+            animator.setDuration(200);
+            animator.addUpdateListener(animation -> {
+                params.x = (int) animation.getAnimatedValue();
+                windowManager.updateViewLayout(container, params);
+            });
+            animator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    savePosition();
+                }
+            });
+            animator.start();
+        });
     }
 
     @Override
@@ -566,8 +589,6 @@ public class FloatingService extends Service {
         deleteAudioFile();
         executor.shutdownNow();
         mainHandler.removeCallbacks(amplitudePollRunnable);
-        if (waveformView != null) windowManager.removeView(waveformView);
-        if (floatingView != null) windowManager.removeView(floatingView);
-        if (cancelView != null) windowManager.removeView(cancelView);
+        if (container != null) windowManager.removeView(container);
     }
 }

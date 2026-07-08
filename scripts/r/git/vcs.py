@@ -1,7 +1,7 @@
 import subprocess
 from typing import List, Optional
 
-_RECENT_COMMIT_COUNT = 3
+_RECENT_COMMIT_COUNT = 5
 
 
 def run_vcs(cwd: Optional[str], cmd: str, *args: str) -> Optional[str]:

@@ -104,7 +104,7 @@ class DictEditMenu(Menu[_KeyValuePair]):
         self.add_command(self.__copy_selected_dict_value, hotkey="ctrl+y")
         self.add_command(self.__prev_value, hotkey="left")
         self.add_command(self.__next_value, hotkey="right")
-        self.add_command(self.__paste_value, hotkey="ctrl+v")
+        self.add_command(self.__paste_value, hotkey="ctrl+v", override=True)
         self.add_command(self.__edit_value, hotkey="ctrl+e")
         self.add_command(self.__reset_value, hotkey="ctrl+k")
         self.add_command(self.__reset_value, hotkey="delete")

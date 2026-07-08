@@ -61,26 +61,28 @@ class Repo:
             self._refresh_hg()
 
     def _refresh_git(self):
-        self.branch = (
-            run_vcs(self.path, "git", "rev-parse", "--abbrev-ref", "HEAD") or "?"
-        )
-
-        status = run_vcs(self.path, "git", "status", "--porcelain")
-        self.dirty = bool(status)
-
+        self.branch = "?"
+        self.dirty = False
         self.ahead = self.behind = 0
-        counts = run_vcs(
-            self.path,
-            "git",
-            "rev-list",
-            "--left-right",
-            "--count",
-            f"{self.branch}...@{{u}}",
-        )
-        if counts:
-            parts = counts.split()
-            if len(parts) == 2:
-                self.ahead, self.behind = int(parts[0]), int(parts[1])
+
+        # One call yields branch, upstream tracking, ahead/behind and dirty,
+        # replacing separate rev-parse + status + rev-list invocations.
+        output = run_vcs(self.path, "git", "status", "--porcelain=v2", "--branch")
+        if output:
+            for line in output.splitlines():
+                if line.startswith("# branch.head "):
+                    self.branch = line[len("# branch.head ") :]
+                elif line.startswith("# branch.ab "):
+                    # Format: "# branch.ab +<ahead> -<behind>".
+                    parts = line.split()
+                    if len(parts) == 4:
+                        self.ahead = int(parts[2].lstrip("+"))
+                        self.behind = int(parts[3].lstrip("-"))
+                elif not line.startswith("#"):
+                    # Header lines precede file entries, so any non-header line
+                    # means the worktree is dirty.
+                    self.dirty = True
+                    break
 
         self.recent_commits = get_git_recent_commits(self.path)
 

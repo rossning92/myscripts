@@ -38,6 +38,11 @@ vim.keymap.set('i', '<down>', '<C-o>gj', { silent = true })
 vim.keymap.set("n", "<C-u>", "5<C-y>5kzz", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-d>", "5<C-e>5jzz", { noremap = true, silent = true })
 
+-- Copy current file path to clipboard
+vim.keymap.set("n", "<leader>yp", function()
+  vim.fn.setreg("+", vim.fn.expand("%:p"))
+end, { desc = "Copy file path" })
+
 -- Quickly save the file
 vim.keymap.set("i", "WW", "<Esc>:w<CR>i")
 vim.keymap.set({ "n", "o" }, "WW", ":w<CR>")

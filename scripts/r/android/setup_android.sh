@@ -58,3 +58,9 @@ install_fdroid com.oasisfeng.island.fdroid
 
 echo 'Install MuPDF...'
 install_fdroid com.artifex.mupdf.viewer.app
+
+echo 'Install Aegis Authenticator...'
+install_fdroid com.beemdevelopment.aegis
+
+echo 'Setup Shizuku...'
+sh "$(dirname "$0")/setup_shizuku.sh"

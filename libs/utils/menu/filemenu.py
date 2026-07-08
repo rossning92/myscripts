@@ -130,7 +130,9 @@ class FileMenu(Menu[_File]):
         allow_cd=True,
         config: Optional[_Config] = None,
         config_dir: Optional[str] = None,
+        esc_to_close=False,
     ):
+        self.__esc_to_close = esc_to_close
         self.__config = config if config else _Config()
         self.__config.sort_by = sort_by
         self.__config_file = (
@@ -765,7 +767,7 @@ class FileMenu(Menu[_File]):
                 self.set_message(str(e))
 
     def on_escape_pressed(self):
-        if self.__select_mode == FileMenu.SELECT_MODE_NONE:
+        if self.__select_mode == FileMenu.SELECT_MODE_NONE and not self.__esc_to_close:
             self._goto_parent_directory()
         else:
             self.cancel()

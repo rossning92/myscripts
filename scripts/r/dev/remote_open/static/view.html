@@ -26,7 +26,7 @@ body {
 }
 #path {
     flex: 0 0 auto;
-    padding: 8px 48px 8px 12px;
+    padding: 8px 220px 8px 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
     color: var(--muted);
@@ -34,24 +34,27 @@ body {
     white-space: nowrap;
     overflow-x: auto;
 }
-#copybtn {
+#toolbar {
     position: fixed;
     top: 5px;
     right: 12px;
     z-index: 10;
-    display: none;
+    display: flex;
+    gap: 6px;
     align-items: center;
-    justify-content: center;
-    padding: 5px;
+}
+.tbtn {
+    padding: 5px 8px;
     color: var(--muted);
     background: #2a2a2a;
     border: 1px solid var(--border);
     border-radius: 4px;
     cursor: pointer;
-    line-height: 0;
+    font-size: 12px;
 }
-#copybtn:hover { background: #383838; color: var(--fg); }
-#copybtn svg { width: 15px; height: 15px; }
+.tbtn:hover { background: #383838; color: var(--fg); }
+.tbtn .key { opacity: .6; margin-left: 4px; }
+#copybtn { display: none; }
 #viewer {
     flex: 1 1 auto;
     min-height: 0;
@@ -86,9 +89,10 @@ body {
 </style>
 </head>
 <body>
-<button id="copybtn" title="Copy as rich text (c)"></button>
+<div id="toolbar"><button id="copypathbtn" class="tbtn"></button><button id="copybtn" class="tbtn"></button></div>
 <div id="path"></div>
 <div id="viewer"></div>
+<script src="/annotate.js"></script>
 <script>
 var IMG = ["png","jpg","jpeg","gif","webp","svg","bmp","ico","tiff"];
 var VID = ["mp4","webm","mov","avi","mkv"];
@@ -140,15 +144,18 @@ function renderMarkdown(v, text) {
         });
 }
 
+var isMac = /Mac/i.test(navigator.platform || "");
+var ALT = isMac ? "⌥" : "Alt+";
 var copyBtn = document.getElementById("copybtn");
-var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-var ICON_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-var ICON_FAIL = '<svg viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-copyBtn.innerHTML = ICON_COPY;
+var copyPathBtn = document.getElementById("copypathbtn");
+var COPY_LABEL = 'Copy text<span class="key">' + ALT + 'C</span>';
+var PATH_LABEL = 'Copy path<span class="key">' + ALT + 'P</span>';
+copyBtn.innerHTML = COPY_LABEL;
+copyPathBtn.innerHTML = PATH_LABEL;
 
-function flashBtn(icon) {
-    copyBtn.innerHTML = icon;
-    setTimeout(function () { copyBtn.innerHTML = ICON_COPY; }, 1200);
+function flashBtn(btn, label, ok) {
+    btn.textContent = ok ? "Copied" : "Failed";
+    setTimeout(function () { btn.innerHTML = label; }, 1200);
 }
 
 function copyViaSelection(el) {
@@ -160,7 +167,7 @@ function copyViaSelection(el) {
     var ok = false;
     try { ok = document.execCommand("copy"); } catch (e) {}
     sel.removeAllRanges();
-    flashBtn(ok ? ICON_OK : ICON_FAIL);
+    flashBtn(copyBtn, COPY_LABEL, ok);
 }
 
 function copyRich() {
@@ -174,17 +181,47 @@ function copyRich() {
                     "text/plain": new Blob([body.innerText], { type: "text/plain" }),
                 }),
             ])
-            .then(function () { flashBtn(ICON_OK); })
+            .then(function () { flashBtn(copyBtn, COPY_LABEL, true); })
             .catch(function () { copyViaSelection(body); });
     } else {
         copyViaSelection(body);
     }
 }
 
+function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (res, rej) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+        ok ? res() : rej();
+    });
+}
+
+function copyPath() {
+    if (!path) return;
+    copyText(path)
+        .then(function () { flashBtn(copyPathBtn, PATH_LABEL, true); })
+        .catch(function () { flashBtn(copyPathBtn, PATH_LABEL, false); });
+}
+
 copyBtn.addEventListener("click", copyRich);
+copyPathBtn.addEventListener("click", copyPath);
 document.addEventListener("keydown", function (e) {
-    if (e.key === "c" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
-        if (copyBtn.style.display !== "none") copyRich();
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.code === "KeyC") {
+        if (copyBtn.style.display !== "none") { e.preventDefault(); copyRich(); }
+    } else if (e.code === "KeyP") {
+        e.preventDefault();
+        copyPath();
     }
 });
 
@@ -231,19 +268,26 @@ if (path) {
         if (IMG.indexOf(e) >= 0) {
             v.innerHTML = '<img src="' + src + '">';
             restoreScroll(scroll);
+            if (window.Annotator) Annotator.disable();
         } else if (VID.indexOf(e) >= 0) {
             v.innerHTML = '<video controls src="' + src + '"></video>';
+            if (window.Annotator) Annotator.disable();
         } else if (AUD.indexOf(e) >= 0) {
             v.innerHTML = '<audio controls src="' + src + '"></audio>';
+            if (window.Annotator) Annotator.disable();
         } else if (e === "pdf") {
             v.innerHTML = '<iframe src="' + src + '"></iframe>';
+            if (window.Annotator) Annotator.disable();
         } else if (MD.indexOf(e) >= 0) {
             fetch(src)
                 .then(function (r) { return r.text(); })
                 .then(function (t) { return renderMarkdown(v, t); })
                 .then(function () {
                     restoreScroll(scroll);
-                    copyBtn.style.display = "flex";
+                    copyBtn.style.display = "inline-block";
+                    if (window.Annotator) {
+                        Annotator.enable(v.querySelector(".markdown-body"), path);
+                    }
                 });
         } else {
             fetch(src)
@@ -251,6 +295,7 @@ if (path) {
                 .then(function (t) {
                     v.innerHTML = "<pre>" + esc(t) + "</pre>";
                     restoreScroll(scroll);
+                    if (window.Annotator) Annotator.enable(v.querySelector("pre"), path);
                 });
         }
     }
