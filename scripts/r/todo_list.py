@@ -86,8 +86,9 @@ class TodoMenu(ListEditMenu[TodoItem]):
         self.add_command(self.__edit_due, hotkey="alt+d")
         self.add_command(self.__new_task, hotkey="ctrl+n", override=True)
         self.add_command(self.__reload_and_sort, hotkey="ctrl+r")
+        self.add_command(self.__set_status_none, hotkey="alt+n")
         self.add_command(self.__set_status_wip, hotkey="alt+w")
-        self.add_command(self.__toggle_status, hotkey="alt+x")
+        self.add_command(self.__set_status_closed, hotkey="alt+x")
 
     def __new_task(self):
         self.__add_task_interactive(
@@ -113,17 +114,11 @@ class TodoMenu(ListEditMenu[TodoItem]):
             return
         self.__add_item(item)
 
-    def __toggle_status(self):
+    def __set_status(self, status: str):
         items = list(self.get_selected_items())
         if items:
-            status_order = ("none", "closed")
             for item in items:
-                current = item.get("status", "none")
-                try:
-                    idx = status_order.index(current)
-                except ValueError:
-                    idx = 0
-                item["status"] = status_order[(idx + 1) % len(status_order)]
+                item["status"] = status  # type: ignore
             self.save_json()
             self.update_screen()
 
@@ -281,13 +276,14 @@ class TodoMenu(ListEditMenu[TodoItem]):
         self.refresh()
         self.set_selected_item(selected)
 
+    def __set_status_none(self):
+        self.__set_status("none")
+
     def __set_status_wip(self):
-        items = list(self.get_selected_items())
-        if items:
-            for item in items:
-                item["status"] = "in_progress"
-            self.save_json()
-            self.update_screen()
+        self.__set_status("in_progress")
+
+    def __set_status_closed(self):
+        self.__set_status("closed")
 
 
 def _print_invalid_date_error(due: str):

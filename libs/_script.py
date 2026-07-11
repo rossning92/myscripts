@@ -1307,11 +1307,7 @@ class Script:
                 command_wrapper = self.cfg["commandWrapper"]
             logging.debug(f"command_wrapper={command_wrapper}")
 
-            if (
-                command_wrapper
-                and not (background or out_to_file)
-                and not minimized
-            ):
+            if command_wrapper and not (background or out_to_file):
                 # Add command wrapper to pause on exit
                 env["CMDW_CLOSE_ON_EXIT"] = "1" if close_on_exit else "0"
                 env["CMDW_WINDOW_TITLE"] = self.get_window_title()
