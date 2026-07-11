@@ -290,6 +290,24 @@ public class FloatingService extends Service {
         mainHandler.post(this::toggleDictation);
     }
 
+    boolean isDictating() {
+        return isDictating;
+    }
+
+    // Enter confirms the current dictation (stop, transcribe, type).
+    void onConfirmKey() {
+        mainHandler.post(() -> {
+            if (isDictating && !isTranscribing) finishDictation();
+        });
+    }
+
+    // Escape cancels the current dictation without transcribing.
+    void onCancelKey() {
+        mainHandler.post(() -> {
+            if (isDictating) cancelDictation();
+        });
+    }
+
     private void enterDictationMode() {
         isDictating = true;
         switchToSilentIme();

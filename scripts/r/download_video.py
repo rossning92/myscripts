@@ -42,11 +42,26 @@ def download_youtube(url, download_dir=None, audio_only=False, download_playlist
         format = "bestaudio"
     else:
         format = "bestvideo+bestaudio"
-    args = ["yt-dlp", "-f", format, "--no-mtime", url]
+    args = [
+        "yt-dlp",
+        "-f",
+        format,
+        "--no-mtime",
+        url,
+    ]
     # check for cookie in environment variable
     cookie = os.environ.get("YOUTUBE_COOKIE")
     if cookie:
-        args.extend(["--cookies", cookie])
+        args.extend(
+            [
+                "--cookies",
+                cookie,
+                "--js-runtimes",
+                "node",
+                "--remote-components",
+                "ejs:github",
+            ]
+        )
     if not download_playlist:
         args.append("--no-playlist")
     call_echo(args, cwd=download_dir)

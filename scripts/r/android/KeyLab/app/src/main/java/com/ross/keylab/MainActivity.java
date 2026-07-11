@@ -3,9 +3,11 @@ package com.ross.keylab;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -14,11 +16,26 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import rikka.shizuku.Shizuku;
 
 public class MainActivity extends Activity {
 
+    private static final int SHIZUKU_REQ = 1001;
+
     private TextView status;
     private Switch autoLandscape;
+
+    private final Shizuku.OnRequestPermissionResultListener shizukuPermListener =
+            (requestCode, grantResult) -> {
+                if (requestCode != SHIZUKU_REQ) return;
+                if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                    applyLayoutViaShizuku();
+                } else {
+                    toast("Shizuku permission denied.");
+                }
+            };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,6 +83,18 @@ public class MainActivity extends Activity {
             }
         });
         root.addView(hardKb);
+
+        TextView shizukuBlurb = new TextView(this);
+        shizukuBlurb.setPadding(0, dp(20), 0, dp(4));
+        shizukuBlurb.setText("Or, with Shizuku running, apply the KeyLab layout to every keyboard "
+                + "and IME at once - no per-IME picking. Re-run after enabling a new IME or "
+                + "connecting a new keyboard.");
+        root.addView(shizukuBlurb);
+
+        Button applyAll = new Button(this);
+        applyAll.setText("Apply KeyLab to all IMEs (Shizuku)");
+        applyAll.setOnClickListener(v -> applyLayoutViaShizuku());
+        root.addView(applyAll);
 
         TextView stickyBlurb = new TextView(this);
         stickyBlurb.setPadding(0, dp(20), 0, dp(4));
@@ -116,6 +145,14 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
         setContentView(scroll);
+
+        Shizuku.addRequestPermissionResultListener(shizukuPermListener);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Shizuku.removeRequestPermissionResultListener(shizukuPermListener);
     }
 
     @Override
@@ -138,6 +175,37 @@ public class MainActivity extends Activity {
         } else {
             KeyboardOrientationController.setEnabledPref(this, on);
         }
+    }
+
+    private void applyLayoutViaShizuku() {
+        if (!Shizuku.pingBinder()) {
+            toast("Shizuku is not running. Start the Shizuku app first.");
+            return;
+        }
+        if (Shizuku.isPreV11()) {
+            toast("Shizuku pre-v11 is not supported.");
+            return;
+        }
+        if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            Shizuku.requestPermission(SHIZUKU_REQ);
+            return;
+        }
+        // The apply loop makes many cross-process binder calls; keep it off the UI thread.
+        new Thread(() -> {
+            String result;
+            try {
+                result = ShizukuLayoutApplier.apply(this);
+            } catch (Throwable t) {
+                Log.e("KeyLab", "Shizuku apply failed", t);
+                result = "Failed: " + t;
+            }
+            String msg = result;
+            runOnUiThread(() -> toast(msg));
+        }).start();
+    }
+
+    private void toast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
     }
 
     private int dp(int v) {

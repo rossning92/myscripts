@@ -27,6 +27,22 @@ public class TypeAccessibilityService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
+        // While dictating, Enter confirms and Escape cancels. Swallow both edges
+        // so the key never leaks into the field, and act on the release.
+        FloatingService fs = FloatingService.getInstance();
+        if (fs != null && fs.isDictating() && event.hasNoModifiers()
+                && (event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                        || event.getKeyCode() == KeyEvent.KEYCODE_ESCAPE)) {
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER) {
+                    fs.onConfirmKey();
+                } else {
+                    fs.onCancelKey();
+                }
+            }
+            return true;
+        }
+
         // Only plain Space is a hotkey; leave modified combos (Ctrl+Space, etc.)
         // for the focused app.
         if (event.getKeyCode() != KeyEvent.KEYCODE_SPACE || !event.hasNoModifiers()) {

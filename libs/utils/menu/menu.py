@@ -37,7 +37,7 @@ from utils.term import enable_windows_vt
 
 EXPERIMENTAL_EANBLE_WINDOWS_VT = True
 
-ENABLE_VIM_MODE = True
+ENABLE_VIM_MODE = False
 
 GUTTER_SIZE = 1
 MESSAGE_TIMEOUT_SEC = 2.0

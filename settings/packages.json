@@ -338,6 +338,9 @@
     "choco": {
       "packages": ["googlechrome"]
     },
+    "post_install": [
+      "xdg-mime default google-chrome.desktop application/pdf"
+    ],
     "winget": {
       "packages": ["Google.Chrome"]
     },
