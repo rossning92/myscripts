@@ -143,6 +143,20 @@
         return { start: map[at], end: map[at + needle.length - 1] + 1 };
     }
 
+    // Drop notes whose quoted text no longer exists in the file (it was edited
+    // away). Runs on (re)load against the freshly rendered content, so a live
+    // edit picked up by the file watcher clears its now-orphaned notes. No marks
+    // exist yet at this point, so one text scan covers every annotation.
+    function pruneStale() {
+        if (!container) return;
+        var full = collectTextNodes().full;
+        var before = annots.length;
+        annots = annots.filter(function (a) {
+            return a.id === editingId || locate(full, a.quote);
+        });
+        if (annots.length !== before) save();
+    }
+
     function applyHighlights() {
         if (!container) return;
         unwrapAll();
@@ -351,6 +365,7 @@
             container = contentEl;
             filePath = path;
             load();
+            pruneStale();
             refresh();
         },
         // Hide UI for non-text views (images, video, pdf).

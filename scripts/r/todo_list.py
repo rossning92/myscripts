@@ -290,6 +290,11 @@ class TodoMenu(ListEditMenu[TodoItem]):
             self.update_screen()
 
 
+def _print_invalid_date_error(due: str):
+    print("Error: Invalid date format")
+    print('Examples: "today", "tomorrow", "monday", "07/11 2pm", "2026-07-11 14:00", "2pm"')
+
+
 def _add_todo(data_file: str, desc: str, due: Optional[str] = None):
     menu = TodoMenu(data_file=data_file)
     item: TodoItem = {
@@ -303,7 +308,7 @@ def _add_todo(data_file: str, desc: str, due: Optional[str] = None):
             dt = parse_datetime(due)
             item["due_ts"] = dt.timestamp()
         except ValueError:
-            print(f"Error: Invalid date format: {due}")
+            _print_invalid_date_error(due)
             sys.exit(1)
     menu.items.append(item)
     menu.save_json()
@@ -347,7 +352,7 @@ def _edit_todo(
             dt = parse_datetime(due)
             item["due_ts"] = dt.timestamp()
         except ValueError:
-            print(f"Error: Invalid date format: {due}")
+            _print_invalid_date_error(due)
             sys.exit(1)
 
     menu.save_json()

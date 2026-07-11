@@ -4,6 +4,7 @@ import logging
 import logging.handlers
 import os
 import re
+from enum import Enum, auto
 import subprocess
 import sys
 import tempfile
@@ -35,6 +36,8 @@ from utils.strutil import strip_ansi
 from utils.term import enable_windows_vt
 
 EXPERIMENTAL_EANBLE_WINDOWS_VT = True
+
+ENABLE_VIM_MODE = True
 
 GUTTER_SIZE = 1
 MESSAGE_TIMEOUT_SEC = 2.0
@@ -463,6 +466,11 @@ T = TypeVar("T")
 R = TypeVar("R")
 
 
+class VimMode(Enum):
+    INSERT = auto()
+    NORMAL = auto()
+
+
 class Menu(Generic[T]):
     _should_update_screen = False
     _color_pair_map: Dict[Tuple[int, int], int] = {}
@@ -609,6 +617,8 @@ class Menu(Generic[T]):
         self.__quick_select = quick_select
         if quick_select:
             self.__line_number = True
+
+        self.__vim_mode = VimMode.INSERT
 
     def __goto(self):
         selected = self.get_selected_item()
@@ -1284,7 +1294,18 @@ class Menu(Generic[T]):
                 self.__trigger_hotkey("alt+enter")
 
             elif ch == "\x1b":  # escape key
-                self.on_escape_pressed()
+                if ENABLE_VIM_MODE and self.__vim_mode != VimMode.NORMAL:
+                    self._set_vim_mode(VimMode.NORMAL)
+                    self.set_message("Esc again to close")
+                else:
+                    self.on_escape_pressed()
+
+            elif (
+                ENABLE_VIM_MODE
+                and self.__vim_mode == VimMode.NORMAL
+                and self._handle_vim_normal_mode(ch)
+            ):
+                pass
 
             elif ch != "\0":
                 if self.__allow_input:
@@ -1398,6 +1419,46 @@ class Menu(Generic[T]):
             else:
                 self.__input.clear()
                 self.update_screen()
+
+    def _set_vim_mode(self, mode: VimMode):
+        self.__vim_mode = mode
+        self.update_screen()
+
+    def _handle_vim_normal_mode(self, ch: Union[int, str]) -> bool:
+        # Always returns True so unhandled keys don't leak into the search box.
+        if ch == "i":
+            self._set_vim_mode(VimMode.INSERT)
+        elif ch == "j":
+            self.__set_selection_by_offset(
+                offset=1, multi_select=self.__multi_select_mode
+            )
+        elif ch == "k":
+            self.__set_selection_by_offset(
+                offset=-1, multi_select=self.__multi_select_mode
+            )
+        elif ch == "g":
+            self.__set_selection_by_offset(
+                offset=-len(self.get_item_indices()),
+                multi_select=self.__multi_select_mode,
+            )
+        elif ch == "G":
+            self.__set_selection_by_offset(
+                offset=len(self.get_item_indices()),
+                multi_select=self.__multi_select_mode,
+            )
+        elif ch == curses.ascii.ctrl("d"):
+            self.__set_selection_by_offset(
+                offset=self.get_items_per_page() // 2,
+                multi_select=self.__multi_select_mode,
+            )
+        elif ch == curses.ascii.ctrl("u"):
+            self.__set_selection_by_offset(
+                offset=-(self.get_items_per_page() // 2),
+                multi_select=self.__multi_select_mode,
+            )
+        elif ch == "q":
+            self.on_escape_pressed()
+        return True
 
     def on_matched_items_updated(self):
         pass
@@ -1821,6 +1882,12 @@ class Menu(Generic[T]):
 
         if items_per_page != self.get_items_per_page():
             self.update_screen()
+
+        try:
+            in_normal = ENABLE_VIM_MODE and self.__vim_mode == VimMode.NORMAL
+            curses.curs_set(0 if in_normal else 1)
+        except curses.error:
+            pass
 
         # Move cursor
         try:
