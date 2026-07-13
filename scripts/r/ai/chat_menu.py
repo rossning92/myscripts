@@ -268,13 +268,13 @@ class ChatMenu(Menu[Line]):
         self.__image_urls: List[str] = image_urls if image_urls else []
         self.__is_generating = False
         self.__spinner_index = 0
-        self.__last_yanked_line: Optional[Line] = None
+        self.__last_copied_line: Optional[Line] = None
         self.__lines: List[Line] = []
         self.__prompt = prompt
         self.__prompt_file = prompt_file
         self.__out_file = out_file
         self.__system_prompt = system_prompt
-        self.__yank_mode = 0
+        self.__copy_mode = 0
         self.__chat_task: Optional[asyncio.Task] = None
         self.__retry_count = 0
         self.__usage = UsageMetadata()
@@ -326,7 +326,7 @@ class ChatMenu(Menu[Line]):
         self.add_command(self.__take_photo)
         self.add_command(self.__show_system_prompt)
         self.add_command(self.__open_data_dir, hotkey="alt+d")
-        self.add_command(self.__yank, hotkey="ctrl+y")
+        self.add_command(self.__copy_messages, hotkey="ctrl+y", override=True)
         self.add_command(self.new_chat, hotkey="ctrl+n")
         self.add_command(self.save_chat, hotkey="ctrl+s")
         self.add_command(self.__revert_messages, hotkey="ctrl+z")
@@ -646,21 +646,21 @@ class ChatMenu(Menu[Line]):
     def __open_data_dir(self):
         self.__data_dir_menu.exec()
 
-    def __yank(self):
+    def __copy_messages(self):
         indices = list(self.get_selected_indices())
         if len(indices) == 1:
             idx = indices[0]
             line = self.__lines[idx]
-            if line != self.__last_yanked_line:
-                self.__yank_mode = 0
-                self.__last_yanked_line = line
+            if line != self.__last_copied_line:
+                self.__copy_mode = 0
+                self.__last_copied_line = line
 
-            if self.__yank_mode == 0:
+            if self.__copy_mode == 0:
                 set_clip(line.text)
                 self.set_message(f"line {idx + 1} copied")
-                self.__yank_mode = 1
+                self.__copy_mode = 1
 
-            elif self.__yank_mode == 1:
+            elif self.__copy_mode == 1:
                 index = self.get_selected_index()
                 if index >= 0:
                     self.__copy_block(index=index)
@@ -1137,7 +1137,7 @@ class ChatMenu(Menu[Line]):
             self.send_message(text)
 
     def on_item_selection_changed(self, item: Optional[Line], i: int):
-        self.__yank_mode = 0
+        self.__copy_mode = 0
         return super().on_item_selection_changed(item, i)
 
     def on_message(self, content: str):

@@ -1,10 +1,14 @@
 package com.ross.launcher;
 
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.AlertDialog;
 import android.app.role.RoleManager;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.LauncherApps;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Color;
@@ -12,25 +16,47 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Process;
+import android.os.UserHandle;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.provider.Telephony;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
 public class MainActivity extends Activity {
 
-    private static class AppEntry {
+    protected static final Comparator<AppEntry> BY_LABEL =
+            (a, b) -> a.label.toString().compareToIgnoreCase(b.label.toString());
+
+    // Two-finger swipe up (of this many dp) opens the work-profile launcher.
+    private static final int SWIPE_THRESHOLD_DP = 80;
+
+    // Vertical room reserved under the icon for the label (text + margins).
+    private static final int LABEL_RESERVE_DP = 26;
+
+    // The system launcher icon size looks small in a sparse full-screen grid, so
+    // the icon cap is scaled up by this factor for a comfortable maximum.
+    private static final float ICON_SCALE = 1.5f;
+
+    private float twoFingerStartY = -1;
+    private boolean twoFingerTriggered;
+
+    static class AppEntry {
         final CharSequence label;
         final Drawable icon;
         final ComponentName component;
@@ -42,10 +68,14 @@ public class MainActivity extends Activity {
         }
     }
 
+    private FrameLayout gridContainer;
     private GridLayout grid;
     private LinearLayout dock;
     private List<AppEntry> apps;
     private List<AppEntry> favorites;
+
+    private LauncherApps launcherAppsService;
+    private LauncherApps.Callback appsCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,9 +87,14 @@ public class MainActivity extends Activity {
         int pad = dp(4);
         root.setPadding(pad, pad, pad, pad);
 
-        grid = new GridLayout(this);
-        root.addView(grid, new LinearLayout.LayoutParams(
+        gridContainer = new FrameLayout(this);
+        root.addView(gridContainer, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        grid = new GridLayout(this);
+        gridContainer.addView(grid, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
 
         dock = new LinearLayout(this);
         dock.setOrientation(LinearLayout.HORIZONTAL);
@@ -70,17 +105,112 @@ public class MainActivity extends Activity {
 
         setContentView(root);
 
-        apps = loadApps();
-        favorites = extractFavorites(apps);
-        if (favorites.isEmpty()) {
-            dock.setVisibility(View.GONE);
-        }
-        grid.post(this::populate);
+        reload();
+        // Re-lay out whenever the window size changes (e.g. split-screen resize),
+        // not just once - cell sizes and column count are computed from the bounds.
+        // Listen on root so both gridContainer and dock are already laid out (and
+        // have valid heights) when populate() runs.
+        root.addOnLayoutChangeListener(
+                (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                    if (right - left != oldRight - oldLeft
+                            || bottom - top != oldBottom - oldTop) {
+                        populate();
+                    }
+                });
 
         requestDefaultHomeIfNeeded();
+        registerAppsCallback();
     }
 
-    private void requestDefaultHomeIfNeeded() {
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (launcherAppsService != null && appsCallback != null) {
+            launcherAppsService.unregisterCallback(appsCallback);
+        }
+    }
+
+    // The app list is a one-time snapshot taken in onCreate, so rebuild it whenever
+    // a package is installed/removed/changed for the profile this launcher shows.
+    private void registerAppsCallback() {
+        launcherAppsService = (LauncherApps) getSystemService(Context.LAUNCHER_APPS_SERVICE);
+        appsCallback = new LauncherApps.Callback() {
+            @Override
+            public void onPackageAdded(String packageName, UserHandle user) {
+                reloadIfRelevant(user);
+            }
+
+            @Override
+            public void onPackageRemoved(String packageName, UserHandle user) {
+                reloadIfRelevant(user);
+            }
+
+            @Override
+            public void onPackageChanged(String packageName, UserHandle user) {
+                reloadIfRelevant(user);
+            }
+
+            @Override
+            public void onPackagesAvailable(String[] names, UserHandle user, boolean replacing) {
+                reloadIfRelevant(user);
+            }
+
+            @Override
+            public void onPackagesUnavailable(String[] names, UserHandle user, boolean replacing) {
+                reloadIfRelevant(user);
+            }
+        };
+        launcherAppsService.registerCallback(appsCallback);
+    }
+
+    private void reloadIfRelevant(UserHandle user) {
+        if (user.equals(appUser())) {
+            reload();
+        }
+    }
+
+    private void reload() {
+        apps = loadApps();
+        favorites = extractFavorites(apps);
+        dock.setVisibility(favorites.isEmpty() ? View.GONE : View.VISIBLE);
+        populate();
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_POINTER_DOWN:
+                if (ev.getPointerCount() == 2) {
+                    twoFingerStartY = avgY(ev);
+                    twoFingerTriggered = false;
+                }
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (ev.getPointerCount() >= 2 && twoFingerStartY >= 0 && !twoFingerTriggered
+                        && twoFingerStartY - avgY(ev) > dp(SWIPE_THRESHOLD_DP)) {
+                    twoFingerTriggered = true;
+                    onTwoFingerSwipeUp();
+                }
+                break;
+            case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                twoFingerStartY = -1;
+                break;
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+
+    private static float avgY(MotionEvent ev) {
+        return (ev.getY(0) + ev.getY(1)) / 2f;
+    }
+
+    protected void onTwoFingerSwipeUp() {
+        startActivity(new Intent(this, WorkActivity.class));
+        overridePendingTransition(0, 0);
+    }
+
+    protected void requestDefaultHomeIfNeeded() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             return;
         }
@@ -93,13 +223,15 @@ public class MainActivity extends Activity {
     }
 
     private void populate() {
+        grid.removeAllViews();
+        dock.removeAllViews();
         populateGrid();
         populateDock();
     }
 
     private void populateGrid() {
-        int width = grid.getWidth() - grid.getPaddingLeft() - grid.getPaddingRight();
-        int height = grid.getHeight() - grid.getPaddingTop() - grid.getPaddingBottom();
+        int width = gridContainer.getWidth();
+        int height = gridContainer.getHeight();
         int n = apps.size();
         if (n == 0 || width <= 0 || height <= 0) {
             return;
@@ -110,14 +242,18 @@ public class MainActivity extends Activity {
         grid.setColumnCount(cols);
         grid.setRowCount(rows);
 
-        float labelSizePx = labelSize(height / rows);
+        // Size the icon to the available cell, but never larger than the cap. The
+        // grid wraps this content and the container centers it.
+        int available = Math.min(width / cols, height / rows);
+        int iconPx = iconSize(available);
+        int cell = iconPx + dp(LABEL_RESERVE_DP);
+        float labelSizePx = labelSize(cell);
         for (int i = 0; i < n; i++) {
-            GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-            params.width = 0;
-            params.height = 0;
-            params.rowSpec = GridLayout.spec(i / cols, 1f);
-            params.columnSpec = GridLayout.spec(i % cols, 1f);
-            grid.addView(createCell(apps.get(i), labelSizePx), params);
+            GridLayout.LayoutParams params = new GridLayout.LayoutParams(
+                    GridLayout.spec(i / cols), GridLayout.spec(i % cols));
+            params.width = cell;
+            params.height = cell;
+            grid.addView(createCell(apps.get(i), iconPx, labelSizePx), params);
         }
     }
 
@@ -126,11 +262,12 @@ public class MainActivity extends Activity {
         if (height <= 0) {
             return;
         }
+        int iconPx = iconSize(height);
         float labelSizePx = labelSize(height);
         for (AppEntry app : favorites) {
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
-            dock.addView(createCell(app, labelSizePx), params);
+            dock.addView(createCell(app, iconPx, labelSizePx), params);
         }
     }
 
@@ -179,19 +316,22 @@ public class MainActivity extends Activity {
         }
     }
 
-    private View createCell(AppEntry app, float labelSizePx) {
+    private View createCell(AppEntry app, int iconSizePx, float labelSizePx) {
         LinearLayout cell = new LinearLayout(this);
         cell.setOrientation(LinearLayout.VERTICAL);
         cell.setGravity(Gravity.CENTER);
         int pad = dp(2);
         cell.setPadding(pad, pad, pad, pad);
         cell.setOnClickListener(v -> launch(app.component));
+        cell.setOnLongClickListener(v -> {
+            showActions(app);
+            return true;
+        });
 
         ImageView icon = new ImageView(this);
         icon.setImageDrawable(app.icon);
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        cell.addView(icon, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        cell.addView(icon, new LinearLayout.LayoutParams(iconSizePx, iconSizePx));
 
         TextView label = new TextView(this);
         label.setText(app.label);
@@ -223,7 +363,7 @@ public class MainActivity extends Activity {
         return best;
     }
 
-    private List<AppEntry> loadApps() {
+    protected List<AppEntry> loadApps() {
         PackageManager pm = getPackageManager();
         Intent query = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
 
@@ -236,11 +376,40 @@ public class MainActivity extends Activity {
                     info.activityInfo.packageName, info.activityInfo.name);
             result.add(new AppEntry(info.loadLabel(pm), info.loadIcon(pm), component));
         }
-        result.sort((a, b) -> a.label.toString().compareToIgnoreCase(b.label.toString()));
+        result.sort(BY_LABEL);
         return result;
     }
 
-    private void launch(ComponentName component) {
+    private void showActions(AppEntry app) {
+        new AlertDialog.Builder(this)
+                .setTitle(app.label)
+                .setItems(new CharSequence[] {"App info", "Uninstall"}, (dialog, which) -> {
+                    if (which == 0) {
+                        showAppInfo(app.component);
+                    } else {
+                        uninstall(app.component);
+                    }
+                })
+                .show();
+    }
+
+    protected void showAppInfo(ComponentName component) {
+        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", component.getPackageName(), null)));
+    }
+
+    protected void uninstall(ComponentName component) {
+        Intent intent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE,
+                Uri.fromParts("package", component.getPackageName(), null));
+        intent.putExtra(Intent.EXTRA_USER, appUser());
+        startActivity(intent);
+    }
+
+    protected UserHandle appUser() {
+        return Process.myUserHandle();
+    }
+
+    protected void launch(ComponentName component) {
         Intent intent = new Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(component)
@@ -250,6 +419,17 @@ public class MainActivity extends Activity {
         } catch (ActivityNotFoundException e) {
             // App was uninstalled or disabled after the list was built.
         }
+    }
+
+    // Icon size (px) that fills the given cell, capped so a few apps don't blow up.
+    private int iconSize(int availablePx) {
+        return Math.min(availablePx - dp(LABEL_RESERVE_DP), maxIconPx());
+    }
+
+    // The cap: the system launcher icon size, scaled up for a comfortable maximum.
+    private int maxIconPx() {
+        ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        return Math.round(am.getLauncherLargeIconSize() * ICON_SCALE);
     }
 
     private int dp(float value) {
