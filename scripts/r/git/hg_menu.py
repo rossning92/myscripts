@@ -2,7 +2,6 @@ import os
 import subprocess
 
 from utils.menu.diffmenu import DiffMenu
-from utils.menu.shellcmdmenu import ShellCmdMenu
 
 from git.vcs import get_hg_recent_commits
 from git.vcs_menu import VcsDiffMenu
@@ -30,6 +29,8 @@ def build_hg_diff_cmd(*extra_args):
 
 
 class HgMenu(VcsDiffMenu):
+    _vcs = "hg"
+
     def _get_recent_commits(self):
         return get_hg_recent_commits()
 
@@ -86,8 +87,7 @@ class HgMenu(VcsDiffMenu):
     def _commit_files(self, filenames, message, *, stage):
         cmds = [["hg", "add", "--"] + filenames] if stage else []
         cmds += [["hg", "commit", "-m", message, "--"] + filenames]
-        shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in cmds)
-        ShellCmdMenu(shell_cmd).exec()
+        self._run_shell_cmds(cmds)
 
     def __build_diff_cmd(self, *extra_args):
         return build_hg_diff_cmd(*extra_args)

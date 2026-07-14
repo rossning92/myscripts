@@ -23,9 +23,9 @@ from utils.editor import edit_text_file
 from utils.menu.diffmenu import DiffMenu
 from utils.menu.filemenu import FileMenu
 from utils.notify import send_notify
-from utils.textutil import truncate_text
 
 _DIFF_CONTEXT_LINES = 0
+_DEFAULT_MODEL = "gpt-5.5"
 
 _SYSTEM_PROMPT = (
     (Path(__file__).parent / "coder.system.md").read_text(encoding="utf-8").strip()
@@ -33,8 +33,7 @@ _SYSTEM_PROMPT = (
 
 
 class SettingsMenu(ai.agent_menu.SettingsMenu):
-    # default_model = "gpt-5.2(medium)"
-    default_model = "gemini-3-flash-preview"
+    default_model = _DEFAULT_MODEL
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -172,19 +171,6 @@ class CoderMenu(AgentMenu):
 
     def on_generating(self):
         send_notify(app="coder", hint="running")
-
-    def on_response(self, text: str, done: bool):
-        if done:
-            send_notify(
-                truncate_text(
-                    text,
-                    max_lines=1,
-                    max_chars=80,
-                    include_line_count=False,
-                ),
-                app="coder",
-                hint="done",
-            )
 
     def __get_edit_diff_lines(
         self, tool_use: ToolUse, msg_index: int, subindex: int

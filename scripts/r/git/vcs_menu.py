@@ -1,4 +1,5 @@
 import os
+import subprocess
 import threading
 import time
 from itertools import cycle
@@ -7,8 +8,9 @@ from typing import List, Optional, Tuple
 from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
+from utils.menu.shellcmdmenu import ShellCmdMenu
 
-from git.vcs import prepend_recent_commits
+from git.vcs import get_amend_cmds, prepend_recent_commits
 
 
 def _default_commit_message(filenames: List[str]) -> str:
@@ -16,6 +18,8 @@ def _default_commit_message(filenames: List[str]) -> str:
 
 
 class VcsDiffMenu(Menu):
+    _vcs: str = ""
+
     def __init__(self, prompt_prefix: str = ""):
         super().__init__(close_on_selection=False, quick_select=True)
         self.__prompt_prefix = prompt_prefix
@@ -31,6 +35,8 @@ class VcsDiffMenu(Menu):
         self._init_extra_commands()
         self.add_command(self.__discard, hotkey="ctrl+d", name="discard", pinned=True)
         self.add_command(self.__commit, hotkey="alt+c", name="commit", pinned=True)
+        self.add_command(self.__amend, hotkey="alt+a", name="amend", pinned=True)
+        self.add_command(self.__amend_and_push, hotkey="alt+a", name="amend+push")
         self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
         self.set_prompt(os.path.basename(os.getcwd()))
         self._refresh()
@@ -147,6 +153,23 @@ class VcsDiffMenu(Menu):
             message = default_message
         self._commit_files(filenames, message, stage=stage)
         self._after_action()
+
+    def _run_shell_cmds(self, cmds: List[List[str]]) -> None:
+        shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in cmds)
+        ShellCmdMenu(shell_cmd).exec()
+
+    def __amend(self, push: bool = False) -> None:
+        if push and self._vcs == "hg":
+            self.set_message("amend+push is not supported for hg")
+            return
+        cmds = get_amend_cmds(self._vcs, push=push)
+        if not cmds:
+            return
+        self._run_shell_cmds(cmds)
+        self._after_action()
+
+    def __amend_and_push(self) -> None:
+        self.__amend(push=True)
 
     def __discard(self) -> None:
         items = list(self.get_selected_items())

@@ -13,6 +13,7 @@ from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
 from git.vcs import (
+    get_amend_cmds,
     get_git_recent_commits,
     get_hg_recent_commits,
     prepend_recent_commits,
@@ -245,13 +246,7 @@ class RepoMenu(Menu[Repo]):
         if push and repo.is_hg:
             self.set_message("amend+push is not supported for hg")
             return
-        if repo.is_git:
-            cmds = [["git", "add", "-A"], ["git", "commit", "--amend", "--no-edit"]]
-            if push:
-                cmds += [["git", "push", "--force-with-lease"]]
-            self._run_cmds(*cmds)
-        elif repo.is_hg:
-            self._run_cmds(["hg", "amend"])
+        self._run_cmds(*get_amend_cmds(repo.vcs, push=push))
 
     def _push(self):
         repo = self.get_selected_item()

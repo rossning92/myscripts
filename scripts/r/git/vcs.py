@@ -36,6 +36,17 @@ def get_hg_recent_commits(cwd: Optional[str] = None) -> List[str]:
     return log.splitlines() if log else []
 
 
+def get_amend_cmds(vcs: str, *, push: bool = False) -> List[List[str]]:
+    if vcs == "git":
+        cmds = [["git", "add", "-A"], ["git", "commit", "--amend", "--no-edit"]]
+        if push:
+            cmds.append(["git", "push", "--force-with-lease"])
+        return cmds
+    if vcs == "hg":
+        return [["hg", "amend"]]
+    return []
+
+
 def prepend_recent_commits(status: str, recent_commits: List[str]) -> str:
     # Prepend recent commits on top of the default status bar text.
     if not recent_commits:
