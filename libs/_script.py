@@ -1898,6 +1898,7 @@ def get_default_script_config() -> Dict[str, Union[str, bool, None]]:
         "runRemotely": False,
         "singleInstance": True,
         "tee": False,
+        "tmuxHotkey": "",
         "template": None,
         "template.readVarFromCsv": "",
         "terminal": "alacritty",

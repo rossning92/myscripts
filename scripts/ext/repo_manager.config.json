@@ -3,5 +3,6 @@
   "globalHotkey": "win+alt+s",
   "hotkey": "alt+s",
   "singleInstance": false,
-  "template": false
+  "template": false,
+  "tmuxHotkey": "s"
 }

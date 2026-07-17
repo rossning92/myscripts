@@ -3,5 +3,6 @@
   "hotkey": "ctrl+w",
   "restartInstance": false,
   "terminal": "",
+  "tmuxHotkey": "w",
   "title": "win_switcher"
 }

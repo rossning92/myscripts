@@ -21,6 +21,7 @@ from utils.process import start_process
 from utils.script.path import get_data_dir, get_my_script_root, get_script_history_file
 from utils.template import render_template_file
 from utils.term import clear_terminal
+from utils.tmux import register_tmux_hotkeys
 
 MYSCRIPT_GLOBAL_HOTKEY = os.path.join(get_data_dir(), "GlobalHotkey.ahk")
 
@@ -451,6 +452,8 @@ class ScriptManager:
             if self.start_daemon:
                 register_global_hotkeys(self.scripts)
                 self.update_clipboard_script_map()
+
+            register_tmux_hotkeys(self.scripts)
 
         self.sort_scripts()
 
