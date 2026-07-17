@@ -8,7 +8,8 @@ from utils.template import render_template
 def send_email(
     to: str = "", subject: str = "", body: str = "", cc: str = "", use_gmail_web=False
 ):
-    subject = quote(subject)
+    subject = quote(subject, safe="")
+    body = body.replace("\r\n", "\n").replace("\n", "\r\n")
     body = quote(body, safe="")
     if use_gmail_web:
         url = f"https://mail.google.com/mail/?view=cm&fs=1&to={to}&su={subject}&body={body}&bcc={cc}"
