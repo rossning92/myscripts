@@ -48,11 +48,10 @@ def _parse_args():
     parser.add_argument("--run-script-local", action="store_true", default=False)
     parser.add_argument("--run-in-tmux", action="store_true", default=False)
     parser.add_argument("--log", action="store_true", default=False)
+    parser.add_argument("file", nargs="?")
+    parser.add_argument("script_args", nargs=argparse.REMAINDER)
 
-    args, rest = parser.parse_known_args(remaining)
-
-    file = rest[0] if rest else None
-    script_args = rest[1:] if rest else []
+    args = parser.parse_args(remaining)
 
     kwargs = {
         k: v
@@ -72,7 +71,7 @@ def _parse_args():
     if args.log:
         setup_logger()
 
-    return kwargs, file, script_args
+    return kwargs, args.file, args.script_args
 
 
 if __name__ == "__main__":
