@@ -67,6 +67,7 @@ from utils.slugify import slugify
 from utils.template import render_template
 from utils.term import args_to_str, wrap_args_cmd
 from utils.term.alacritty import is_alacritty_installed, wrap_args_alacritty
+from utils.termux import is_in_termux
 from utils.term.wezterm import WEZTERM_EXECUTABLE, wrap_args_wezterm
 from utils.timed import timed
 from utils.tmux import is_in_tmux
@@ -167,6 +168,49 @@ def get_last_script_and_args() -> Tuple[str, Any]:
         return data["file"], data["args"]
     else:
         raise ValueError("file cannot be None.")
+
+
+def _get_termux_proot_distro(
+    config: Dict[str, Union[str, bool, None]],
+) -> Optional[str]:
+    if not is_in_termux():
+        return None
+
+    proot = config["termux.proot"]
+    if isinstance(proot, bool):
+        return "debian" if proot else None
+    if isinstance(proot, str):
+        proot = proot.strip()
+        if not proot:
+            return None
+        if proot.lower() in ("1", "true", "yes"):
+            return "debian"
+        if proot.lower() in ("0", "false", "no"):
+            return None
+        return proot
+    return None
+
+
+def wrap_proot(
+    commands: List[str],
+    env: Optional[Dict[str, str]],
+    distro: str = "debian",
+    cwd: Optional[str] = None,
+) -> List[str]:
+    if sys.platform != "android":
+        raise RuntimeError("PRoot script config is only supported on Termux/Android")
+    if not shutil.which("proot-distro"):
+        raise FileNotFoundError("proot-distro is not installed")
+
+    args = ["proot-distro", "login"]
+    if cwd:
+        args += ["-w", cwd]
+    if env is not None:
+        for k, v in env.items():
+            if k == "PATH" or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k):
+                continue
+            args += ["-e", f"{k}={v}"]
+    return args + [distro, "--"] + commands
 
 
 def wrap_wsl(
@@ -962,6 +1006,8 @@ class Script:
         if sys.platform == "win32" and self.cfg["wsl"]:
             arg_list = [convert_to_unix_path(x, wsl=self.cfg["wsl"]) for x in arg_list]
 
+        proot_distro = _get_termux_proot_distro(self.cfg)
+
         if self.cfg["runRemotely"]:
             from utils.remoteshell import run_bash_script_in_remote_shell
 
@@ -1263,13 +1309,17 @@ class Script:
         else:
             logging.error("not supported script extension: %s" % ext)
 
-        # venv
-        if self.cfg["venv.name"]:
-            activate_python_venv(self.cfg["venv.name"], env)
+        if proot_distro:
+            arg_list = wrap_proot(arg_list, env=env, distro=proot_distro, cwd=cwd)
+            cwd = None
         else:
-            # If Python is running in a virtual environment (venv), ensure that the
-            # shell executes the Python version located inside the venv.
-            prepend_to_path(os.path.dirname(sys.executable))
+            # venv
+            if self.cfg["venv.name"]:
+                activate_python_venv(self.cfg["venv.name"], env)
+            else:
+                # If Python is running in a virtual environment (venv), ensure that the
+                # shell executes the Python version located inside the venv.
+                prepend_to_path(os.path.dirname(sys.executable))
 
         # Install dependant packages
         if self.cfg["packages"]:
@@ -1889,6 +1939,7 @@ def get_default_script_config() -> Dict[str, Union[str, bool, None]]:
         "packages": "",
         "reloadScriptsAfterRun": False,
         "restartInstance": None,
+        "termux.proot": False,
         "runAsAdmin": False,
         "runAtStartup": False,
         "runAtTime": "",
