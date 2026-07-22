@@ -3,6 +3,7 @@ import glob
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -27,6 +28,61 @@ logger = logging.getLogger(__name__)
 ANDROID_SDK_INSTALL_DIR = os.path.join(
     os.path.expandvars("%LOCALAPPDATA%"), "Android", "Sdk"
 )
+
+
+def _prepend_proot_path(paths, env):
+    if isinstance(paths, str):
+        paths = [paths]
+    current_path = env.get("PATH", os.environ.get("PATH", ""))
+    combined = paths + current_path.split(os.pathsep)
+    env["PATH"] = os.pathsep.join(dict.fromkeys(p for p in combined if p))
+
+
+def accept_android_sdk_licenses(android_home, proot_distro=None):
+    sdkmanager = "sdkmanager"
+    if not proot_distro:
+        candidates = [
+            shutil.which("sdkmanager"),
+            *glob.glob(
+                os.path.join(
+                    android_home,
+                    "cmdline-tools",
+                    "*",
+                    "bin",
+                    "sdkmanager*",
+                )
+            ),
+            *glob.glob(
+                os.path.join(android_home, "tools", "bin", "sdkmanager*")
+            ),
+        ]
+        sdkmanager = next((p for p in candidates if p), None)
+        if sdkmanager is None:
+            logging.warning(
+                "Cannot accept Android SDK licenses: sdkmanager was not found."
+            )
+            return
+
+    args = [sdkmanager, f"--sdk_root={android_home}", "--licenses"]
+    if proot_distro:
+        args = [
+            "proot-distro",
+            "login",
+            "-e",
+            f"ANDROID_HOME={android_home}",
+            "-e",
+            f"ANDROID_SDK_ROOT={android_home}",
+            proot_distro,
+            "--",
+        ] + args
+
+    logging.info("Accepting Android SDK licenses...")
+    subprocess.run(
+        args,
+        input="y\n" * 100,
+        universal_newlines=True,
+        check=True,
+    )
 
 
 def reset_debug_sysprops():
@@ -430,7 +486,7 @@ def get_prop(name):
     return subprocess.check_output(["adb", "shell", "getprop", name]).decode().strip()
 
 
-def setup_jdk(jdk_version=None, env=None):
+def setup_jdk(jdk_version=None, env=None, proot_distro=None):
     if env is None:
         env = os.environ
 
@@ -451,7 +507,28 @@ def setup_jdk(jdk_version=None, env=None):
         jdk_paths = sorted(jdk_paths)
         return jdk_paths[-1]  # Choose latest JDK
 
-    if sys.platform == "win32":
+    if proot_distro:
+        try:
+            javac_path = subprocess.check_output(
+                [
+                    "proot-distro",
+                    "login",
+                    proot_distro,
+                    "--",
+                    "sh",
+                    "-lc",
+                    "readlink -f \"$(command -v javac)\"",
+                ],
+                universal_newlines=True,
+            ).strip()
+        except subprocess.CalledProcessError as ex:
+            raise Exception(
+                f"Cannot find JDK in PRoot distro: {proot_distro}"
+            ) from ex
+        if not javac_path:
+            raise Exception(f"Cannot find JDK in PRoot distro: {proot_distro}")
+        java_home = os.path.dirname(os.path.dirname(javac_path))
+    elif sys.platform == "win32":
         java_home = find_jdk(
             [
                 r"C:\Program Files\Java\jdk*",
@@ -475,7 +552,10 @@ def setup_jdk(jdk_version=None, env=None):
     logging.info("JAVA_HOME: %s" % java_home)
 
     jdk_bin = os.path.join(java_home, "bin")
-    prepend_to_path(jdk_bin, env=env)
+    if proot_distro:
+        _prepend_proot_path(jdk_bin, env)
+    else:
+        prepend_to_path(jdk_bin, env=env)
 
 
 def setup_android_env(
@@ -484,6 +564,7 @@ def setup_android_env(
     jdk_version=None,
     build_tools_version=None,
     android_home=None,
+    proot_distro=None,
 ):
     if env is None:
         env = os.environ
@@ -491,14 +572,50 @@ def setup_android_env(
     path = []
 
     # ANDROID_HOME
+    if proot_distro and android_home is None:
+        proot_android_home = "/usr/lib/android-sdk"
+        if (
+            subprocess.call(
+                [
+                    "proot-distro",
+                    "login",
+                    proot_distro,
+                    "--",
+                    "test",
+                    "-d",
+                    proot_android_home,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            == 0
+        ):
+            android_home = proot_android_home
+    else:
+        if android_home is None:
+            android_home = os.environ.get("ANDROID_HOME")
+        if android_home is None:
+            android_home = get_adk_path()
     if android_home is None:
-        android_home = os.environ.get("ANDROID_HOME")
-    if android_home is None:
-        android_home = get_adk_path()
+        from _pkgmanager import require_package
+
+        logging.info("Android SDK was not found; installing android-sdk...")
+        require_package("android-sdk", env=env, proot_distro=proot_distro)
+        android_home = "/usr/lib/android-sdk" if proot_distro else get_adk_path()
     if android_home is None:
         raise Exception("Cannot find ANDROID_HOME")
     logging.info("ANDROID_HOME: %s" % android_home)
     env["ANDROID_HOME"] = android_home
+
+    if proot_distro:
+        from _pkgmanager import require_package
+
+        require_package("android-sdk", env=env, proot_distro=proot_distro)
+    accept_android_sdk_licenses(
+        android_home=android_home,
+        proot_distro=proot_distro,
+    )
+
     path += [
         env["ANDROID_HOME"] + "/platform-tools",
         env["ANDROID_HOME"] + "/tools",
@@ -562,9 +679,16 @@ def setup_android_env(
         env["NDK_ROOT"] = ndk_path
         path.append(ndk_path)
 
-    setup_jdk(jdk_version=jdk_version, env=env)
+    setup_jdk(
+        jdk_version=jdk_version,
+        env=env,
+        proot_distro=proot_distro,
+    )
 
-    prepend_to_path(path, env=env)
+    if proot_distro:
+        _prepend_proot_path(path, env)
+    else:
+        prepend_to_path(path, env=env)
 
 
 def adb_shell(command, check=True, check_output=False, echo=False, **kwargs):

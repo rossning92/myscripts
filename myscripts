@@ -6,6 +6,11 @@ if [[ -n "${TERMUX_VERSION}" ]]; then
     command -v python >/dev/null || pkg install -y python
     command -v tmux >/dev/null || pkg install -y tmux
 elif [[ "$(uname)" == "Linux" ]]; then
+    sudo_cmd=()
+    if [[ "$EUID" -ne 0 ]]; then
+        sudo_cmd=(sudo)
+    fi
+
     # Check if Debian-based distro
     if [[ -f "/etc/debian_version" ]]; then
         # Install required packages
@@ -15,8 +20,8 @@ elif [[ "$(uname)" == "Linux" ]]; then
         )
         for package in "${packages[@]}"; do
             dpkg -s "$package" >/dev/null 2>&1 || {
-                sudo apt-get update
-                sudo apt-get install -y "$package"
+                "${sudo_cmd[@]}" apt-get update
+                "${sudo_cmd[@]}" apt-get install -y "$package"
             }
         done
 
@@ -26,7 +31,7 @@ elif [[ "$(uname)" == "Linux" ]]; then
             if ! pacman -Qi $1 >/dev/null; then
                 echo "Package $1 is not installed."
                 echo "Installing $1..."
-                sudo pacman -S --noconfirm $1
+                "${sudo_cmd[@]}" pacman -S --noconfirm "$1"
             fi
         }
         check_and_install 'python'

@@ -128,7 +128,7 @@ def _get_windows_tmux() -> List[WindowItem]:
                 "list-windows",
                 "-a",
                 "-F",
-                "#{session_name}:#{window_index}\t#{window_name}\t#{pane_title}",
+                "#{session_name}:#{window_index}\t#{window_name}",
             ],
             text=True,
             stderr=subprocess.DEVNULL,
@@ -136,14 +136,13 @@ def _get_windows_tmux() -> List[WindowItem]:
         windows = []
         for line in output.strip().splitlines():
             if line:
-                parts = line.split("\t", 2)
-                assert len(parts) == 3
-                target, name, pane_title = parts
+                parts = line.split("\t", 1)
+                assert len(parts) == 2
+                target, name = parts
                 if name == "win_switcher":
                     continue
 
-                title = f"{name} - {pane_title}" if pane_title else name
-                windows.append(WindowItem(id=f"tmux:{target}", title=title))
+                windows.append(WindowItem(id=f"tmux:{target}", title=name))
         return windows
     except Exception:
         return []

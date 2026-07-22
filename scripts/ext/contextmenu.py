@@ -49,6 +49,7 @@ class ContextMenu(Menu[_MatchedScript]):
         super().__init__(
             prompt="open with",
             items=_match_scripts_with_param(param),
+            quick_select=True,
             **kwargs,
         )
 

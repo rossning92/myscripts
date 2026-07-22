@@ -77,9 +77,11 @@ def _parse_args():
 if __name__ == "__main__":
     kwargs, file, rest_args = _parse_args()
 
-    # If Python is running in a virtual environment (venv), ensure that the
-    # shell executes the Python version located inside the venv.
-    prepend_to_path(os.path.dirname(sys.executable))
+    # Only prepend the interpreter directory for an actual virtual environment.
+    # A Termux Python can be used to launch this script from inside a proot distro;
+    # prepending its bin directory there would shadow the distro's apt and dpkg.
+    if sys.prefix != sys.base_prefix:
+        prepend_to_path(os.path.dirname(sys.executable))
 
     try:
         run_script(

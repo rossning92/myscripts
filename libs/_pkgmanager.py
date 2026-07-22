@@ -22,6 +22,12 @@ _cached_packages = None
 _cached_mtime = None
 
 
+def _sudo_prefix() -> List[str]:
+    """Return sudo only when the current process does not already run as root."""
+    get_euid = getattr(os, "geteuid", None)
+    return [] if get_euid is not None and get_euid() == 0 else ["sudo"]
+
+
 def _call_without_output(args) -> bool:
     return (
         subprocess.call(
@@ -94,23 +100,31 @@ def require_package(
     pkg: str,
     wsl=False,
     env: Optional[Dict[str, str]] = None,
+    proot_distro: Optional[str] = None,
     force_install=False,
     upgrade=False,
     win_package_manager: List[Literal["choco", "winget"]] = ["winget", "choco"],
 ):
     wsl = wsl and sys.platform == "win32"
+    if proot_distro is not None and not is_in_termux():
+        raise RuntimeError("PRoot package installation is only supported on Termux")
+    proot_cmd = (
+        ["proot-distro", "login", proot_distro, "--"] if proot_distro else []
+    )
     packages = get_packages()
 
     if "dependantPackages" in packages:
         for pkg in packages["dependantPackages"]:
-            require_package(pkg)
+            require_package(pkg, proot_distro=proot_distro)
 
     package_matched = False
     if pkg in packages:
         # Whether or not a package has just been installed.
         newly_installed = False
-        if "executables" in packages[pkg] and has_executable(
-            packages[pkg]["executables"]
+        if (
+            proot_distro is None
+            and "executables" in packages[pkg]
+            and has_executable(packages[pkg]["executables"])
         ):
             package_matched = True
 
@@ -130,7 +144,7 @@ def require_package(
                 if not is_npm_global_package_installed(p) or force_install:
                     logging.info(f"Installing package using npm: {p}")
                     subprocess.check_call(
-                        (["sudo"] if sys.platform == "linux" else [])
+                        (_sudo_prefix() if sys.platform == "linux" else [])
                         + ["npm", "install", "-g", p],
                         # On Windows, `npm` command is a batch script and needs to be executed in a shell.
                         shell=sys.platform == "win32",
@@ -160,7 +174,7 @@ def require_package(
                 newly_installed = True
             package_matched = True
 
-        elif is_in_termux() and "termux" in packages[pkg]:
+        elif is_in_termux() and proot_distro is None and "termux" in packages[pkg]:
             for p in packages[pkg]["termux"]["packages"]:
                 if not _call_without_output(["dpkg", "-s", p]) or force_install:
                     logging.warning(f'Package "{p}" was not found, installing...')
@@ -168,23 +182,33 @@ def require_package(
                     newly_installed = True
             package_matched = True
 
-        elif "apt" in packages[pkg] and (shutil.which("apt") or wsl):
+        elif "apt" in packages[pkg] and (
+            shutil.which("apt") or wsl or proot_distro
+        ):
             wsl_cmd = ["wsl"] if wsl else []
+            command_prefix = proot_cmd or wsl_cmd
+            sudo = [] if proot_distro else (["sudo"] if wsl else _sudo_prefix())
             for p in packages[pkg]["apt"]["packages"]:
                 if (
-                    not _call_without_output(wsl_cmd + ["dpkg", "-s", p])
+                    not _call_without_output(command_prefix + ["dpkg", "-s", p])
                     or force_install
                 ):
                     if "ppa" in packages[pkg]["apt"]:
                         ppa = packages[pkg]["apt"]["ppa"]
                         assert isinstance(ppa, str)
                         subprocess.check_call(
-                            wsl_cmd + ["sudo", "add-apt-repository", f"ppa:{ppa}", "-y"]
+                            command_prefix
+                            + sudo
+                            + ["add-apt-repository", f"ppa:{ppa}", "-y"]
                         )
-                        subprocess.check_call(wsl_cmd + ["sudo", "apt-get", "update"])
+                        subprocess.check_call(
+                            command_prefix + sudo + ["apt-get", "update"]
+                        )
 
                     logging.info(f"Installing package using apt: {pkg}...")
-                    subprocess.check_call(wsl_cmd + ["sudo", "apt", "install", "-y", p])
+                    subprocess.check_call(
+                        command_prefix + sudo + ["apt", "install", "-y", p]
+                    )
                     newly_installed = True
             package_matched = True
 
@@ -196,7 +220,9 @@ def require_package(
             for p in packages[pkg]["pacman"]["packages"]:
                 if not _call_without_output(["pacman", "-Q", p]) or force_install:
                     logging.info(f"Installing package using pacman: {p}")
-                    subprocess.check_call(["sudo", "pacman", "-S", "--noconfirm", p])
+                    subprocess.check_call(
+                        _sudo_prefix() + ["pacman", "-S", "--noconfirm", p]
+                    )
                     newly_installed = True
             package_matched = True
 
@@ -215,7 +241,9 @@ def require_package(
                     or force_install
                 ):
                     logging.info(f"Installing package using dnf: {p}")
-                    subprocess.check_call(["sudo", "dnf", "install", "-y", p])
+                    subprocess.check_call(
+                        _sudo_prefix() + ["dnf", "install", "-y", p]
+                    )
                     newly_installed = True
             package_matched = True
 
@@ -303,9 +331,9 @@ def is_npm_global_package_installed(p):
     )
 
 
-def install_package(pkg, wsl=False):
+def install_package(pkg, wsl=False, proot_distro: Optional[str] = None):
     logging.info(f"Install package: {pkg}")
-    require_package(pkg, wsl=wsl)
+    require_package(pkg, wsl=wsl, proot_distro=proot_distro)
 
 
 def _is_go_package_installed(go_pkg_path):

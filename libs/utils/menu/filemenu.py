@@ -740,8 +740,6 @@ class FileMenu(Menu[_File]):
                     [
                         sys.executable,
                         myscripts_path,
-                        "--prompt",
-                        "(open with script)",
                         "--args",
                     ]
                     + files,

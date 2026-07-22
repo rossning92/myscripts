@@ -215,6 +215,7 @@ class _MyScriptMenu(Menu[Script]):
         cmdline_args: Optional[List[str]] = None,
         out_to_file: Optional[str] = None,
         prompt: Optional[str] = None,
+        open_with_script=False,
     ):
         self.script_manager = script_manager
         self.__no_daemon = no_daemon
@@ -234,10 +235,14 @@ class _MyScriptMenu(Menu[Script]):
             cancellable=run_script_and_quit,
             prompt=prompt if prompt else platform.node() + "$",
             prompt_color=(
-                "black",
-                ["red", "green", "yellow", "blue", "magenta", "cyan"][
-                    int(hashlib.md5(platform.node().encode()).hexdigest(), 16) % 6
-                ],
+                "white"
+                if open_with_script
+                else (
+                    "black",
+                    ["red", "green", "yellow", "blue", "magenta", "cyan"][
+                        int(hashlib.md5(platform.node().encode()).hexdigest(), 16) % 6
+                    ],
+                )
             ),
             text=input_text,
             wrap_text=True,
@@ -251,6 +256,7 @@ class _MyScriptMenu(Menu[Script]):
         self.add_command(self._edit_script_settings, hotkey="ctrl+s")
         self.add_command(self._new_script, hotkey="ctrl+n")
         self.add_command(self._list_scheduled_scripts)
+        self.add_command(self._open_with_script, hotkey="alt+o")
         self.add_command(self._run_script_no_close, hotkey="alt+enter")
         self.add_command(self._run_script_no_close, hotkey="ctrl+enter")
         self.add_command(self._run_script_local)
@@ -455,6 +461,21 @@ class _MyScriptMenu(Menu[Script]):
             script_path = script.get_script_path()
             set_clip_osc52(script_path)
             self.set_message(f"copied: {script_path}")
+
+    def _open_with_script(self):
+        script_path = self.get_selected_script_path()
+        if script_path:
+            self.run_raw(
+                lambda: subprocess.call(
+                    [
+                        sys.executable,
+                        os.path.join(MYSCRIPT_ROOT, "myscripts.py"),
+                        "--args",
+                        script_path,
+                    ],
+                    cwd=os.path.dirname(script_path),
+                )
+            )
 
     def _new_script_or_duplicate_script(
         self, src_script_path: Optional[str], duplicate=False
@@ -788,6 +809,7 @@ def _main():
     run_script_and_quit = (
         bool(args.input) or args.quit or bool(args.args) or bool(args.out_to_file)
     )
+    open_with_script = bool(args.args)
 
     try:
         _MyScriptMenu(
@@ -797,7 +819,12 @@ def _main():
             run_script_and_quit=run_script_and_quit,
             script_manager=script_manager,
             out_to_file=args.out_to_file,
-            prompt="run script" if run_script_and_quit else args.prompt,
+            prompt=(
+                "open with script"
+                if open_with_script
+                else ("run script" if run_script_and_quit else args.prompt)
+            ),
+            open_with_script=open_with_script,
         ).exec()
     except Exception:
         ExceptionMenu().exec()

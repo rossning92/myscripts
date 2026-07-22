@@ -943,6 +943,7 @@ class Script:
 
         shell = False
         use_shell_execute_win32 = False
+        proot_distro = _get_termux_proot_distro(self.cfg)
 
         if self.cfg["adk"]:
             setup_android_env(
@@ -951,6 +952,7 @@ class Script:
                 android_home=(
                     variables["ANDROID_HOME"] if "ANDROID_HOME" in variables else None
                 ),
+                proot_distro=proot_distro,
             )
 
         if self.cfg["cmake"]:
@@ -1005,8 +1007,6 @@ class Script:
         # Automatically convert path arguments to UNIX path if running in WSL
         if sys.platform == "win32" and self.cfg["wsl"]:
             arg_list = [convert_to_unix_path(x, wsl=self.cfg["wsl"]) for x in arg_list]
-
-        proot_distro = _get_termux_proot_distro(self.cfg)
 
         if self.cfg["runRemotely"]:
             from utils.remoteshell import run_bash_script_in_remote_shell
@@ -1316,16 +1316,21 @@ class Script:
             # venv
             if self.cfg["venv.name"]:
                 activate_python_venv(self.cfg["venv.name"], env)
-            else:
+            elif sys.prefix != sys.base_prefix:
                 # If Python is running in a virtual environment (venv), ensure that the
                 # shell executes the Python version located inside the venv.
-                prepend_to_path(os.path.dirname(sys.executable))
+                prepend_to_path(os.path.dirname(sys.executable), env=env)
 
         # Install dependant packages
         if self.cfg["packages"]:
             packages = self.cfg["packages"].split()
             for pkg in packages:
-                require_package(pkg, wsl=self.cfg["wsl"], env=env)
+                require_package(
+                    pkg,
+                    wsl=self.cfg["wsl"],
+                    proot_distro=proot_distro,
+                    env=env,
+                )
 
             if "node" in packages:
                 logging.info("node package is required")
@@ -1436,6 +1441,25 @@ class Script:
                             ]
                             + arg_list
                         )
+
+                        if self.cfg["dynamicTitle"]:
+                            # OSC 0/2 title sequences update tmux's pane title.
+                            # Make only this newly-created window follow the
+                            # active pane title instead of enabling it globally.
+                            arg_list += [
+                                ";",
+                                "set-window-option",
+                                "allow-set-title",
+                                "on",
+                                ";",
+                                "set-window-option",
+                                "automatic-rename",
+                                "on",
+                                ";",
+                                "set-window-option",
+                                "automatic-rename-format",
+                                "#{pane_title}",
+                            ]
 
                     elif sys.platform == "win32":
                         from utils.term.windowsterminal import (

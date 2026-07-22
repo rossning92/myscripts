@@ -1,5 +1,6 @@
 {
   "dynamicTitle": true,
+  "singleInstance": false,
   "termux.proot": true,
   "title": "Codex"
 }

@@ -1,45 +1,21 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 cd "$(dirname "$0")"
-./gradlew assembleDebug
 
-if [[ "$1" == "--build-only" ]]; then
-    echo "APK built: app/build/outputs/apk/debug/app-debug.apk"
-    exit 0
-fi
+APK="app/build/outputs/apk/debug/app-debug.apk"
 
-adb install -r --user 0 app/build/outputs/apk/debug/app-debug.apk
+GRADLE_ARGS=()
+# Google's Maven AAPT2 for Linux is x86-64, so use Debian's native binary on ARM64.
+case "$(uname -m)" in
+    aarch64|arm64)
+        NATIVE_AAPT2="${ANDROID_HOME:-/usr/lib/android-sdk}/build-tools/debian/aapt2"
+        if [[ ! -x "$NATIVE_AAPT2" ]]; then
+            echo "ARM64 AAPT2 not found or not executable: $NATIVE_AAPT2" >&2
+            exit 1
+        fi
+        GRADLE_ARGS+=("-Pandroid.aapt2FromMavenOverride=$NATIVE_AAPT2")
+        ;;
+esac
 
-# force-stop before enabling accessibility below: it clears the enabled service.
-if [ -n "$OPENAI_API_KEY" ]; then
-    PREFS="/data/data/com.ross.speechtotext/shared_prefs/com.ross.speechtotext_preferences.xml"
-    adb shell am force-stop com.ross.speechtotext
-    printf "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n    <string name=\"openai_api_key\">%s</string>\n</map>\n" "$OPENAI_API_KEY" |
-        adb shell "run-as com.ross.speechtotext sh -c 'cat > $PREFS'"
-    echo "OpenAI API key set (${#OPENAI_API_KEY} chars)"
-else
-    echo "OPENAI_API_KEY not set - skipping API key injection"
-fi
-
-adb shell appops set com.ross.speechtotext SYSTEM_ALERT_WINDOW allow
-adb shell pm grant com.ross.speechtotext android.permission.RECORD_AUDIO
-adb shell pm grant com.ross.speechtotext android.permission.POST_NOTIFICATIONS
-# Lets the app swap the active keyboard for its silent IME while dictating.
-adb shell pm grant com.ross.speechtotext android.permission.WRITE_SECURE_SETTINGS
-
-# Enable the silent IME so the app can switch to it.
-adb shell ime enable com.ross.speechtotext/.SilentIme
-
-# Enable accessibility service (for auto-typing)
-ENABLED=$(adb shell settings get secure enabled_accessibility_services)
-SVC="com.ross.speechtotext/com.ross.speechtotext.TypeAccessibilityService"
-if [[ "$ENABLED" != *"$SVC"* ]]; then
-    if [ -z "$ENABLED" ] || [ "$ENABLED" = "null" ]; then
-        adb shell settings put secure enabled_accessibility_services "$SVC"
-    else
-        adb shell settings put secure enabled_accessibility_services "$ENABLED:$SVC"
-    fi
-fi
-adb shell settings put secure accessibility_enabled 1
-
-adb shell am start -n com.ross.speechtotext/.MainActivity
+./gradlew "${GRADLE_ARGS[@]}" assembleDebug
+echo "APK built: $APK"

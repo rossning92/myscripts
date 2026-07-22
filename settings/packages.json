@@ -37,6 +37,9 @@
     }
   },
   "android-sdk": {
+    "apt": {
+      "packages": ["android-sdk", "sdkmanager"]
+    },
     "choco": {
       "packages": ["android-sdk"]
     },

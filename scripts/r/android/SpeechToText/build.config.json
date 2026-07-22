@@ -1,4 +1,5 @@
 {
   "adk": true,
-  "adk.jdk_version": "17"
+  "adk.jdk_version": "17",
+  "termux.proot": true
 }

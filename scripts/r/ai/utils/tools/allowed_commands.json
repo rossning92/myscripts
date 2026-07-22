@@ -25,6 +25,7 @@
     "ping *",
     "ps *",
     "pwd *",
+    "sleep *",
     "type *",
     "which *",
     "xdg-open *"
