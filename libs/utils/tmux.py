@@ -59,7 +59,7 @@ def register_tmux_hotkeys(scripts: Iterable[object]) -> None:
         if any(char.isspace() for char in key):
             raise ValueError(f"tmuxHotkey must be a single tmux key: {key!r}")
 
-        command = shlex.join(
+        start_command = shlex.join(
             [
                 sys.executable,
                 start_script,
@@ -67,6 +67,10 @@ def register_tmux_hotkeys(scripts: Iterable[object]) -> None:
                 script.script_path,
             ]
         )
+        select_command = shlex.join(
+            ["tmux", "select-window", "-t", f"={script.get_window_title()}"]
+        )
+        command = f"{select_command} 2>/dev/null || {start_command}"
         subprocess.check_call(["tmux", "bind-key", key, "run-shell", command])
         registered.append(key)
 
