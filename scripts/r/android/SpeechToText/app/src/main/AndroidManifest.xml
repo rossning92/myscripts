@@ -8,7 +8,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
     <application android:label="Speech To Text" android:icon="@mipmap/ic_launcher" android:theme="@android:style/Theme.DeviceDefault">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
@@ -38,16 +37,6 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_config" />
-        </service>
-        <service android:name=".SilentIme"
-            android:exported="true"
-            android:permission="android.permission.BIND_INPUT_METHOD">
-            <intent-filter>
-                <action android:name="android.view.InputMethod" />
-            </intent-filter>
-            <meta-data
-                android:name="android.view.im"
-                android:resource="@xml/method" />
         </service>
     </application>
 </manifest>

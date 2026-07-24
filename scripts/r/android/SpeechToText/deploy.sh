@@ -42,11 +42,6 @@ fi
 device_shell "appops set $PACKAGE SYSTEM_ALERT_WINDOW allow"
 device_shell "pm grant $PACKAGE android.permission.RECORD_AUDIO"
 device_shell "pm grant $PACKAGE android.permission.POST_NOTIFICATIONS"
-# Lets the app swap the active keyboard for its silent IME while dictating.
-device_shell "pm grant $PACKAGE android.permission.WRITE_SECURE_SETTINGS"
-
-# Enable the silent IME so the app can switch to it.
-device_shell "ime enable $PACKAGE/.SilentIme"
 
 # Enable the accessibility service without duplicating it.
 ENABLED=$(device_shell "settings get secure enabled_accessibility_services" | tr -d '\r')

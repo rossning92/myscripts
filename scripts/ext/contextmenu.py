@@ -53,11 +53,6 @@ class ContextMenu(Menu[_MatchedScript]):
             **kwargs,
         )
 
-    def on_created(self):
-        if len(self.items) == 1:
-            self.on_item_selected(self.items[0])
-            self.close()
-
     def on_item_selected(self, item: _MatchedScript):
         script = Script(item.path)
         script.execute(args=[item.match], cd=False)

@@ -2,7 +2,7 @@
   "dynamicTitle": true,
   "globalHotkey": "win+k k",
   "hotkey": "space space",
-  "matchClipboard": "[^\\\\]*\\.(jpg|jpeg|png)$",
+  "matchClipboard": "[^\\\\]*\\.(jpg|jpeg|png|txt)$",
   "singleInstance": false,
   "title": "coder"
 }

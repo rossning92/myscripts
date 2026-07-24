@@ -14,10 +14,5 @@
             android:title="Accessibility Service"
             android:summary="Type dictated text into focused fields"
             android:persistent="false" />
-        <SwitchPreferenceCompat
-            android:key="ime_status"
-            android:title="Silent Keyboard"
-            android:summary="Type into apps like AVNC that only accept keyboard input"
-            android:persistent="false" />
     </PreferenceCategory>
 </PreferenceScreen>

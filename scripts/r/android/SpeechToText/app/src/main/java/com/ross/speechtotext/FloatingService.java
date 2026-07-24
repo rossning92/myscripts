@@ -11,7 +11,6 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
@@ -48,10 +47,8 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class FloatingService extends Service {
     static void startIfReady(Context context) {
@@ -310,7 +307,6 @@ public class FloatingService extends Service {
 
     private void enterDictationMode() {
         isDictating = true;
-        switchToSilentIme();
         floatingView.setImageResource(R.drawable.ic_check);
         waveformView.clear();
         waveformView.setVisibility(View.VISIBLE);
@@ -324,7 +320,6 @@ public class FloatingService extends Service {
         stopRecording();
         deleteAudioFile();
         exitDictationMode();
-        restorePreviousIme();
     }
 
     private void finishDictation() {
@@ -332,7 +327,6 @@ public class FloatingService extends Service {
         exitDictationMode();
         if (audioFile == null || !audioFile.exists() || audioFile.length() == 0) {
             resetFabToDefault();
-            restorePreviousIme();
             Toast.makeText(this, "No audio recorded", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -343,7 +337,7 @@ public class FloatingService extends Service {
             try {
                 String text = transcribe(file);
                 mainHandler.post(() -> exitTranscribingMode());
-                boolean typed = typeViaIme(text) || typeViaAccessibility(text);
+                boolean typed = typeViaAccessibility(text);
                 if (!typed) {
                     mainHandler.post(() -> {
                         ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
@@ -358,7 +352,6 @@ public class FloatingService extends Service {
                 });
             } finally {
                 file.delete();
-                mainHandler.post(this::restorePreviousIme);
             }
         });
     }
@@ -493,60 +486,6 @@ public class FloatingService extends Service {
         return service != null && service.typeText(text);
     }
 
-    // Commit via our own IME when it is the active keyboard (owns the live input
-    // connection). InputConnection calls must run on the main thread.
-    private boolean typeViaIme(String text) {
-        SilentIme ime = SilentIme.getInstance();
-        if (ime == null) return false;
-        boolean[] result = {false};
-        CountDownLatch latch = new CountDownLatch(1);
-        mainHandler.post(() -> {
-            try {
-                result[0] = ime.typeText(text);
-            } finally {
-                latch.countDown();
-            }
-        });
-        try {
-            latch.await(2, TimeUnit.SECONDS);
-        } catch (InterruptedException ignored) {
-        }
-        return result[0];
-    }
-
-    // While dictating, swap the visible keyboard for our silent IME so no
-    // keyboard bar covers the screen (e.g. over AVNC), then restore the previous
-    // keyboard afterwards. Requires WRITE_SECURE_SETTINGS (granted via adb).
-    private String previousImeId;
-
-    private String getCurrentImeId() {
-        return Settings.Secure.getString(getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
-    }
-
-    private void switchToSilentIme() {
-        ComponentName ours = new ComponentName(this, SilentIme.class);
-        String current = getCurrentImeId();
-        ComponentName currentCn = current != null ? ComponentName.unflattenFromString(current) : null;
-        if (ours.equals(currentCn)) return;
-        try {
-            previousImeId = current;
-            // The framework registers IMEs by their short id; writing the full
-            // form is rejected as "Unknown id" and bounces back to the old IME.
-            Settings.Secure.putString(getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD, ours.flattenToShortString());
-        } catch (Exception e) {
-            previousImeId = null;
-        }
-    }
-
-    private void restorePreviousIme() {
-        if (previousImeId == null) return;
-        try {
-            Settings.Secure.putString(getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD, previousImeId);
-        } catch (Exception ignored) {
-        }
-        previousImeId = null;
-    }
-
     private int edgeTargetX() {
         return onLeft ? 0 : usableWidth() - container.getWidth();
     }
@@ -601,7 +540,6 @@ public class FloatingService extends Service {
     public void onDestroy() {
         super.onDestroy();
         instance = null;
-        restorePreviousIme();
         if (spinAnimator != null) spinAnimator.cancel();
         stopRecording();
         deleteAudioFile();

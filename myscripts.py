@@ -7,6 +7,7 @@ import logging
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -228,12 +229,13 @@ class _MyScriptMenu(Menu[Script]):
         self.__last_keyboard_interrupt_time = 0.0
         self.__filemgr = FileMenu()
         self.__out_to_file = out_to_file
+        self.__base_prompt = prompt if prompt else platform.node() + "$"
 
         super().__init__(
             items=self.script_manager.scripts,
             ascii_only=False,
             cancellable=run_script_and_quit,
-            prompt=prompt if prompt else platform.node() + "$",
+            prompt=self.__get_prompt(),
             prompt_color=(
                 "white"
                 if open_with_script
@@ -280,6 +282,12 @@ class _MyScriptMenu(Menu[Script]):
             input = InputMenu(prompt="args").request_input()
             if input is not None:
                 self.__cmdline_args[:] = [input]
+                self.set_prompt(self.__get_prompt())
+
+    def __get_prompt(self) -> str:
+        if self.__cmdline_args:
+            return f"{self.__base_prompt} ({shlex.join(self.__cmdline_args)})"
+        return self.__base_prompt
 
     def _delete_file(self):
         script = self.get_selected_script()
@@ -587,6 +595,7 @@ class _MyScriptMenu(Menu[Script]):
                     self.__cmdline_args.clear()
             else:
                 self.__cmdline_args.clear()
+            self.set_prompt(self.__get_prompt())
 
     def get_status_text(self) -> str:
         if not self.is_refreshing:
@@ -595,10 +604,6 @@ class _MyScriptMenu(Menu[Script]):
             script = self.get_selected_item()
             if script is not None:
                 default_script_config = get_default_script_config()
-
-                # Command line args
-                if self.__cmdline_args:
-                    lines.append((f"[arg] {self.__cmdline_args}"))
 
                 # Variables
                 try:
@@ -820,7 +825,7 @@ def _main():
             script_manager=script_manager,
             out_to_file=args.out_to_file,
             prompt=(
-                "open with script"
+                "open with"
                 if open_with_script
                 else ("run script" if run_script_and_quit else args.prompt)
             ),
