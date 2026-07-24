@@ -28,12 +28,14 @@ else
     adb install -r --user 0 "$APK"
 fi
 
-# Force-stop before enabling accessibility below: it clears the enabled service.
 if [[ -n "${OPENAI_API_KEY:-}" ]]; then
-    PREFS="/data/data/$PACKAGE/shared_prefs/${PACKAGE}_preferences.xml"
-    device_shell "am force-stop $PACKAGE"
-    printf "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n    <string name=\"openai_api_key\">%s</string>\n</map>\n" "$OPENAI_API_KEY" |
-        device_shell "run-as $PACKAGE sh -c 'cat > $PREFS'"
+    RESULT=$(device_shell "am broadcast -n $PACKAGE/.ConfigReceiver \
+        -a $PACKAGE.action.SET_OPENAI_API_KEY \
+        --es openai_api_key '$OPENAI_API_KEY'")
+    if [[ "$RESULT" != *"result=0"* ]]; then
+        echo "Failed to configure OpenAI API key: $RESULT" >&2
+        exit 1
+    fi
     echo "OpenAI API key set (${#OPENAI_API_KEY} chars)"
 else
     echo "OPENAI_API_KEY not set - skipping API key injection"

@@ -47,14 +47,8 @@ class HgMenu(VcsDiffMenu):
         bookmark = _hg("log", "-r", ".", "--template", "{activebookmark}")
         if not bookmark:
             bookmark = _hg("log", "-r", ".", "--template", "{branch}") or "?"
-        if is_clean:
-            commit_info = _hg(
-                "log", "-r", ".", "--template", "{short(node)} {desc|firstline}"
-            )
-            if commit_info:
-                return f"{repo_name} ({bookmark}) {commit_info}"
-            return f"{repo_name} ({bookmark})"
-        return f"{repo_name} ({bookmark} *)"
+        dirty_marker = "" if is_clean else " *"
+        return f"{repo_name} ({bookmark}{dirty_marker})"
 
     def get_item_color(self, item):
         status = item[:2]

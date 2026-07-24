@@ -590,7 +590,7 @@ class Menu(Generic[T]):
         self.__hotkeys: Dict[str, List[_Command]] = {}
         self.__custom_commands: List[_Command] = []
         if enable_command_palette:
-            self.add_command(self.ask_ai, hotkey="alt+i")
+            self.add_command(self.__ai_agent, hotkey="alt+i", name="ask ai agent")
             self.add_command(self.__command_palette, hotkey="ctrl+p")
             self.add_command(self.__edit_text_in_external_editor, hotkey="ctrl+e")
             self.add_command(self.__goto, hotkey="ctrl+g")
@@ -2154,33 +2154,46 @@ class Menu(Generic[T]):
         selected_items = self.get_selected_items()
         return "\n".join([self.get_item_metadata(x) for x in selected_items])
 
-    def ask_ai(self, extra_args: Optional[List[str]] = None):
-        selected_items = self.get_selected_items()
-        if selected_items:
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", encoding="utf-8", delete=False
-            ) as f:
-                f.write(
-                    "\n".join(
-                        [
-                            "<selected>",
-                            *(self.get_item_metadata(x) for x in selected_items),
-                            "</selected>",
-                        ]
-                    )
+    def __ai_agent(self):
+        agents = {
+            "coder": "r/ai/coder.py",
+            "codex": "r/codex.sh",
+        }
+        menu = Menu(
+            prompt="ask ai agent",
+            items=list(agents),
+            enable_command_palette=False,
+            quick_select=True,
+        )
+        menu.exec()
+
+        selected = menu.get_selected_item()
+        if selected is None:
+            self.update_screen()
+            return
+
+        selected_items = list(self.get_selected_items())
+        if not selected_items:
+            self.update_screen()
+            return
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", encoding="utf-8", delete=False
+        ) as f:
+            f.write(
+                "\n".join(
+                    [
+                        "<selected>",
+                        *(self.get_item_metadata(x) for x in selected_items),
+                        "</selected>",
+                    ]
                 )
-                tmpfile = f.name
+            )
+            tmpfile = f.name
 
-            args = [
-                "start_script",
-                "r/ai/coder.py",
-                "--context",
-                tmpfile,
-            ]
-            if extra_args:
-                args += extra_args
-
-            self.run_raw(lambda: subprocess.run(args))
+        args = ["start_script", agents[selected], "--context", tmpfile]
+        self.run_raw(lambda: subprocess.run(args))
+        self.update_screen()
 
 
 class LoggingMenu(Menu):

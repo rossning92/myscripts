@@ -2,13 +2,13 @@ import os
 import subprocess
 import threading
 import time
-from itertools import cycle
 from typing import List, Optional, Tuple
 
 from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
 from utils.menu.shellcmdmenu import ShellCmdMenu
+from utils.spinner import Spinner
 
 from git.vcs import get_amend_cmds, prepend_recent_commits
 
@@ -25,7 +25,7 @@ class VcsDiffMenu(Menu):
         self.__prompt_prefix = prompt_prefix
         self.__last_refresh_time = 0.0
         self.__refresh_thread: Optional[threading.Thread] = None
-        self.__spinner = cycle(["|", "/", "-", "\\"])
+        self.__spinner = Spinner()
         self.__base_prompt = os.path.basename(os.getcwd())
         self.__recent_commits: List[str] = []
         self._is_clean: bool = False
@@ -119,7 +119,8 @@ class VcsDiffMenu(Menu):
         # Animate the prompt while the background refresh runs so a slow refresh
         # does not look idle.
         if self.__refresh_thread and self.__refresh_thread.is_alive():
-            self.set_prompt(f"{self.__base_prompt} {next(self.__spinner)}")
+            self.set_prompt(f"{self.__base_prompt} {self.__spinner.frame}")
+            self.__spinner.advance()
             return
         if time.monotonic() - self.__last_refresh_time >= 10:
             self._refresh()

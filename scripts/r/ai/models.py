@@ -16,7 +16,6 @@ MODELS = [
     "openrouter:x-ai/grok-4.5",
     "openrouter:x-ai/grok-imagine-image-quality",
     "openrouter:deepseek/deepseek-v4-pro",
-    "openrouter:z-ai/glm-5.2",
     "deepseek-v4-flash",
     "deepseek-v4-pro",
 ]

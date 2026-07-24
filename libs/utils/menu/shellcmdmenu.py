@@ -2,10 +2,10 @@ import os
 import signal
 import subprocess
 import sys
-from itertools import cycle
 from threading import Thread
 from typing import List, Optional, Union
 
+from ..spinner import Spinner
 from .menu import Menu
 
 
@@ -51,7 +51,7 @@ class ShellCmdMenu(Menu):
         self.__close_on_failure = close_on_failure
 
         self.__thread = Thread(target=self.__shell_cmd_thread)
-        self.__spinner = cycle(["|", "/", "-", "\\"])
+        self.__spinner = Spinner()
         self.__thread.start()
 
         self.__update_prompt()
@@ -134,4 +134,5 @@ class ShellCmdMenu(Menu):
                 raise KeyboardInterrupt()
 
     def __update_prompt(self):
-        self.set_prompt(next(self.__spinner) + " " + self.__prompt)
+        self.set_prompt(self.__spinner.frame + " " + self.__prompt)
+        self.__spinner.advance()

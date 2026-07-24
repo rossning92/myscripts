@@ -8,7 +8,7 @@
             android:singleLine="true" />
     </PreferenceCategory>
 
-    <PreferenceCategory android:title="Input Methods">
+    <PreferenceCategory android:title="Text Input">
         <SwitchPreferenceCompat
             android:key="accessibility_status"
             android:title="Accessibility Service"

@@ -1,8 +1,8 @@
 from inspect import signature
-from itertools import cycle
 from threading import Event, Thread
 from typing import Any, Callable
 
+from ..spinner import Spinner
 from .menu import Menu
 
 
@@ -28,7 +28,7 @@ class AsyncTaskMenu(Menu):
         self.__thread = Thread(
             target=wrapper,
         )
-        self.__spinner = cycle(["|", "/", "-", "\\"])
+        self.__spinner = Spinner()
         self.__thread.start()
 
     def on_close(self):
@@ -41,7 +41,8 @@ class AsyncTaskMenu(Menu):
                 raise self.__exception
             self.close()
         else:
-            self.set_prompt(self.__prompt + " " + next(self.__spinner))
+            self.set_prompt(self.__prompt + " " + self.__spinner.frame)
+            self.__spinner.advance()
 
     def get_result(self) -> Any:
         return self.__result

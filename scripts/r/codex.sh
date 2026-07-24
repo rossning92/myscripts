@@ -37,4 +37,10 @@ if is_termux_proot_distro; then
     )
 fi
 
+if [[ "${1:-}" == "--context" ]]; then
+    [[ -n "${2+x}" ]] || { echo "--context requires a value" >&2; exit 2; }
+    codex_args+=(-c "developer_instructions=$2")
+    shift 2
+fi
+
 exec codex "${codex_args[@]}" "$@"

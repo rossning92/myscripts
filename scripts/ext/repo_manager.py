@@ -10,6 +10,7 @@ from utils.jsonutil import load_json
 from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
 from utils.menu.shellcmdmenu import ShellCmdMenu
+from utils.spinner import Spinner
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
 from git.vcs import (
@@ -163,7 +164,7 @@ class RepoMenu(Menu[Repo]):
             quick_select=True,
         )
         self._refresh_thread: Optional[threading.Thread] = None
-        self._spinner_index = 0
+        self._spinner = Spinner()
         self._last_refresh_time = 0.0
         self._focused = True
         self._refresh()
@@ -284,22 +285,19 @@ class RepoMenu(Menu[Repo]):
     def _commit_and_sync(self):
         self._commit(sync=True)
 
-    _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-
     def get_status_text(self) -> str:
         # Prepend recent commits of the selected repo on top of the default
         # status bar (message + position indicators).
         s = ""
         if self._refresh_thread and self._refresh_thread.is_alive():
-            s += self._SPINNER_FRAMES[self._spinner_index % len(self._SPINNER_FRAMES)]
-            s += " refreshing...\n"
+            s += f"{self._spinner.frame} refreshing...\n"
         repo = self.get_selected_item()
         recent_commits = repo.recent_commits if repo is not None else []
         return s + prepend_recent_commits(super().get_status_text(), recent_commits)
 
     def on_idle(self):
         if self._refresh_thread and self._refresh_thread.is_alive():
-            self._spinner_index += 1
+            self._spinner.advance()
             self.update_screen()
             return
         # Auto-refresh every 10s, but only while the window is focused. to avoid

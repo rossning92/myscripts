@@ -51,19 +51,8 @@ class GitMenu(VcsDiffMenu):
             ).strip()
         except subprocess.CalledProcessError:
             branch = "?"
-        if is_clean:
-            try:
-                commit_info = subprocess.check_output(
-                    ["git", "log", "-1", "--format=%h %s"],
-                    text=True,
-                    stderr=subprocess.DEVNULL,
-                ).strip()
-            except subprocess.CalledProcessError:
-                commit_info = ""
-            if commit_info:
-                return f"{repo_name} ({branch}) {commit_info}"
-            return f"{repo_name} ({branch})"
-        return f"{repo_name} ({branch} *)"
+        dirty_marker = "" if is_clean else " *"
+        return f"{repo_name} ({branch}{dirty_marker})"
 
     def get_item_color(self, item):
         status = item[:2]

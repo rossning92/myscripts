@@ -46,6 +46,7 @@ from utils.platform import is_termux
 from utils.script.path import get_data_dir
 from utils.shutil import shell_open
 from utils.slugify import slugify
+from utils.spinner import Spinner
 from utils.template import render_template
 from utils.term import set_terminal_title
 from utils.textutil import is_text_file, truncate_text
@@ -267,7 +268,7 @@ class ChatMenu(Menu[Line]):
         self.__context: Optional[str] = context
         self.__image_urls: List[str] = image_urls if image_urls else []
         self.__is_generating = False
-        self.__spinner_index = 0
+        self.__spinner = Spinner()
         self.__last_copied_line: Optional[Line] = None
         self.__lines: List[Line] = []
         self.__prompt = prompt
@@ -1149,14 +1150,10 @@ class ChatMenu(Menu[Line]):
     def on_response(self, text: str, done: bool):
         pass
 
-    _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-
     def get_status_text(self) -> str:
         parts = []
         if self.__is_generating:
-            parts.append(
-                self._SPINNER_FRAMES[self.__spinner_index % len(self._SPINNER_FRAMES)]
-            )
+            parts.append(self.__spinner.frame)
         model = str(self.get_settings().get("model", "")).split("/")[-1]
         if model:
             parts.append(model)
@@ -1166,7 +1163,7 @@ class ChatMenu(Menu[Line]):
 
     def on_idle(self):
         if self.__is_generating:
-            self.__spinner_index += 1
+            self.__spinner.advance()
             self.update_screen()
 
     def get_system_prompt(self) -> str:
