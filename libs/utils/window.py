@@ -9,6 +9,7 @@ import sys
 import time
 from typing import Dict, List, Literal, Optional, Tuple, cast
 
+from .spinner import SPINNER_CHARS
 from .tmux import is_in_tmux
 
 TITLE_MATCH_MODE_EXACT = 0
@@ -41,9 +42,15 @@ class WindowItem:
         self.title = title
 
     def get_status(self, script_status: Dict[str, str]) -> WindowStatus:
+        if any(character in self.title for character in SPINNER_CHARS):
+            return "running"
+
         for status, symbols in _WINDOW_STATUS_SYMBOLS.items():
             if any(s in self.title for s in symbols):
                 return status
+
+        if "codex" in self.title.lower():
+            return "done"
 
         title = self.title.split(TITLE_DIVIDER)[0]
         val = script_status.get(title, "normal")

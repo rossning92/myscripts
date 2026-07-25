@@ -20,6 +20,10 @@ const screencastHtml = readFileSync(
   new URL("commands/screencast.html", import.meta.url),
   "utf-8"
 );
+const screencastZoomJs = readFileSync(
+  new URL("commands/screencast-zoom.js", import.meta.url),
+  "utf-8"
+);
 
 const commands = {
   async open({ url, headed }) {
@@ -111,6 +115,12 @@ const server = createServer(async (req, res) => {
   if (req.url === "/screencast") {
     res.writeHead(200, { "Content-Type": "text/html" });
     res.end(screencastHtml);
+    return;
+  }
+
+  if (req.url === "/screencast-zoom.js") {
+    res.writeHead(200, { "Content-Type": "text/javascript" });
+    res.end(screencastZoomJs);
     return;
   }
 

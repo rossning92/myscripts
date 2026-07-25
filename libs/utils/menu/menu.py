@@ -7,7 +7,6 @@ import re
 from enum import Enum, auto
 import subprocess
 import sys
-import tempfile
 import time
 from queue import Queue
 from typing import (
@@ -1713,14 +1712,15 @@ class Menu(Generic[T]):
         item_y = draw_input_result.last_y + 1
         hotkey_bar = self.get_hotkey_bar()
         if hotkey_bar and item_y < item_y_max:
-            self.__draw_text(
+            hotkey_bar_result = self.__draw_text(
                 row=item_y,
                 col=0,
                 s=hotkey_bar,
                 fg=_to_curses_color("brightblack"),
                 ymax=item_y_max,
+                wrap_text=True,
             )
-            item_y += 1
+            item_y = hotkey_bar_result.last_y + 1
 
         # Auto select last item
         item_indices = self.get_item_indices()
@@ -2177,21 +2177,15 @@ class Menu(Generic[T]):
             self.update_screen()
             return
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", encoding="utf-8", delete=False
-        ) as f:
-            f.write(
-                "\n".join(
-                    [
-                        "<selected>",
-                        *(self.get_item_metadata(x) for x in selected_items),
-                        "</selected>",
-                    ]
-                )
-            )
-            tmpfile = f.name
-
-        args = ["start_script", agents[selected], "--context", tmpfile]
+        context = "\n".join(
+            [
+                "<selected>",
+                *(self.get_item_metadata(x) for x in selected_items),
+                "</selected>",
+            ]
+        )
+        # TODO: Use a non-argv transport if selected context can exceed command-line limits.
+        args = ["start_script", agents[selected], "--context", context]
         self.run_raw(lambda: subprocess.run(args))
         self.update_screen()
 

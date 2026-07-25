@@ -4,6 +4,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -20,6 +21,7 @@ import android.content.res.Configuration;
 
 import android.graphics.Insets;
 import android.graphics.PixelFormat;
+import android.media.MediaMetadataRetriever;
 import android.media.MediaRecorder;
 import android.os.Handler;
 import android.os.IBinder;
@@ -32,6 +34,8 @@ import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.WindowMetrics;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.view.ContextThemeWrapper;
@@ -47,6 +51,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -77,12 +82,16 @@ public class FloatingService extends Service {
     private boolean isDictating = false;
     private boolean isTranscribing = false;
     private ObjectAnimator spinAnimator;
+    private AlertDialog transcriptionErrorDialog;
+    private File failedTranscriptionFile;
 
     private MediaRecorder recorder;
     private File audioFile;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static final int AMPLITUDE_POLL_MS = 50;
+    private static final int API_CONNECT_TIMEOUT_MS = 10_000;
+    private static final int API_READ_TIMEOUT_MS = 20_000;
     private final Runnable amplitudePollRunnable = new Runnable() {
         @Override
         public void run() {
@@ -273,7 +282,7 @@ public class FloatingService extends Service {
     }
 
     private void toggleDictation() {
-        if (isTranscribing) return;
+        if (isTranscribing || transcriptionErrorDialog != null) return;
         floatingView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         if (!isDictating) {
             enterDictationMode();
@@ -333,27 +342,74 @@ public class FloatingService extends Service {
         enterTranscribingMode();
         File file = audioFile;
         audioFile = null;
+        showTranscribingToast(file);
+        transcribeAudioFile(file);
+    }
+
+    private void transcribeAudioFile(File file) {
         executor.execute(() -> {
             try {
                 String text = transcribe(file);
-                mainHandler.post(() -> exitTranscribingMode());
-                boolean typed = typeViaAccessibility(text);
-                if (!typed) {
-                    mainHandler.post(() -> {
+                mainHandler.post(() -> {
+                    exitTranscribingMode();
+                    boolean typed = typeViaAccessibility(text);
+                    if (!typed) {
                         ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
                         clipboard.setPrimaryClip(ClipData.newPlainText("transcription", text));
                         Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
-                    });
-                }
+                    }
+                    file.delete();
+                });
             } catch (Exception e) {
                 mainHandler.post(() -> {
                     exitTranscribingMode();
-                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    showTranscriptionError(e, file);
                 });
-            } finally {
-                file.delete();
             }
         });
+    }
+
+    private void showTranscriptionError(Exception error, File file) {
+        failedTranscriptionFile = file;
+
+        TextView messageView = new TextView(themedContext);
+        int padding = (int) (24 * getResources().getDisplayMetrics().density);
+        messageView.setPadding(padding, 0, padding, 0);
+        String message = error.getMessage();
+        messageView.setText(message == null || message.isEmpty() ? error.toString() : message);
+        messageView.setTextIsSelectable(true);
+
+        ScrollView scrollView = new ScrollView(themedContext);
+        scrollView.addView(messageView);
+
+        AlertDialog dialog = new AlertDialog.Builder(themedContext)
+                .setTitle("Transcription failed")
+                .setView(scrollView)
+                .setNegativeButton("Close", (d, which) -> deleteFailedTranscriptionFile())
+                .setPositiveButton("Retry", (d, which) -> {
+                    transcriptionErrorDialog = null;
+                    failedTranscriptionFile = null;
+                    enterTranscribingMode();
+                    showTranscribingToast(file);
+                    transcribeAudioFile(file);
+                })
+                .setOnCancelListener(d -> deleteFailedTranscriptionFile())
+                .create();
+        dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        dialog.setOnDismissListener(d -> {
+            if (transcriptionErrorDialog == dialog) {
+                transcriptionErrorDialog = null;
+            }
+        });
+        transcriptionErrorDialog = dialog;
+        dialog.show();
+    }
+
+    private void deleteFailedTranscriptionFile() {
+        if (failedTranscriptionFile != null) {
+            failedTranscriptionFile.delete();
+            failedTranscriptionFile = null;
+        }
     }
 
     private void enterTranscribingMode() {
@@ -364,6 +420,44 @@ public class FloatingService extends Service {
         spinAnimator.setRepeatCount(ValueAnimator.INFINITE);
         spinAnimator.setRepeatMode(ValueAnimator.REVERSE);
         spinAnimator.start();
+    }
+
+    private void showTranscribingToast(File file) {
+        String message = "Uploading & transcribing\u2026\nAudio: "
+                + formatAudioDuration(file) + " \u00b7 " + formatFileSize(file.length());
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private String formatAudioDuration(File file) {
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(file.getAbsolutePath());
+            String value = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_DURATION);
+            long totalSeconds = Math.max(0, Math.round(Long.parseLong(value) / 1000.0));
+            long hours = totalSeconds / 3600;
+            long minutes = (totalSeconds % 3600) / 60;
+            long seconds = totalSeconds % 60;
+            return hours > 0
+                    ? String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
+                    : String.format(Locale.getDefault(), "%d:%02d", minutes, seconds);
+        } catch (Exception ignored) {
+            return "duration unknown";
+        } finally {
+            try {
+                retriever.release();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        double kibibytes = bytes / 1024.0;
+        if (kibibytes < 1024) {
+            return String.format(Locale.getDefault(), "%.1f KB", kibibytes);
+        }
+        return String.format(Locale.getDefault(), "%.1f MB", kibibytes / 1024.0);
     }
 
     private void exitTranscribingMode() {
@@ -399,7 +493,7 @@ public class FloatingService extends Service {
             recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
             recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-            recorder.setAudioEncodingBitRate(64000);
+            recorder.setAudioEncodingBitRate(getAudioBitrate());
             recorder.setAudioSamplingRate(16000);
             recorder.setAudioChannels(1);
             recorder.setOutputFile(audioFile.getAbsolutePath());
@@ -408,6 +502,16 @@ public class FloatingService extends Service {
         } catch (Exception e) {
             Toast.makeText(this, "Recording failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             exitDictationMode();
+        }
+    }
+
+    private int getAudioBitrate() {
+        String value = PreferenceManager.getDefaultSharedPreferences(this)
+                .getString(MainActivity.KEY_AUDIO_BITRATE, MainActivity.DEFAULT_AUDIO_BITRATE);
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            return Integer.parseInt(MainActivity.DEFAULT_AUDIO_BITRATE);
         }
     }
 
@@ -443,6 +547,8 @@ public class FloatingService extends Service {
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
         conn.setDoOutput(true);
+        conn.setConnectTimeout(API_CONNECT_TIMEOUT_MS);
+        conn.setReadTimeout(API_READ_TIMEOUT_MS);
         conn.setRequestProperty("Authorization", "Bearer " + apiKey);
         conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
 
@@ -540,6 +646,11 @@ public class FloatingService extends Service {
     public void onDestroy() {
         super.onDestroy();
         instance = null;
+        if (transcriptionErrorDialog != null) {
+            transcriptionErrorDialog.dismiss();
+            transcriptionErrorDialog = null;
+        }
+        deleteFailedTranscriptionFile();
         if (spinAnimator != null) spinAnimator.cancel();
         stopRecording();
         deleteAudioFile();

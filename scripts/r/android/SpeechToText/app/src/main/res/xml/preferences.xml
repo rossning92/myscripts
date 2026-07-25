@@ -8,6 +8,17 @@
             android:singleLine="true" />
     </PreferenceCategory>
 
+    <PreferenceCategory android:title="Recording">
+        <ListPreference
+            android:key="audio_bitrate"
+            android:title="Audio quality"
+            android:dialogTitle="Audio quality"
+            android:entries="@array/audio_bitrate_entries"
+            android:entryValues="@array/audio_bitrate_values"
+            android:defaultValue="24000"
+            android:summary="%s" />
+    </PreferenceCategory>
+
     <PreferenceCategory android:title="Text Input">
         <SwitchPreferenceCompat
             android:key="accessibility_status"

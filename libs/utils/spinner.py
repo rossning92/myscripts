@@ -1,5 +1,8 @@
+SPINNER_CHARS = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
 class Spinner:
-    _FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    _FRAMES = SPINNER_CHARS
 
     def __init__(self):
         self._index = 0

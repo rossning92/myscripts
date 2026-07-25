@@ -2,7 +2,10 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>Screencast</title>
     <style>
       * {
@@ -76,6 +79,7 @@
         color: #777;
       }
       #stage {
+        position: relative;
         flex: 1 1 auto;
         min-height: 0;
         display: flex;
@@ -155,9 +159,13 @@
       spellcheck="false"
     />
     <button id="kbBtn">&#x2328;</button>
-    <script>
+    <script type="module">
+      import { setupScreencastZoom } from "/screencast-zoom.js";
+
       const canvas = document.getElementById("screen");
       const ctx = canvas.getContext("2d");
+      setupScreencastZoom(document.getElementById("stage"), canvas);
+
       let id = 1;
       let pageWidth = 1,
         pageHeight = 1;

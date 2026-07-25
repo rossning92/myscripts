@@ -568,14 +568,16 @@ class _MyScriptMenu(Menu[Script]):
             self.update_last_refresh_time()
 
     def on_keyboard_interrupt(self):
-        if is_in_tmux():
-            subprocess.check_call(["tmux", "detach-client"])
-        else:
-            now = time.time()
-            self.set_message("press ctrl+c again to exit")
-            if now < self.__last_keyboard_interrupt_time + 1:
+        now = time.time()
+        in_tmux = is_in_tmux()
+        action = "detach" if in_tmux else "exit"
+        self.set_message(f"press ctrl+c again to {action}")
+        if now < self.__last_keyboard_interrupt_time + 1:
+            if in_tmux:
+                subprocess.check_call(["tmux", "detach-client"])
+            else:
                 self.close()
-            self.__last_keyboard_interrupt_time = now
+        self.__last_keyboard_interrupt_time = now
 
     def on_enter_pressed(self):
         self._run_selected_script()
