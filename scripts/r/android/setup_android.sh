@@ -59,6 +59,9 @@ install_fdroid com.oasisfeng.island.fdroid
 echo 'Install MuPDF...'
 install_fdroid com.artifex.mupdf.viewer.app
 
+echo 'Install Aves Libre...'
+install_fdroid deckers.thibault.aves.libre
+
 echo 'Install Aegis Authenticator...'
 install_fdroid com.beemdevelopment.aegis
 

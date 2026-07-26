@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content"
     />
     <title>Screencast</title>
     <style>
@@ -18,6 +18,7 @@
         height: 100%;
       }
       body {
+        height: var(--visual-viewport-height, 100dvh);
         display: flex;
         flex-direction: column;
         margin: 0;
@@ -160,7 +161,7 @@
     />
     <button id="kbBtn">&#x2328;</button>
     <script type="module">
-      import { setupScreencastZoom } from "/screencast-zoom.js";
+      import { setupScreencastZoom } from "/static/zoom.js";
 
       const canvas = document.getElementById("screen");
       const ctx = canvas.getContext("2d");

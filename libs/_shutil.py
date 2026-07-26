@@ -8,6 +8,7 @@ import logging
 import os
 import platform
 import re
+import shlex
 import shutil
 import signal
 import socket
@@ -1453,7 +1454,7 @@ def quote_arg(s, shell_type: str = "cmd") -> str:
         if " " in s or "\\" in s:  # quote space
             s = '"' + s + '"'
     elif shell_type == "bash":
-        s = re.sub(r"( |!|\$|#|&|\"|'|\(|\)|\||<|>|`|\\\|;)", r"\\\1", s)
+        s = shlex.quote(s)
     else:
         raise Exception(f"Invalid shell type: {shell_type}")
 

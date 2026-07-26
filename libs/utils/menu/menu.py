@@ -1667,7 +1667,7 @@ class Menu(Generic[T]):
                             row,
                             self.__width - 1,
                             ">",
-                            attr ^ curses.A_REVERSE,
+                            attr,
                         )
                         can_scroll_right = True
                     break

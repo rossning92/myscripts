@@ -176,6 +176,18 @@ def _get_termux_proot_distro(
     if not is_in_termux():
         return None
 
+    # proot-distro refuses to start from inside another PRoot. This can happen
+    # when a script configured with "termux.proot" calls run_script again.
+    try:
+        process_root = os.readlink("/proc/self/root")
+    except OSError:
+        process_root = ""
+    if re.search(
+        r"/com\.termux/files/usr/var/lib/proot-distro/containers/[^/]+/rootfs/?$",
+        process_root,
+    ):
+        return None
+
     proot = config["termux.proot"]
     if isinstance(proot, bool):
         return "debian" if proot else None

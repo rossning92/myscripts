@@ -1,5 +1,8 @@
 import { createServer } from "http";
-import { readFileSync } from "fs";
+import { createReadStream } from "fs";
+import { stat } from "fs/promises";
+import { extname, resolve, sep } from "path";
+import { fileURLToPath } from "url";
 import { getBrowser, getOrOpenPage, getStatus } from "./browser-core.js";
 import { DAEMON_PORT, DEBUG_PORT } from "./config.js";
 import { close } from "./commands/close.js";
@@ -16,14 +19,30 @@ import { upload } from "./commands/upload.js";
 import { screenshot } from "./commands/screenshot.js";
 import { inspect } from "./commands/inspect.js";
 
-const screencastHtml = readFileSync(
-  new URL("commands/screencast.html", import.meta.url),
-  "utf-8"
-);
-const screencastZoomJs = readFileSync(
-  new URL("commands/screencast-zoom.js", import.meta.url),
-  "utf-8"
-);
+const publicDir = resolve(fileURLToPath(new URL("public/", import.meta.url)));
+const contentTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+};
+
+async function serveStatic(pathname, res) {
+  const filePath = resolve(publicDir, pathname.slice("/static/".length));
+  if (!filePath.startsWith(publicDir + sep)) return false;
+
+  try {
+    const fileStat = await stat(filePath);
+    if (!fileStat.isFile()) return false;
+
+    res.writeHead(200, {
+      "Content-Type":
+        contentTypes[extname(filePath)] || "application/octet-stream",
+    });
+    createReadStream(filePath).pipe(res);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const commands = {
   async open({ url, headed }) {
@@ -97,8 +116,10 @@ function readBody(req) {
 const startTime = Date.now();
 
 const server = createServer(async (req, res) => {
+  const { pathname } = new URL(req.url, "http://localhost");
+
   // Screencast viewer endpoints
-  if (req.url === "/active-ws") {
+  if (pathname === "/active-ws") {
     try {
       const r = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json`);
       const targets = await r.json();
@@ -112,26 +133,27 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.url === "/screencast") {
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(screencastHtml);
+  if (pathname === "/screencast") {
+    await serveStatic("/static/screencast.html", res);
     return;
   }
 
-  if (req.url === "/screencast-zoom.js") {
-    res.writeHead(200, { "Content-Type": "text/javascript" });
-    res.end(screencastZoomJs);
+  if (pathname.startsWith("/static/")) {
+    if (await serveStatic(pathname, res)) return;
+
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Static file not found" }));
     return;
   }
 
   res.setHeader("Content-Type", "application/json");
 
-  if (req.url === "/health") {
+  if (pathname === "/health") {
     res.end(JSON.stringify({ status: "ok", startTime }));
     return;
   }
 
-  if (req.url === "/command" && req.method === "POST") {
+  if (pathname === "/command" && req.method === "POST") {
     try {
       const { command, args } = JSON.parse(await readBody(req));
       const handler = commands[command];

@@ -2,7 +2,9 @@ import datetime
 import glob
 import logging
 import os
+import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -36,6 +38,44 @@ def _prepend_proot_path(paths, env):
     current_path = env.get("PATH", os.environ.get("PATH", ""))
     combined = paths + current_path.split(os.pathsep)
     env["PATH"] = os.pathsep.join(dict.fromkeys(p for p in combined if p))
+
+
+def _configure_native_aapt2(env, android_home, proot_distro=None):
+    # Google Maven ships x86-64 AAPT2 for Linux, so ARM64 uses Debian's native binary.
+    if platform.machine().lower() not in ("aarch64", "arm64"):
+        return
+
+    property_name = "android.aapt2FromMavenOverride"
+    gradle_opts = env.get("GRADLE_OPTS", os.environ.get("GRADLE_OPTS", ""))
+    if property_name in gradle_opts:
+        return
+
+    native_aapt2 = os.path.join(android_home, "build-tools", "debian", "aapt2")
+    if proot_distro:
+        is_executable = (
+            subprocess.call(
+                [
+                    "proot-distro",
+                    "login",
+                    proot_distro,
+                    "--",
+                    "test",
+                    "-x",
+                    native_aapt2,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            == 0
+        )
+    else:
+        is_executable = os.access(native_aapt2, os.X_OK)
+
+    if is_executable:
+        option = f"-Dorg.gradle.project.{property_name}={native_aapt2}"
+        env["GRADLE_OPTS"] = " ".join(
+            part for part in (gradle_opts, shlex.quote(option)) if part
+        )
 
 
 def accept_android_sdk_licenses(android_home, proot_distro=None):
@@ -606,6 +646,7 @@ def setup_android_env(
         raise Exception("Cannot find ANDROID_HOME")
     logging.info("ANDROID_HOME: %s" % android_home)
     env["ANDROID_HOME"] = android_home
+    _configure_native_aapt2(env, android_home, proot_distro)
 
     if proot_distro:
         from _pkgmanager import require_package

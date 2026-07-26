@@ -26,7 +26,7 @@ _STATUS_COLOR_MAPPING: Dict[WindowStatus, str] = {
 class WinSwitcherMenu(Menu[WindowItem]):
     def __init__(self):
         super().__init__(
-            prompt="activate",
+            prompt="Windows",
             items=[],
             line_number=False,
             quick_select=True,

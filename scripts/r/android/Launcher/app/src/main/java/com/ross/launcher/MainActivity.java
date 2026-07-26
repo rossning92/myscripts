@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.pm.LauncherApps;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.pm.ShortcutInfo;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -60,11 +61,30 @@ public class MainActivity extends Activity {
         final CharSequence label;
         final Drawable icon;
         final ComponentName component;
+        final String shortcutPackage;
+        final String shortcutId;
+        final UserHandle user;
 
         AppEntry(CharSequence label, Drawable icon, ComponentName component) {
             this.label = label;
             this.icon = icon;
             this.component = component;
+            this.shortcutPackage = null;
+            this.shortcutId = null;
+            this.user = null;
+        }
+
+        AppEntry(CharSequence label, Drawable icon, ShortcutInfo shortcut) {
+            this.label = label;
+            this.icon = icon;
+            this.component = null;
+            this.shortcutPackage = shortcut.getPackage();
+            this.shortcutId = shortcut.getId();
+            this.user = shortcut.getUserHandle();
+        }
+
+        boolean isShortcut() {
+            return shortcutId != null;
         }
     }
 
@@ -130,6 +150,15 @@ public class MainActivity extends Activity {
         }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Refresh after becoming the default home app or accepting a pin request.
+        if (grid != null) {
+            reload();
+        }
+    }
+
     // The app list is a one-time snapshot taken in onCreate, so rebuild it whenever
     // a package is installed/removed/changed for the profile this launcher shows.
     private void registerAppsCallback() {
@@ -157,6 +186,12 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPackagesUnavailable(String[] names, UserHandle user, boolean replacing) {
+                reloadIfRelevant(user);
+            }
+
+            @Override
+            public void onShortcutsChanged(
+                    String packageName, List<ShortcutInfo> shortcuts, UserHandle user) {
                 reloadIfRelevant(user);
             }
         };
@@ -272,7 +307,7 @@ public class MainActivity extends Activity {
     }
 
     private float labelSize(int cellHeightPx) {
-        return clamp(cellHeightPx * 0.14f, sp(8), sp(13));
+        return clamp(cellHeightPx * 0.14f, sp(11), sp(13));
     }
 
     // Pull the common apps (phone, messaging, browser, camera) out of the grid list
@@ -282,7 +317,7 @@ public class MainActivity extends Activity {
         for (String pkg : favoritePackages()) {
             for (Iterator<AppEntry> it = all.iterator(); it.hasNext(); ) {
                 AppEntry app = it.next();
-                if (app.component.getPackageName().equals(pkg)) {
+                if (!app.isShortcut() && app.component.getPackageName().equals(pkg)) {
                     favs.add(app);
                     it.remove();
                     break;
@@ -322,7 +357,7 @@ public class MainActivity extends Activity {
         cell.setGravity(Gravity.CENTER);
         int pad = dp(2);
         cell.setPadding(pad, pad, pad, pad);
-        cell.setOnClickListener(v -> launch(app.component));
+        cell.setOnClickListener(v -> launch(app));
         cell.setOnLongClickListener(v -> {
             showActions(app);
             return true;
@@ -376,11 +411,67 @@ public class MainActivity extends Activity {
                     info.activityInfo.packageName, info.activityInfo.name);
             result.add(new AppEntry(info.loadLabel(pm), info.loadIcon(pm), component));
         }
+        result.addAll(loadPinnedShortcuts(Process.myUserHandle()));
         result.sort(BY_LABEL);
         return result;
     }
 
+    private List<AppEntry> loadPinnedShortcuts(UserHandle user) {
+        LauncherApps launcherApps =
+                (LauncherApps) getSystemService(Context.LAUNCHER_APPS_SERVICE);
+        List<AppEntry> result = new ArrayList<>();
+        if (launcherApps == null || !launcherApps.hasShortcutHostPermission()) {
+            return result;
+        }
+
+        LauncherApps.ShortcutQuery query = new LauncherApps.ShortcutQuery()
+                .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED);
+        List<ShortcutInfo> shortcuts;
+        try {
+            shortcuts = launcherApps.getShortcuts(query, user);
+        } catch (IllegalStateException | SecurityException e) {
+            return result;
+        }
+        if (shortcuts == null) {
+            return result;
+        }
+        for (ShortcutInfo shortcut : shortcuts) {
+            Drawable icon = launcherApps.getShortcutBadgedIconDrawable(shortcut, 0);
+            if (icon == null) {
+                try {
+                    icon = getPackageManager().getApplicationIcon(shortcut.getPackage());
+                } catch (PackageManager.NameNotFoundException ignored) {
+                    continue;
+                }
+            }
+            CharSequence label = shortcut.getShortLabel();
+            if (label == null || label.length() == 0) {
+                label = shortcut.getLongLabel();
+            }
+            if (label == null || label.length() == 0) {
+                label = shortcut.getPackage();
+            }
+            result.add(new AppEntry(label, icon, shortcut));
+        }
+        return result;
+    }
+
     private void showActions(AppEntry app) {
+        if (app.isShortcut()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(app.label)
+                    .setItems(new CharSequence[] {"App info", "Remove shortcut"},
+                            (dialog, which) -> {
+                                if (which == 0) {
+                                    showAppInfo(new ComponentName(
+                                            app.shortcutPackage, app.shortcutPackage));
+                                } else {
+                                    removeShortcut(app);
+                                }
+                            })
+                    .show();
+            return;
+        }
         new AlertDialog.Builder(this)
                 .setTitle(app.label)
                 .setItems(new CharSequence[] {"App info", "Uninstall"}, (dialog, which) -> {
@@ -391,6 +482,26 @@ public class MainActivity extends Activity {
                     }
                 })
                 .show();
+    }
+
+    private void removeShortcut(AppEntry app) {
+        if (launcherAppsService == null || app.user == null) {
+            return;
+        }
+        LauncherApps.ShortcutQuery query = new LauncherApps.ShortcutQuery()
+                .setPackage(app.shortcutPackage)
+                .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED);
+        List<ShortcutInfo> pinned = launcherAppsService.getShortcuts(query, app.user);
+        List<String> remainingIds = new ArrayList<>();
+        if (pinned != null) {
+            for (ShortcutInfo shortcut : pinned) {
+                if (!shortcut.getId().equals(app.shortcutId)) {
+                    remainingIds.add(shortcut.getId());
+                }
+            }
+        }
+        launcherAppsService.pinShortcuts(app.shortcutPackage, remainingIds, app.user);
+        reload();
     }
 
     protected void showAppInfo(ComponentName component) {
@@ -418,6 +529,19 @@ public class MainActivity extends Activity {
             startActivity(intent);
         } catch (ActivityNotFoundException e) {
             // App was uninstalled or disabled after the list was built.
+        }
+    }
+
+    private void launch(AppEntry app) {
+        if (!app.isShortcut()) {
+            launch(app.component);
+            return;
+        }
+        try {
+            launcherAppsService.startShortcut(
+                    app.shortcutPackage, app.shortcutId, null, null, app.user);
+        } catch (ActivityNotFoundException | IllegalStateException e) {
+            reload();
         }
     }
 

@@ -8,6 +8,24 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
   canvas.style.transformOrigin = "0 0";
   canvas.style.willChange = "transform";
 
+  // Some mobile browsers leave the layout viewport at its original height
+  // when the on-screen keyboard opens and only resize visualViewport.
+  function syncVisualViewport() {
+    const viewport = window.visualViewport;
+    const height = viewport ? viewport.height : window.innerHeight;
+    document.documentElement.style.setProperty(
+      "--visual-viewport-height",
+      `${height}px`
+    );
+  }
+
+  syncVisualViewport();
+  window.addEventListener("resize", syncVisualViewport);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncVisualViewport);
+    window.visualViewport.addEventListener("scroll", syncVisualViewport);
+  }
+
   function distance(a, b) {
     return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
   }
@@ -145,4 +163,10 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
   // Safari exposes this separately even with a restrictive viewport.
   document.addEventListener("gesturestart", (event) => event.preventDefault());
   window.addEventListener("resize", render);
+
+  // visualViewport changes (notably the mobile keyboard opening) can resize
+  // the stage without firing a window resize event.
+  if ("ResizeObserver" in window) {
+    new ResizeObserver(render).observe(stage);
+  }
 }
