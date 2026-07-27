@@ -1,7 +1,7 @@
 import numpy as np
 from _shutil import read_proc_lines
 from utils.clip import set_clip
-from utils.menu.select import select_option
+from utils.menu import Menu
 
 last_result = None
 while True:
@@ -16,7 +16,7 @@ while True:
     if last_result is not None:
         print(np.setdiff1d(last_result, lines))
 
-    i = select_option(lines)
+    i = Menu(items=lines).exec()
     if lines[i] == "<refresh>":
         last_result = lines
         continue

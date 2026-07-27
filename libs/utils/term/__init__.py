@@ -7,6 +7,8 @@ from typing import Dict, List, Optional
 
 from _shutil import quote_arg, write_temp_file
 
+_windows_vt_enabled = False
+
 
 def activate_cur_terminal():
     if sys.platform == "win32":
@@ -22,15 +24,24 @@ def minimize_cur_terminal():
 
 
 def clear_terminal():
+    """Clear the terminal without starting an external process."""
     if sys.platform == "win32":
-        subprocess.run(["cls"], check=False, shell=True)
-        return
-
-    if os.environ.get("TERM"):
-        subprocess.run(["clear"], check=False)
-        return
-
+        enable_windows_vt()
     sys.stdout.write("\033[2J\033[H")
+    sys.stdout.flush()
+
+
+def hide_cursor():
+    if sys.platform == "win32":
+        enable_windows_vt()
+    sys.stdout.write("\033[?25l")
+    sys.stdout.flush()
+
+
+def show_cursor():
+    if sys.platform == "win32":
+        enable_windows_vt()
+    sys.stdout.write("\033[?25h")
     sys.stdout.flush()
 
 
@@ -92,7 +103,11 @@ def hide_terminal_from_taskbar():
 
 def enable_windows_vt():
     """Enable Windows virtual terminal processing for console input and output."""
+    global _windows_vt_enabled
+
     assert sys.platform == "win32"
+    if _windows_vt_enabled:
+        return
 
     from ctypes import wintypes
 
@@ -120,6 +135,8 @@ def enable_windows_vt():
     if kernel32.GetConsoleMode(h_output, ctypes.byref(out_mode)):
         new_out_mode = out_mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
         kernel32.SetConsoleMode(h_output, new_out_mode)
+
+    _windows_vt_enabled = True
 
 
 def args_to_str(args, shell_type):

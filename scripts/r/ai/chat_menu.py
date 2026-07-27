@@ -62,6 +62,8 @@ _INTERRUPT_MESSAGE = "[INTERRUPTED]"
 
 EXPERIMENTAL_FOLLOW_NEW_MESSAGE = False
 
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+
 
 def _start_background_loop(loop: asyncio.AbstractEventLoop):
     """Run an asyncio loop forever in a background thread."""
@@ -349,8 +351,15 @@ class ChatMenu(Menu[Line]):
     def __add_file(self):
         file = self.__add_file_menu.select_file()
         if file:
-            with open(file, "r", encoding="utf-8") as f:
-                self.__context = f.read()
+            try:
+                if _is_image_file(file):
+                    self.__image_urls.append(encode_image_base64(file))
+                else:
+                    with open(file, "r", encoding="utf-8") as f:
+                        self.__context = f.read()
+            except (OSError, UnicodeError, ValueError) as e:
+                self.set_message(f"failed to add file: {e}")
+                return
             self.__update_prompt()
 
     def __copy_block(self, index: int):
@@ -803,8 +812,8 @@ class ChatMenu(Menu[Line]):
                         image_url=image_url,
                     )
                 )
-                self.__image_urls.clear()
                 subindex += 1
+            self.__image_urls.clear()
 
         if tool_results:
             message["tool_result"] = tool_results
@@ -1208,7 +1217,7 @@ class ChatMenu(Menu[Line]):
 
 def _is_image_file(path: str) -> bool:
     ext = os.path.splitext(path)[1].lower()
-    return ext in [".png", ".jpg", ".jpeg"]
+    return ext in _IMAGE_EXTENSIONS
 
 
 def _main():

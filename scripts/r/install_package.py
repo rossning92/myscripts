@@ -1,7 +1,7 @@
 import argparse
 
 from _pkgmanager import get_all_available_packages, require_package
-from utils.menu.select import select_option
+from utils.menu import Menu
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     if not pkg:
         # Show all available packages in a menu.
         packages = get_all_available_packages()
-        i = select_option(packages)
+        i = Menu(items=packages).exec()
         if i >= 0:
             pkg = packages[i]
             force_install = True

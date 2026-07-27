@@ -11,7 +11,7 @@ from _shutil import (
 )
 from export_video import load_config
 from utils.editor import open_code_editor
-from utils.menu.select import select_option
+from utils.menu import Menu
 from utils.yaml import (
     load_yaml,
     save_yaml,
@@ -66,7 +66,7 @@ def next():
 @menu_item(key="\r")
 def search_project():
     global cur_index
-    i = select_option(all_projects)
+    i = Menu(items=all_projects).exec()
     if i >= 0:
         cur_index = i
         print("Project set to:")

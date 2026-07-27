@@ -5,7 +5,7 @@ import subprocess
 
 from _shutil import cd, print2, remove
 from utils.android import setup_android_env
-from utils.menu.select import select_option
+from utils.menu import Menu
 
 setup_android_env()
 
@@ -26,7 +26,7 @@ for f in apk_list:
     print(name)
     app_names.append(name)
 
-indices = select_option(app_names)
+indices = Menu(items=app_names).exec()
 for n in indices:
     f = apk_list[n]
     name_no_ext = os.path.splitext(f)[0]

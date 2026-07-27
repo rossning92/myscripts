@@ -54,6 +54,12 @@ def _clamp(n, smallest, largest):
     return max(smallest, min(n, largest))
 
 
+def _format_context_item(metadata: str) -> str:
+    if "\n" not in metadata:
+        return f"<item>{metadata}</item>"
+    return f"<item>\n{metadata}\n</item>"
+
+
 def _is_backspace_key(ch: Union[int, str]):
     return (
         ch == curses.KEY_BACKSPACE
@@ -2177,13 +2183,12 @@ class Menu(Generic[T]):
             self.update_screen()
             return
 
-        context = "\n".join(
-            [
-                "<selected>",
-                *(self.get_item_metadata(x) for x in selected_items),
-                "</selected>",
-            ]
-        )
+        metadata = (self.get_item_metadata(item) for item in selected_items)
+        formatted_items = [
+            _format_context_item(item_metadata) for item_metadata in metadata
+        ]
+        context_parts = ["<selected_items>", *formatted_items, "</selected_items>"]
+        context = "\n".join(context_parts)
         # TODO: Use a non-argv transport if selected context can exceed command-line limits.
         args = ["start_script", agents[selected], "--context", context]
         self.run_raw(lambda: subprocess.run(args))

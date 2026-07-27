@@ -1348,9 +1348,9 @@ def menu_loop(
         elif ch == "q":
             break
         elif ch == "\t":
-            from utils.menu.select import select_option
+            from utils.menu import Menu
 
-            index = select_option(menu_items)
+            index = Menu(items=menu_items).exec()
             if index >= 0:
                 func_wrapper(menu_items[index].func)
 

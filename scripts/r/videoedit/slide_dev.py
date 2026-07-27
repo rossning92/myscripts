@@ -2,14 +2,14 @@ import glob
 import os
 
 from _script import run_script
-from utils.menu.select import select_option
+from utils.menu import Menu
 
 if __name__ == "__main__":
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "slide")
     os.chdir(root)
 
     files = list(glob.glob(os.path.join("examples", "*", "*.md")))
-    idx = select_option(files)
+    idx = Menu(items=files).exec()
     if idx < 0:
         exit(0)
     file = files[idx]

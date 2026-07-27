@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 from utils.android import backup_pkg
-from utils.menu.select import select_option
+from utils.menu import Menu
 from utils.shutil import shell_open
 
 
@@ -14,7 +14,7 @@ def select_app_pkg():
     s = s.replace("package:", "")
     lines = s.splitlines()
     lines = sorted(lines)
-    i = select_option(lines, history="select_app_pkg")
+    i = Menu(items=lines, history="select_app_pkg").exec()
     if i == -1:
         return None
     else:

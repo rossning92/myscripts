@@ -8,7 +8,6 @@ from utils.android import backup_pkg, get_apk_path
 from utils.clip import set_clip
 from utils.menu import Menu
 from utils.menu.actionmenu import ActionMenu
-from utils.menu.select import select_option
 from utils.shutil import shell_open
 
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -21,7 +20,7 @@ def select_app_pkg():
     s = s.replace("package:", "")
     lines = s.splitlines()
     lines = sorted(lines)
-    i = select_option(lines, history=SCRIPT_NAME)
+    i = Menu(items=lines, history=SCRIPT_NAME).exec()
     if i == -1:
         return None
     else:
