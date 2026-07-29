@@ -1,6 +1,5 @@
 {
   "adk": true,
-  "enableNotify": false,
   "packages": "scrcpy",
   "title": "scrcpy"
 }

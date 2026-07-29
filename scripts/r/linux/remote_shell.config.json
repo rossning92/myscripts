@@ -1,5 +1,4 @@
 {
-  "enableNotify": false,
   "globalHotkey": "win+alt+r",
   "packages": "screen",
   "title": "remote_shell",

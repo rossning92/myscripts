@@ -27,7 +27,7 @@ def get_context_text(context: str) -> str:
 
 
 def get_tool_result_text(tool_result: ToolResult) -> str:
-    return "\033[34m✓ {}\033[0m".format(truncate_text(tool_result["content"]))
+    return "\033[34m└ {}\033[0m".format(truncate_text(tool_result["content"]))
 
 
 def get_tool_use_text(tool_use: ToolUse) -> str:

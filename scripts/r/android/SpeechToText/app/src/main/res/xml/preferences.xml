@@ -6,6 +6,14 @@
             android:title="OpenAI API Key"
             android:dialogTitle="OpenAI API Key"
             android:singleLine="true" />
+        <ListPreference
+            android:key="transcription_mode"
+            android:title="Transcription mode"
+            android:dialogTitle="Transcription mode"
+            android:entries="@array/transcription_mode_entries"
+            android:entryValues="@array/transcription_mode_values"
+            android:defaultValue="upload"
+            android:summary="%s" />
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Recording">

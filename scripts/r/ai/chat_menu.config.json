@@ -1,6 +1,5 @@
 {
   "dynamicTitle": true,
-  "enableNotify": false,
   "matchClipboard": "[^\\\\]*\\.(jpg|jpeg|png|txt)$",
   "title": "chat_menu"
 }

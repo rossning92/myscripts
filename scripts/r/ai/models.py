@@ -6,6 +6,7 @@ MODELS = [
     "gpt-5-mini",
     "gpt-5.2-chat-latest",
     "gpt-5.5(medium)",
+    "gpt-5.6-sol",
     "gemini-3-flash-preview",
     "gemini-3-pro-image-preview",
     "gemini-3.1-flash-image-preview",

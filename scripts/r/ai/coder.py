@@ -25,7 +25,7 @@ from utils.menu.filemenu import FileMenu
 from utils.notify import send_notify
 
 _DIFF_CONTEXT_LINES = 0
-_DEFAULT_MODEL = "gpt-5.5"
+_DEFAULT_MODEL = "gpt-5.6-sol"
 
 _SYSTEM_PROMPT = (
     (Path(__file__).parent / "coder.system.md").read_text(encoding="utf-8").strip()

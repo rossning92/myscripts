@@ -12,7 +12,10 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     static final String KEY_OPENAI_API_KEY = "openai_api_key";
     static final String KEY_AUDIO_BITRATE = "audio_bitrate";
+    static final String KEY_TRANSCRIPTION_MODE = "transcription_mode";
     static final String DEFAULT_AUDIO_BITRATE = "24000";
+    static final String TRANSCRIPTION_MODE_UPLOAD = "upload";
+    static final String TRANSCRIPTION_MODE_REALTIME = "realtime";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

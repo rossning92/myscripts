@@ -3,6 +3,15 @@
     <string name="accessibility_description">Allows Speech To Text to type transcribed text into text fields.</string>
     <string name="ime_label">Speech To Text (silent)</string>
 
+    <string-array name="transcription_mode_entries">
+        <item>Realtime API — lower latency</item>
+        <item>Transcriptions API — upload after recording</item>
+    </string-array>
+    <string-array name="transcription_mode_values">
+        <item>realtime</item>
+        <item>upload</item>
+    </string-array>
+
     <string-array name="audio_bitrate_entries">
         <item>Extreme — 12 kbps (~15–20 KB / 10 sec)</item>
         <item>Low — 16 kbps (~20–25 KB / 10 sec)</item>

@@ -1378,7 +1378,6 @@ class Script:
                 # Add command wrapper to pause on exit
                 env["CMDW_CLOSE_ON_EXIT"] = "1" if close_on_exit else "0"
                 env["CMDW_WINDOW_TITLE"] = self.get_window_title()
-                env["CMDW_ENABLE_NOTIFY"] = "1" if self.cfg["enableNotify"] else "0"
                 arg_list = [
                     sys.executable,
                     os.path.join(get_bin_dir(), "command_wrapper.py"),
@@ -1961,7 +1960,6 @@ def get_default_script_config() -> Dict[str, Union[str, bool, None]]:
         "commandWrapper": True,
         "conda": "",
         "dynamicTitle": False,
-        "enableNotify": True,
         "globalHotkey": "",
         "gitBash": False,
         "hotkey": "",
