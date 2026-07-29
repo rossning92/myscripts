@@ -16,6 +16,40 @@ _SPLIT_OPERATORS = {";", "&&", "||", "|"}
 _PUNCTUATION = set("();<>|&")
 
 
+def _strip_stderr_to_stdout(command: str) -> str:
+    """Remove unquoted ``2>&1`` redirects before allowlist matching."""
+    chars = list(command)
+    quote: str | None = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if char == "\\" and quote != "'":
+            index += 2
+            continue
+        if char in {"'", '"'}:
+            if quote == char:
+                quote = None
+            elif quote is None:
+                quote = char
+            index += 1
+            continue
+        if (
+            quote is None
+            and command.startswith("2>&1", index)
+            and (index == 0 or command[index - 1].isspace() or command[index - 1] in ";|&(")
+            and (
+                index + 4 == len(command)
+                or command[index + 4].isspace()
+                or command[index + 4] in ";|&()<>"
+            )
+        ):
+            chars[index : index + 4] = " " * 4
+            index += 4
+            continue
+        index += 1
+    return "".join(chars)
+
+
 def _split_commands(command: str) -> list[list[str]] | None:
     # Returns the sub-commands (each a list of args), or None when the command
     # uses shell features we won't auto-vet or can't be parsed.
@@ -23,7 +57,11 @@ def _split_commands(command: str) -> list[list[str]] | None:
         # Newlines separate commands in shell but are plain whitespace to shlex,
         # which would merge them into one (mis-matched) command.
         return None
-    lex = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lex = shlex.shlex(
+        _strip_stderr_to_stdout(command),
+        posix=True,
+        punctuation_chars=True,
+    )
     lex.whitespace_split = True
     lex.commenters = ""  # never silently drop a '#...' remainder of the command
     try:

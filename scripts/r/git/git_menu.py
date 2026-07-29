@@ -7,6 +7,13 @@ from git.vcs import get_git_recent_commits
 from git.vcs_menu import VcsDiffMenu
 
 
+def _git_output(*args, **kwargs):
+    """Run Git without escaping non-ASCII characters in pathnames."""
+    return subprocess.check_output(
+        ["git", "-c", "core.quotePath=false", *args], **kwargs
+    )
+
+
 class GitMenu(VcsDiffMenu):
     _vcs = "git"
 
@@ -19,14 +26,17 @@ class GitMenu(VcsDiffMenu):
 
     def _get_status_items(self):
         try:
-            status = subprocess.check_output(
-                ["git", "status", "--short", "-u"], universal_newlines=True
+            status = _git_output(
+                "status", "--short", "-u", universal_newlines=True
             )
             if status.strip():
                 return status.splitlines(), False
             else:
-                show_output = subprocess.check_output(
-                    ["git", "show", "--name-status", "--format=", "HEAD"],
+                show_output = _git_output(
+                    "show",
+                    "--name-status",
+                    "--format=",
+                    "HEAD",
                     universal_newlines=True,
                 )
                 items = []
@@ -44,8 +54,10 @@ class GitMenu(VcsDiffMenu):
     def _get_vcs_prompt(self, is_clean):
         repo_name = self._repo_display_name()
         try:
-            branch = subprocess.check_output(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            branch = _git_output(
+                "rev-parse",
+                "--abbrev-ref",
+                "HEAD",
                 text=True,
                 stderr=subprocess.DEVNULL,
             ).strip()
@@ -100,9 +112,7 @@ class GitMenu(VcsDiffMenu):
         self._after_action()
 
     def _resolve_commit_files(self, selected_filenames):
-        staged = subprocess.check_output(
-            ["git", "diff", "--cached", "--name-only"], text=True
-        ).splitlines()
+        staged = _git_output("diff", "--cached", "--name-only", text=True).splitlines()
         if staged:
             return staged, "staged", False
         return selected_filenames, "selected", True

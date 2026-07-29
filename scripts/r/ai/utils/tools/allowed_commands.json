@@ -17,6 +17,7 @@
     "gcm *",
     "git *",
     "grep *",
+    "head *",
     "help *",
     "ls *",
     "mkdir *",

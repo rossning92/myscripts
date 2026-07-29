@@ -1672,7 +1672,7 @@ class Menu(Generic[T]):
                             Menu._stdscr,
                             row,
                             self.__width - 1,
-                            ">",
+                            "…",
                             attr,
                         )
                         can_scroll_right = True

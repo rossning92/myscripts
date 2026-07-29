@@ -37,6 +37,17 @@ class TestIsCommandAllowed(unittest.TestCase):
         self.assertFalse(is_command_allowed("git log > /etc/passwd", ALLOWED))
         self.assertFalse(is_command_allowed("git log & rm -rf ~", ALLOWED))
 
+    def test_output_descriptor_duplication_allowed(self):
+        self.assertTrue(is_command_allowed("git log 2>&1", ALLOWED))
+        self.assertTrue(is_command_allowed("git log 2>&1 | head", ALLOWED))
+        self.assertFalse(is_command_allowed("git log 1>&2", ALLOWED))
+
+    def test_only_adjacent_unquoted_descriptor_duplication_is_ignored(self):
+        self.assertFalse(is_command_allowed("ls 2 >& 1", ["ls"]))
+        self.assertFalse(is_command_allowed("ls '2>&1'", ["ls"]))
+        self.assertFalse(is_command_allowed('ls "2>&1"', ["ls"]))
+        self.assertFalse(is_command_allowed(r"ls 2\\>\\&1", ["ls"]))
+
     def test_compound_operators_not_auto_allowed(self):
         # Operator runs other than the plain sequencers (&>, >|, |&, 2>) must
         # not slip through as plain args.
@@ -44,6 +55,7 @@ class TestIsCommandAllowed(unittest.TestCase):
         self.assertFalse(is_command_allowed("git log >| /tmp/x", ALLOWED))
         self.assertFalse(is_command_allowed("git log |& cat", ALLOWED))
         self.assertFalse(is_command_allowed("git log 2> /tmp/x", ALLOWED))
+        self.assertFalse(is_command_allowed("git log 2>& /tmp/x", ALLOWED))
 
     def test_newline_separates_commands(self):
         self.assertFalse(is_command_allowed("git log\nrm -rf ~", ALLOWED))
