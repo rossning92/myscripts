@@ -177,11 +177,12 @@ class _ScheduledScriptMenu(Menu[_ScheduledScript]):
             _ScheduledScript(script=script, scheduled_time=scheduled_time)
             for script, scheduled_time in script_manager.get_scheduled_scripts_run_time().items()
         ]
-        super().__init__(items=items, prompt="scheduled scripts")
+        super().__init__(
+            items=items, prompt="scheduled scripts", timeout_sec=1.0
+        )
 
-    def on_idle(self):
+    def on_timeout(self):
         self.update_screen()
-        return super().on_idle()
 
     def on_enter_pressed(self):
         item = self.get_selected_item()
@@ -248,6 +249,7 @@ class _MyScriptMenu(Menu[Script]):
             ),
             text=input_text,
             wrap_text=True,
+            timeout_sec=1.0,
         )
 
         self.add_command(self._copy_cmdline, hotkey="ctrl+y", override=True)
@@ -331,6 +333,9 @@ class _MyScriptMenu(Menu[Script]):
                 )
             except Exception as ex:
                 logging.error(f"Error on running scheduled script: {ex}")
+
+    def on_timeout(self):
+        try_reload_scripts_autorun(self.script_manager.scripts_autorun)
 
     def match_item(self, keyword: str, script: Script, index: int) -> int:
         if len(keyword) > 0 and script.alias == keyword:
@@ -582,9 +587,6 @@ class _MyScriptMenu(Menu[Script]):
     def on_enter_pressed(self):
         self._run_selected_script()
         return True
-
-    def on_idle(self):
-        try_reload_scripts_autorun(self.script_manager.scripts_autorun)
 
     def on_item_selection_changed(self, script: Optional[Script], i: int):
         if self.__auto_infer_cmdline_args:

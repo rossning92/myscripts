@@ -167,7 +167,6 @@ class RepoMenu(Menu[Repo]):
         self._spinner = Spinner()
         self._last_refresh_time = 0.0
         self._focused = True
-        self._refresh()
         self.add_command(self._sync, hotkey="ctrl+s", name="sync", pinned=True)
         self.add_command(self._amend, hotkey="alt+a", name="amend", pinned=True)
         self.add_command(self._commit, hotkey="alt+c", name="commit", pinned=True)
@@ -288,18 +287,17 @@ class RepoMenu(Menu[Repo]):
     def get_status_text(self) -> str:
         # Prepend recent commits of the selected repo on top of the default
         # status bar (message + position indicators).
-        s = ""
-        if self._refresh_thread and self._refresh_thread.is_alive():
-            s += f"{self._spinner.frame} refreshing...\n"
         repo = self.get_selected_item()
         recent_commits = repo.recent_commits if repo is not None else []
-        return s + prepend_recent_commits(super().get_status_text(), recent_commits)
+        return prepend_recent_commits(super().get_status_text(), recent_commits)
 
-    def on_idle(self):
-        if self._refresh_thread and self._refresh_thread.is_alive():
-            self._spinner.advance()
-            self.update_screen()
+    def on_created(self):
+        self._refresh()
+
+    def on_main_loop(self):
+        if self._refresh_thread is not None:
             return
+
         # Auto-refresh every 10s, but only while the window is focused. to avoid
         # dragging system perf down when running unfocused in the background.
         if self._focused and time.monotonic() - self._last_refresh_time >= 10:
@@ -313,23 +311,30 @@ class RepoMenu(Menu[Repo]):
         self._focused = False
 
     def _refresh(self):
-        if self._refresh_thread and self._refresh_thread.is_alive():
+        if self._refresh_thread is not None:
             return
         self._last_refresh_time = time.monotonic()
+        repos: Optional[List[Repo]] = None
 
         def worker():
+            nonlocal repos
             repos = _get_repos()
             with ThreadPoolExecutor() as pool:
                 pool.map(Repo.refresh, repos)
-            self.post_event(lambda: self._apply_refresh(repos))
 
         self._refresh_thread = threading.Thread(target=worker, daemon=True)
         self._refresh_thread.start()
+        while self._refresh_thread.is_alive():
+            self.set_prompt(f"{_MODULE_NAME} {self._spinner.frame}")
+            self._spinner.advance()
+            self.process_events(timeout_sec=0.1)
 
-    def _apply_refresh(self, repos):
-        self.items[:] = repos
+        self._refresh_thread.join()
         self._refresh_thread = None
-        self.update_screen()
+        self.set_prompt(_MODULE_NAME)
+        if repos is not None:
+            self.items[:] = repos
+            self.update_screen()
 
 
 if __name__ == "__main__":

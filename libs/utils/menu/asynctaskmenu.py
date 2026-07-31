@@ -8,6 +8,7 @@ from .menu import Menu
 
 class AsyncTaskMenu(Menu):
     def __init__(self, target: Callable, prompt: str = "", **kwargs):
+        kwargs.setdefault("timeout_sec", 0.1)
         super().__init__(prompt=prompt, **kwargs)
 
         self.__prompt = prompt
@@ -35,7 +36,7 @@ class AsyncTaskMenu(Menu):
         self.__stop_event.set()
         self.__thread.join()
 
-    def on_idle(self):
+    def on_timeout(self):
         if not self.__thread.is_alive():
             if self.__exception is not None:
                 raise self.__exception

@@ -7,11 +7,13 @@ import os
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import Future
 from datetime import datetime
 from pathlib import Path
 from pprint import pformat
+from queue import Empty, Queue
 from threading import Thread
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 from urllib.parse import unquote_to_bytes
 
 from ai.chat import (
@@ -278,7 +280,7 @@ class ChatMenu(Menu[Line]):
         self.__out_file = out_file
         self.__system_prompt = system_prompt
         self.__copy_mode = 0
-        self.__chat_task: Optional[asyncio.Task] = None
+        self.__chat_task: Optional[Future[None]] = None
         self.__retry_count = 0
         self.__usage = UsageMetadata()
         self.__message_queue: List[str] = []
@@ -896,6 +898,7 @@ class ChatMenu(Menu[Line]):
             timestamp=datetime.now().timestamp(),
         )
         messages = self.get_messages(expand_context=True)
+        events: Queue[Callable[[], None]] = Queue()
 
         async def chat_task():
             try:
@@ -905,47 +908,53 @@ class ChatMenu(Menu[Line]):
                     model=self.get_settings()["model"],
                     system_prompt=self.get_system_prompt(),
                     tools=self.get_tools(),
-                    on_image=lambda image_url: self.post_event(
+                    on_image=lambda image_url: events.put(
                         lambda: self.on_image(image_url)
                     ),
-                    on_tool_use_start=lambda tool_use: self.post_event(
+                    on_tool_use_start=lambda tool_use: events.put(
                         lambda: self.on_tool_use_start(tool_use)
                     ),
-                    on_tool_use_args_delta=lambda text: self.post_event(
+                    on_tool_use_args_delta=lambda text: events.put(
                         lambda: self.on_tool_use_args_delta(text)
                     ),
-                    on_tool_use=lambda tool_use: self.post_event(
+                    on_tool_use=lambda tool_use: events.put(
                         lambda: self.on_tool_use(tool_use)
                     ),
-                    on_reasoning=lambda text: self.post_event(
+                    on_reasoning=lambda text: events.put(
                         lambda: self.on_reasoning(text)
                     ),
                     out_message=out_message,
                     usage=self.__usage,
                 ):
-                    self.post_event(
+                    events.put(
                         lambda chunk_index=chunk_index, chunk=chunk: (
                             self.__on_chat_chunk(chunk_index, chunk)
                         )
                     )
                     chunk_index += 1
 
-                self.post_event(lambda: self.__on_chat_done())
+                events.put(lambda: self.__on_chat_done())
 
             except asyncio.CancelledError:
-                self.post_event(lambda: self.__on_chat_done(cancelled=True))
+                events.put(lambda: self.__on_chat_done(cancelled=True))
 
             except Exception as exception:
-                self.post_event(
+                events.put(
                     lambda exception=exception: self.__on_chat_exception(
                         exception=exception,
                     )
                 )
 
-        def create_task():
-            self.__chat_task = asyncio.create_task(chat_task())
-
-        _loop.call_soon_threadsafe(create_task)
+        self.__chat_task = asyncio.run_coroutine_threadsafe(chat_task(), _loop)
+        while self.__is_generating or not events.empty():
+            try:
+                events.get_nowait()()
+            except Empty:
+                self.process_events(timeout_sec=0.1)
+                if self.__is_generating:
+                    self.__spinner.advance()
+                    self.update_screen()
+        self.__chat_task = None
 
     def __on_chat_done(self, cancelled=False):
         assert self._out_message
@@ -1170,11 +1179,6 @@ class ChatMenu(Menu[Line]):
             parts.append(f"{self.__usage}")
         return " ".join(parts) + "\n" + super().get_status_text()
 
-    def on_idle(self):
-        if self.__is_generating:
-            self.__spinner.advance()
-            self.update_screen()
-
     def get_system_prompt(self) -> str:
         return self.__system_prompt
 
@@ -1184,13 +1188,8 @@ class ChatMenu(Menu[Line]):
 
     def __cancel_chat_completion(self) -> bool:
         if self.__is_generating:
-
-            def cancel_chat_task():
-                if self.__chat_task and not self.__chat_task.done():
-                    self.__chat_task.cancel()
-                self.__chat_task = None
-
-            _loop.call_soon_threadsafe(cancel_chat_task)
+            if self.__chat_task and not self.__chat_task.done():
+                self.__chat_task.cancel()
             return True
         return False
 

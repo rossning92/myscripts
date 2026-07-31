@@ -42,6 +42,7 @@ GUTTER_SIZE = 1
 MESSAGE_TIMEOUT_SEC = 2.0
 PASTE_THRESHOLD_SEC = 0.05
 PROCESS_EVENT_INTERVAL_SEC = 0.1
+ESC_SEQUENCE_TIMEOUT_MS = 25
 SHIFT_DOWN = 0x150
 SHIFT_UP = 0x151
 KEY_A2 = 450
@@ -68,7 +69,18 @@ def _is_backspace_key(ch: Union[int, str]):
     )
 
 
-def _decode_escape_sequence(stdscr, ch: Union[int, str]) -> Union[int, str]:
+def _read_escape_sequence_char(stdscr, restore_timeout_ms: int):
+    """Read one possible continuation byte without blocking on a lone Esc."""
+    stdscr.timeout(ESC_SEQUENCE_TIMEOUT_MS)
+    try:
+        return stdscr.get_wch()
+    finally:
+        stdscr.timeout(restore_timeout_ms)
+
+
+def _decode_escape_sequence(
+    stdscr, ch: Union[int, str], restore_timeout_ms: int
+) -> Union[int, str]:
     if isinstance(ch, int):
         try:
             name = curses.keyname(ch).decode()
@@ -87,7 +99,7 @@ def _decode_escape_sequence(stdscr, ch: Union[int, str]) -> Union[int, str]:
         return ch
 
     try:
-        ch2 = stdscr.get_wch()
+        ch2 = _read_escape_sequence_char(stdscr, restore_timeout_ms)
     except curses.error:
         return ch
 
@@ -103,7 +115,7 @@ def _decode_escape_sequence(stdscr, ch: Union[int, str]) -> Union[int, str]:
         return ch2
 
     try:
-        ch3 = stdscr.get_wch()
+        ch3 = _read_escape_sequence_char(stdscr, restore_timeout_ms)
     except curses.error:
         return -1
 
@@ -125,7 +137,7 @@ def _decode_escape_sequence(stdscr, ch: Union[int, str]) -> Union[int, str]:
         return curses.KEY_END
     elif ch3 in ("1", "3", "5", "6"):
         try:
-            ch4 = stdscr.get_wch()
+            ch4 = _read_escape_sequence_char(stdscr, restore_timeout_ms)
         except curses.error:
             return -1
 
@@ -140,8 +152,12 @@ def _decode_escape_sequence(stdscr, ch: Union[int, str]) -> Union[int, str]:
                 return curses.KEY_NPAGE
         elif ch3 == "1" and ch4 == ";":
             try:
-                ch5 = stdscr.get_wch()  # Modifier
-                ch6 = stdscr.get_wch()  # Direction
+                ch5 = _read_escape_sequence_char(
+                    stdscr, restore_timeout_ms
+                )  # Modifier
+                ch6 = _read_escape_sequence_char(
+                    stdscr, restore_timeout_ms
+                )  # Direction
                 if ch5 == "5":  # Ctrl
                     if ch6 == "D":
                         return "ctrl+left"
@@ -513,11 +529,13 @@ class Menu(Generic[T]):
         follow=False,
         auto_complete=False,
         quick_select=False,
+        timeout_sec: float = -1.0,
     ):
         self.close_on_selection: bool = close_on_selection
         self.is_cancelled: bool = False
         self.items: List[T] = items if items is not None else []
         self.last_key_pressed_timestamp: float = 0.0
+        self.timeout_sec = timeout_sec
 
         self._height: int = -1
 
@@ -535,6 +553,7 @@ class Menu(Generic[T]):
         self.__closed: bool = False
         self.__debug = debug
         self.__empty_lines: int = 0
+        self.__event_timed_out = False
 
         self.__highlight = highlight
         self.__is_stdscr_owner: Optional[bool] = None
@@ -576,8 +595,6 @@ class Menu(Generic[T]):
         # Only update screen when _should_update_screen is True. This is set to True to
         # trigger the initial draw.
         self.__should_update_screen = True
-
-        self.__event_queue: Queue[Callable[[], None]] = Queue()
 
         # History
         self.history = history
@@ -1123,17 +1140,25 @@ class Menu(Generic[T]):
     def process_events(
         self, timeout_sec: float = 0.0, raise_keyboard_interrupt=False
     ) -> bool:
+        """Process one keyboard event.
+
+        Poll without blocking by default. Pass a negative timeout to block
+        until an event, or a positive timeout to wait at most that many seconds.
+        """
         assert Menu._stdscr is not None
 
         if self.__closed:
             return True
 
         if self.__pending_enter:
-            Menu._stdscr.timeout(int(PASTE_THRESHOLD_SEC * 1000))
+            timeout_ms = int(PASTE_THRESHOLD_SEC * 1000)
+        elif timeout_sec < 0.0:
+            timeout_ms = -1
         elif timeout_sec > 0.0:
-            Menu._stdscr.timeout(int(timeout_sec * 1000.0))
+            timeout_ms = int(timeout_sec * 1000.0)
         else:
-            Menu._stdscr.timeout(0)
+            timeout_ms = 0
+        Menu._stdscr.timeout(timeout_ms)
 
         self.__update_matched_items()
 
@@ -1156,7 +1181,7 @@ class Menu(Generic[T]):
                 self.on_keyboard_interrupt()
 
         if ch != -1:  # getch() will return -1 when timeout
-            ch = _decode_escape_sequence(Menu._stdscr, ch)
+            ch = _decode_escape_sequence(Menu._stdscr, ch, timeout_ms)
             if self.__debug:
                 if isinstance(ch, str):
                     self.set_message(f"key={repr(ch)}")
@@ -1319,21 +1344,27 @@ class Menu(Generic[T]):
 
             self.__last_key = ch
 
+        event_timed_out = (
+            ch == -1 and not self.__pending_enter and timeout_sec >= 0.0
+        )
         if ch == -1:
             if self.__pending_enter:
                 self.__pending_enter = False
                 self.on_enter_pressed()
-            elif timeout_sec > 0.0:
-                self._on_idle()
+            elif (
+                self.__message is not None
+                and time.monotonic() - self.__message_time >= MESSAGE_TIMEOUT_SEC
+            ):
+                self.__message = None
+                self.update_screen()
+
+        self.__event_timed_out = event_timed_out
 
         if self.__closed:
             self.on_exit()
             return True
         else:
             return False
-
-    def post_event(self, func: Callable[[], None]) -> None:
-        self.__event_queue.put(func)
 
     def __update_matched_items(self, save_search_history=True, force_update=False):
         if self.__search_mode:
@@ -1509,19 +1540,10 @@ class Menu(Generic[T]):
 
         return False
 
-    def _on_idle(self):
-        if (
-            self.__message is not None
-            and time.monotonic() - self.__message_time >= MESSAGE_TIMEOUT_SEC
-        ):
-            self.__message = None
-            self.update_screen()
-        self.on_idle()
-
     def on_exit(self):
         pass
 
-    def on_idle(self):
+    def on_timeout(self):
         pass
 
     def on_close(self):
@@ -1541,15 +1563,14 @@ class Menu(Generic[T]):
         self.on_main_loop()
         done = False
         while not done:
-            has_event = False
-            while not self.__event_queue.empty():
-                has_event = True
-                event = self.__event_queue.get()
-                event()
-            done = self.process_events(
-                timeout_sec=0.0 if has_event else PROCESS_EVENT_INTERVAL_SEC
-            )
-            self.on_main_loop()
+            done = self.process_events(timeout_sec=self.timeout_sec)
+            if self.timeout_sec >= 0.0 and self.__event_timed_out:
+                self.on_timeout()
+                if self.is_closed():
+                    self.on_exit()
+                    done = True
+            if not done:
+                self.on_main_loop()
         self.on_close()
 
     def get_selected_index(self):
@@ -2198,9 +2219,9 @@ class Menu(Generic[T]):
 class LoggingMenu(Menu):
     def __init__(self):
         self.queue = Queue()
-        super().__init__(prompt="logs")
+        super().__init__(prompt="logs", timeout_sec=PROCESS_EVENT_INTERVAL_SEC)
 
-    def on_idle(self):
+    def on_timeout(self):
         while not self.queue.empty():
             record = self.queue.get()
             for line in record.getMessage().splitlines():

@@ -1,1 +1,1 @@
-top -q -o %CPU,CMD -s 1
+top -q -o %CPU,CMDLINE -s 1

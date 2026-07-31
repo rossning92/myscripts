@@ -30,6 +30,7 @@ class ShellCmdMenu(Menu):
         close_on_failure: bool = False,
         **kwargs,
     ):
+        kwargs.setdefault("timeout_sec", 0.1)
         super().__init__(
             prompt=prompt,
             prompt_color="blue",
@@ -94,7 +95,7 @@ class ShellCmdMenu(Menu):
     def on_keyboard_interrupt(self):
         self.__send_ctrl_c()
 
-    def on_idle(self):
+    def on_timeout(self):
         if not self.__thread.is_alive():
             if self.__exception is not None:
                 raise self.__exception

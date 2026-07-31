@@ -1,7 +1,6 @@
 import csv
 import datetime
 import os
-import time
 from typing import List, Optional, OrderedDict
 
 from utils.editor import edit_text
@@ -290,7 +289,6 @@ def _get_setting_file(csv_file: str) -> str:
 
 class CsvMenu(Menu[CsvRow]):
     def __init__(self, csv_file: str, text: str = ""):
-        self.__last_tick = 0.0
         self.__setting_file = _get_setting_file(csv_file)
         self.__settings = load_json(self.__setting_file, default={})
 
@@ -306,6 +304,7 @@ class CsvMenu(Menu[CsvRow]):
             items=self._rows,
             text=text,
             prompt="/",
+            timeout_sec=1.0,
         )
 
         self.add_command(self.__add_column, hotkey="alt+c")
@@ -424,11 +423,7 @@ class CsvMenu(Menu[CsvRow]):
         self.__settings["selected_row"] = i
         self.__save_settings()
 
-    def on_idle(self):
-        now = time.time()
-        if now > self.__last_tick + 1.0:
-            self.__last_tick = now
-
-            if self.df.load_csv():
-                self.__update_rows()
-                self.set_message("CSV file reloaded")
+    def on_timeout(self):
+        if self.df.load_csv():
+            self.__update_rows()
+            self.set_message("CSV file reloaded")

@@ -30,9 +30,9 @@ class WinSwitcherMenu(Menu[WindowItem]):
             items=[],
             line_number=False,
             quick_select=True,
+            timeout_sec=_AUTO_REFRESH_INTERVAL_SECONDS,
         )
         self.__auto_refresh_enabled = True
-        self.__auto_refresh_last_time = 0.0
         self.script_status: Dict[str, str] = {}
         self.__visited_done: Set[str] = set()
         self.__pinned: Set[str] = set()
@@ -131,7 +131,6 @@ class WinSwitcherMenu(Menu[WindowItem]):
     def on_focus_gained(self):
         self.__refresh_windows()
         self.__auto_refresh_enabled = True
-        self.__auto_refresh_last_time = time.time()
         self.__highlight_first_done()
 
     def __highlight_first_done(self):
@@ -145,13 +144,8 @@ class WinSwitcherMenu(Menu[WindowItem]):
     def on_focus_lost(self):
         self.__auto_refresh_enabled = False
 
-    def on_idle(self):
-        now = time.time()
-        if (
-            self.__auto_refresh_enabled
-            and now > self.__auto_refresh_last_time + _AUTO_REFRESH_INTERVAL_SECONDS
-        ):
-            self.__auto_refresh_last_time = now
+    def on_timeout(self):
+        if self.__auto_refresh_enabled:
             self.__refresh_windows()
 
     def on_escape_pressed(self):

@@ -1,7 +1,6 @@
 import argparse
 import os
 import sys
-import time
 from datetime import datetime
 from typing import Any, Dict, List, Literal, NotRequired, Optional, TypedDict
 
@@ -75,9 +74,12 @@ class TodoMenu(ListEditMenu[TodoItem]):
         self,
         data_file: str,
     ):
-        self.__last_tick = 0.0
-
-        super().__init__(prompt="todo", json_file=data_file, backup_json=True)
+        super().__init__(
+            prompt="todo",
+            json_file=data_file,
+            backup_json=True,
+            timeout_sec=1.0,
+        )
 
         self.__sort_tasks()
 
@@ -157,11 +159,8 @@ class TodoMenu(ListEditMenu[TodoItem]):
         if selected:
             self.__edit_todo_item(selected)
 
-    def on_idle(self):
-        now = time.time()
-        if now > self.__last_tick + 1.0:
-            self.__last_tick = now
-            self.__reload()
+    def on_timeout(self):
+        self.__reload()
 
     def __reload_and_sort(self):
         self.__reload(force_sort=True)

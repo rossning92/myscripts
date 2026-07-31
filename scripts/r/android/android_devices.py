@@ -280,7 +280,9 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
         )
         self.__fastboot_update_thread.start()
 
-        super().__init__(items=self.__devices, prompt="devices")
+        super().__init__(
+            items=self.__devices, prompt="devices", timeout_sec=1.0
+        )
 
         self.add_command(self.__toggle_sleep, hotkey="alt+s")
 
@@ -340,7 +342,7 @@ class DeviceSelectMenu(Menu[DeviceInfo]):
 
         threading.Thread(target=do_toggle, daemon=True).start()
 
-    def on_idle(self):
+    def on_timeout(self):
         self.update_screen()
 
 

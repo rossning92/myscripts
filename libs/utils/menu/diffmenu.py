@@ -214,27 +214,33 @@ class DiffMenu(TextMenu):
         return lines
 
     def __refresh(self):
-        if self.__refresh_thread and self.__refresh_thread.is_alive():
+        if self.__refresh_thread is not None:
             return
         self.__last_refresh_time = time.monotonic()
+        lines: Optional[List[str]] = None
 
         def worker():
+            nonlocal lines
             lines = self.__generate_diff_lines()
-            self.post_event(lambda: self.__apply_refresh(lines))
 
         self.set_message("refreshing...")
         self.__refresh_thread = threading.Thread(target=worker, daemon=True)
         self.__refresh_thread.start()
+        while self.__refresh_thread.is_alive():
+            self.process_events(timeout_sec=0.1)
 
-    def __apply_refresh(self, lines: List[str]):
-        self.__diff_lines = [strip_ansi(line) for line in lines]
-        self.items[:] = lines
-        self.set_message("refreshed")
+        self.__refresh_thread.join()
+        self.__refresh_thread = None
+        if lines is not None:
+            self.__diff_lines = [strip_ansi(line) for line in lines]
+            self.items[:] = lines
+            self.set_message("refreshed")
 
-    def on_idle(self):
+    def on_main_loop(self):
+        if self.__refresh_thread is not None:
+            return
         if time.monotonic() - self.__last_refresh_time >= 5:
             self.__refresh()
-
 
     def __is_working_tree_diff(self) -> bool:
         if self.__files is not None or self.__diff_cmd is not None:
