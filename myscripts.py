@@ -136,6 +136,15 @@ class EditVariableMenu(DictEditMenu):
             if file_path is not None:
                 self.set_dict_value(key, file_path)
 
+    def on_enter_pressed(self):
+        key = self.get_selected_key()
+        if key is not None and re.search(r"(?:^|_)FILE(?:_|$)", key):
+            self.__select_file()
+        elif key is not None and re.search(r"(?:^|_)DIR(?:_|$)", key):
+            self.__select_directory()
+        else:
+            super().on_enter_pressed()
+
     def on_dict_update(self, d: Dict):
         update_variables(d)
 

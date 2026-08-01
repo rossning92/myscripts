@@ -614,7 +614,7 @@ class Menu(Generic[T]):
         if enable_command_palette:
             self.add_command(self.__ai_agent, hotkey="alt+i", name="ask ai agent")
             self.add_command(self.__command_palette, hotkey="ctrl+p")
-            self.add_command(self.__edit_text_in_external_editor, hotkey="ctrl+e")
+            self.add_command(self.__edit_prompt_in_external_editor, hotkey="ctrl+e")
             self.add_command(self.__goto, hotkey="ctrl+g")
             self.add_command(self.__logs, hotkey="alt+l")
             self.add_command(self.__prev_search_history, hotkey="alt+u")
@@ -1324,7 +1324,9 @@ class Menu(Generic[T]):
                 self.__trigger_hotkey("alt+enter")
 
             elif ch == "\x1b":  # escape key
-                if ENABLE_VIM_MODE and self.__vim_mode != VimMode.NORMAL:
+                if self.clear_input():
+                    pass
+                elif ENABLE_VIM_MODE and self.__vim_mode != VimMode.NORMAL:
                     self._set_vim_mode(VimMode.NORMAL)
                     self.set_message("Esc again to close")
                 else:
@@ -2085,7 +2087,7 @@ class Menu(Generic[T]):
         logging.info(f"set_message: {message}")
         self.update_screen()
 
-    def __edit_text_in_external_editor(self):
+    def __edit_prompt_in_external_editor(self):
         text = self.__input.text
         new_text = self.run_raw(lambda: edit_text(text))
         self.set_input(new_text)

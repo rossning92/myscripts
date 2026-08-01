@@ -40,6 +40,9 @@ install_fdroid() {
     rm "/tmp/$pkg.apk"
 }
 
+echo 'Install F-Droid...'
+install_fdroid org.fdroid.fdroid
+
 echo 'Install AVNC...'
 install_fdroid com.gaurav.avnc
 

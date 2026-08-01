@@ -4,5 +4,6 @@
   "hotkey": "space space",
   "matchClipboard": "[^\\\\]*\\.(jpg|jpeg|png|txt)$",
   "singleInstance": false,
-  "title": "coder"
+  "title": "coder",
+  "tmuxHotkey": "k"
 }

@@ -1,9 +1,10 @@
+from collections import defaultdict
 import os
 import shlex
 import shutil
 import subprocess
 import sys
-from typing import Iterable
+from typing import Iterable, Sequence
 
 
 MYSCRIPTS_HOTKEY_OPTION = "@myscripts-tmux-hotkeys"
@@ -30,10 +31,56 @@ def has_tmux_session() -> bool:
     return result.returncode == 0 and bool(result.stdout.strip())
 
 
+def _script_command(script: object) -> str:
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    start_script = os.path.join(root, "bin", "start_script.py")
+    start_command = shlex.join(
+        [
+            sys.executable,
+            start_script,
+            "--restart-instance=auto",
+            script.script_path,
+        ]
+    )
+    select_command = shlex.join(
+        ["tmux", "select-window", "-t", f"={script.get_window_title()}"]
+    )
+    return f"{select_command} 2>/dev/null || {start_command}"
+
+
+def _bind_tmux_hotkey(key: str, scripts: Sequence[object]) -> None:
+    if len(scripts) == 1:
+        subprocess.check_call(
+            ["tmux", "bind-key", key, "run-shell", _script_command(scripts[0])]
+        )
+        return
+
+    menu_args = ["tmux", "bind-key", key, "display-menu", "-T", "Select script"]
+    for index, script in enumerate(scripts, start=1):
+        menu_hotkey = str(index) if index < 10 else "0" if index == 10 else ""
+        menu_args.extend(
+            [
+                script.name,
+                menu_hotkey,
+                f"run-shell {shlex.quote(_script_command(script))}",
+            ]
+        )
+    subprocess.check_call(menu_args)
+
+
 def register_tmux_hotkeys(scripts: Iterable[object]) -> None:
     """Replace runtime tmux bindings owned by myscripts."""
     if not is_in_tmux() or not is_tmux_installed():
         return
+
+    scripts_by_key = defaultdict(list)
+    for script in scripts:
+        key = script.cfg["tmuxHotkey"]
+        if not key or not script.is_supported():
+            continue
+        if any(char.isspace() for char in key):
+            raise ValueError(f"tmuxHotkey must be a single tmux key: {key!r}")
+        scripts_by_key[key].append(script)
 
     previous = subprocess.run(
         ["tmux", "show-option", "-gv", MYSCRIPTS_HOTKEY_OPTION],
@@ -49,31 +96,15 @@ def register_tmux_hotkeys(scripts: Iterable[object]) -> None:
                 stderr=subprocess.DEVNULL,
             )
 
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    start_script = os.path.join(root, "bin", "start_script.py")
-    registered = []
-    for script in scripts:
-        key = script.cfg["tmuxHotkey"]
-        if not key or not script.is_supported():
-            continue
-        if any(char.isspace() for char in key):
-            raise ValueError(f"tmuxHotkey must be a single tmux key: {key!r}")
-
-        start_command = shlex.join(
-            [
-                sys.executable,
-                start_script,
-                "--restart-instance=auto",
-                script.script_path,
-            ]
-        )
-        select_command = shlex.join(
-            ["tmux", "select-window", "-t", f"={script.get_window_title()}"]
-        )
-        command = f"{select_command} 2>/dev/null || {start_command}"
-        subprocess.check_call(["tmux", "bind-key", key, "run-shell", command])
-        registered.append(key)
+    for key, matching_scripts in scripts_by_key.items():
+        _bind_tmux_hotkey(key, matching_scripts)
 
     subprocess.check_call(
-        ["tmux", "set-option", "-g", MYSCRIPTS_HOTKEY_OPTION, " ".join(registered)]
+        [
+            "tmux",
+            "set-option",
+            "-g",
+            MYSCRIPTS_HOTKEY_OPTION,
+            " ".join(scripts_by_key),
+        ]
     )

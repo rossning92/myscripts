@@ -213,6 +213,10 @@ class FileMenu(Menu[_File]):
         super().on_created()
         self._refresh_cur_dir()
 
+    def on_focus_gained(self):
+        super().on_focus_gained()
+        self._refresh_cur_dir()
+
     def get_item_color(self, item: _File) -> str:
         if item.name.startswith("."):
             return "darkgray"
