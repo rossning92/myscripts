@@ -253,8 +253,13 @@ class FileMenu(Menu[_File]):
     def get_cur_dir(self) -> str:
         return self.__config.cur_dir
 
+    def _submenu_prompt(self, prompt: str) -> str:
+        return f"{self.__prompt} > {prompt}" if self.__prompt else prompt
+
     def _create_new_dir(self):
-        new_dir_name = InputMenu(prompt="create directory").request_input()
+        new_dir_name = InputMenu(
+            prompt=self._submenu_prompt("create directory")
+        ).request_input()
         if new_dir_name:
             current_dir = self.get_cur_dir()
             new_dir_path = os.path.join(current_dir, new_dir_name)
@@ -302,7 +307,7 @@ class FileMenu(Menu[_File]):
                 question = f'Delete "{files[0]}"?'
             else:
                 question = f"Delete {len(files)} files?"
-            if confirm(question, prompt_color="red"):
+            if confirm(self._submenu_prompt(question), prompt_color="red"):
                 for file_full_path in files:
                     try:
                         if os.path.isdir(file_full_path):
@@ -331,8 +336,7 @@ class FileMenu(Menu[_File]):
                     if self.__last_copy_to_path is not None
                     else self.get_cur_dir()
                 ),
-                prompt="copy to" if copy else "move to",
-                prompt_color="green",
+                prompt=self._submenu_prompt("copy to" if copy else "move to"),
                 config=self.__config,
             )
             dest_dir = filemgr.select_directory()
@@ -352,7 +356,9 @@ class FileMenu(Menu[_File]):
                             os.path.join(dest_dir, os.path.basename(src))
                         ):
                             if confirm(
-                                f'"{os.path.basename(src)}" already exists in "{dest_dir}". Overwrite?'
+                                filemgr._submenu_prompt(
+                                    f'"{os.path.basename(src)}" already exists in "{dest_dir}". Overwrite?'
+                                )
                             ):
                                 should_copy_or_move = True
                             else:
@@ -417,14 +423,16 @@ class FileMenu(Menu[_File]):
             default_name = f"{name}_copy{ext}"
 
             new_name = InputMenu(
-                prompt="duplicate as", text=default_name
+                prompt=self._submenu_prompt("duplicate as"), text=default_name
             ).request_input()
             if not new_name:
                 return
 
             dest = os.path.abspath(os.path.join(self.get_cur_dir(), new_name))
             if os.path.exists(dest):
-                if not confirm(f'"{new_name}" already exists. Overwrite?'):
+                if not confirm(
+                    self._submenu_prompt(f'"{new_name}" already exists. Overwrite?')
+                ):
                     return
 
             try:
@@ -439,7 +447,9 @@ class FileMenu(Menu[_File]):
     def _rename_file(self):
         selected = self.get_selected_item()
         if selected:
-            new_name = InputMenu(prompt="rename", text=selected.name).request_input()
+            new_name = InputMenu(
+                prompt=self._submenu_prompt("rename"), text=selected.name
+            ).request_input()
             if not new_name:
                 return
 
@@ -454,7 +464,7 @@ class FileMenu(Menu[_File]):
     def _goto_dir(self):
         path = InputMenu(
             items=self.__config.path_history,
-            prompt="goto",
+            prompt=self._submenu_prompt("goto"),
             return_selection_if_empty=True,
             item_hotkey={
                 get_download_dir(): "ctrl+d",
@@ -744,6 +754,8 @@ class FileMenu(Menu[_File]):
                     [
                         sys.executable,
                         myscripts_path,
+                        "--prompt",
+                        self._submenu_prompt("open with"),
                         "--args",
                     ]
                     + files,

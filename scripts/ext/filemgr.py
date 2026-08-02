@@ -18,9 +18,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    prompt = "file manager"
+    prompt = "filemgr"
     if args.prompt:
-        prompt = f"{prompt} {args.prompt}"
+        prompt = f"{prompt} > {args.prompt}"
 
     FileMenu(
         goto=args.dir,

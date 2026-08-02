@@ -33,7 +33,9 @@ codex_args=(
 
 if [[ "${1:-}" == "--context" ]]; then
     [[ -n "${2+x}" ]] || { echo "--context requires a value" >&2; exit 2; }
-    codex_args+=(-c "developer_instructions=$2")
+    if [[ -n "$2" ]]; then
+        codex_args+=(-c "developer_instructions=$2")
+    fi
     shift 2
 fi
 

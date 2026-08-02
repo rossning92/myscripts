@@ -4,4 +4,4 @@ if [ ! -f ~/.ssh/id_rsa.pub ]; then
 fi
 
 echo 'Copying SSH public key to remote server...'
-ssh-copy-id -o StrictHostKeyChecking=no -p {{SSH_PORT}} {{SSH_USER}}@{{SSH_HOST}}
+ssh-copy-id -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SSH_HOST

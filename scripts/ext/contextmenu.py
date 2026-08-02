@@ -53,13 +53,15 @@ class ContextMenu(Menu[_MatchedScript]):
             **kwargs,
         )
 
-    def on_item_selected(self, item: _MatchedScript):
-        script = Script(item.path)
-        script.execute(args=[item.match], cd=False)
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("param", type=str)
     args = parser.parse_args()
-    ContextMenu(param=args.param).exec()
+
+    menu = ContextMenu(param=args.param)
+    menu.exec()
+
+    selected_script = menu.get_selected_item()
+    if selected_script is not None:
+        script = Script(selected_script.path)
+        script.execute(args=[selected_script.match], cd=False)

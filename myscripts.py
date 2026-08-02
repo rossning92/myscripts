@@ -838,7 +838,7 @@ def _main():
             script_manager=script_manager,
             out_to_file=args.out_to_file,
             prompt=(
-                "open with"
+                (args.prompt or "open with")
                 if open_with_script
                 else ("run script" if run_script_and_quit else args.prompt)
             ),

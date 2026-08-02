@@ -240,7 +240,7 @@ def _match_regex(item: Any, patt: str) -> bool:
 
 
 def _match(item: Any, patt: str, fuzzy_match: bool, index: int) -> bool:
-    if patt[:1] == ":" and patt[1:].isdigit():
+    if patt.isascii() and patt.isdigit():
         return int(patt) == index + 1
     elif fuzzy_match:
         return _match_fuzzy(item, patt)
