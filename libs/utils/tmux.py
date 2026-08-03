@@ -48,6 +48,10 @@ def _script_command(script: object) -> str:
     return f"{select_command} 2>/dev/null || {start_command}"
 
 
+def _script_menu_name(script: object) -> str:
+    return os.path.basename(script.name)
+
+
 def _bind_tmux_hotkey(key: str, scripts: Sequence[object]) -> None:
     if len(scripts) == 1:
         subprocess.check_call(
@@ -56,11 +60,15 @@ def _bind_tmux_hotkey(key: str, scripts: Sequence[object]) -> None:
         return
 
     menu_args = ["tmux", "bind-key", key, "display-menu", "-T", "Select script"]
-    for index, script in enumerate(scripts, start=1):
+    menu_scripts = sorted(
+        ((_script_menu_name(script), script) for script in scripts),
+        key=lambda item: (item[0].casefold(), item[0], item[1].script_path),
+    )
+    for index, (menu_name, script) in enumerate(menu_scripts, start=1):
         menu_hotkey = str(index) if index < 10 else "0" if index == 10 else ""
         menu_args.extend(
             [
-                script.name,
+                menu_name,
                 menu_hotkey,
                 f"run-shell {shlex.quote(_script_command(script))}",
             ]

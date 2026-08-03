@@ -1441,7 +1441,9 @@ class Script:
                             [
                                 "tmux",
                                 "new-window",
-                                "-a",  # Insert window after the current window
+                                "-b",  # Insert before the first window
+                                "-t",
+                                ":1",
                                 "-n",
                                 self.get_window_title(),
                             ]

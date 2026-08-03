@@ -1,8 +1,7 @@
 local awful = require("awful")
-local wibox = require("wibox")
 local watch = require("awful.widget.watch")
 local spawn = require("awful.spawn")
-local beautiful = require("beautiful")
+local status_widget = require("status-widget")
 
 local get_brightness_cmd
 local set_brightness_cmd
@@ -14,8 +13,6 @@ local brightness_widget = {}
 local function worker(user_args)
     local args = user_args or {}
 
-    local icon = '󰃠'
-    local font = args.font or beautiful.font
     local timeout = args.timeout or 100
 
     local step = args.step or 5
@@ -30,18 +27,15 @@ local function worker(user_args)
     inc_brightness_cmd = "brightnessctl set +" .. step .. "%"
     dec_brightness_cmd = "brightnessctl set " .. step .. "-%"
 
-    brightness_widget.widget = wibox.widget {
-        id = 'txt',
-        font = font,
-        widget = wibox.widget.textbox,
-        set_value = function(self, level)
-            local display_level = level
-            if percentage then
-                display_level = display_level .. '%'
-            end
-            self:set_text(icon .. display_level .. " ")
+    local widget, text = status_widget.new("brightness-6")
+    function widget:set_value(level)
+        local display_level = level
+        if percentage then
+            display_level = display_level .. '%'
         end
-    }
+        text:set_text(display_level)
+    end
+    brightness_widget.widget = widget
 
     local update_widget = function(widget, stdout, _, _, _)
         local brightness_level = tonumber(string.format("%.0f", stdout))

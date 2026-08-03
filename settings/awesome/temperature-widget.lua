@@ -1,11 +1,10 @@
 local gears = require("gears")
 local awful = require("awful")
+local status_widget = require("status-widget")
 
 local widget = {}
 
 local function worker()
-    local icon = "";
-
     local temp_paths = {
         "/sys/class/thermal/thermal_zone0/temp", -- For Intel CPUs
         "/sys/class/hwmon/hwmon1/temp1_input"    -- For AMD CPUs
@@ -20,14 +19,17 @@ local function worker()
     end
 
     if temp_path then
-        widget = awful.widget.watch(
+        local container, text = status_widget.new("thermometer")
+        local _, timer = awful.widget.watch(
             "cat " .. temp_path,
             10,
-            function(widget, stdout)
+            function(_, stdout)
                 local temp = math.floor(tonumber(stdout) / 1000)
-                widget:set_text(icon .. tostring(temp) .. "°C ")
+                text:set_text(tostring(temp) .. "°C")
             end
         )
+        container.temperature_timer = timer
+        widget = container
     end
 
     return widget

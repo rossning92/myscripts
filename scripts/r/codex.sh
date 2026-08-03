@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+title_hook_path="$script_dir/codex_terminal_title_hook.py"
+
+# Sessions launched before the hook was split out still call this entry point.
+if [[ "${1:-}" == "--terminal-title-hook" ]]; then
+    shift
+    exec python "$title_hook_path" "$@"
+fi
+
+cd "$script_dir/../.."
 
 if [[ -n "${CODEX_PROJECT_DIR:-}" ]]; then
-    cd "$CODEX_PROJECT_DIR" || exit
+    cd "$CODEX_PROJECT_DIR"
 fi
 
 if ! command -v codex >/dev/null 2>&1; then
-    npm install -g @openai/codex || exit
+    npm install -g @openai/codex
 fi
 
 is_termux_proot_distro() {
@@ -25,10 +35,23 @@ fi
 
 codex_args=(
     "${sandbox_args[@]}"
-    -c 'tui.terminal_title=["spinner","app-name","project"]'
+    -c 'tui.terminal_title=[]'
     -c 'tui.status_line=["context-used","weekly-limit"]'
     -c 'tui.show_tooltips=false'
     -c 'check_for_update_on_startup=false'
+)
+
+hook_command_toml() {
+    python -c 'import json, shlex, sys; print(json.dumps(shlex.join(sys.argv[1:])))' \
+        python "$title_hook_path" "$1"
+}
+
+working_hook_toml="$(hook_command_toml '⧗')"
+ready_hook_toml="$(hook_command_toml '✓')"
+codex_args+=(
+    -c 'features.hooks=true'
+    -c "hooks.UserPromptSubmit=[{hooks=[{type=\"command\",command=$working_hook_toml,timeout=5}]}]"
+    -c "hooks.Stop=[{hooks=[{type=\"command\",command=$ready_hook_toml,timeout=5}]}]"
 )
 
 if [[ "${1:-}" == "--context" ]]; then
@@ -38,5 +61,9 @@ if [[ "${1:-}" == "--context" ]]; then
     fi
     shift 2
 fi
+
+# The hooks do not run until the first prompt is submitted, so provide a useful
+# title while Codex is initially idle.
+{ printf '\033]0;Codex\007' > /dev/tty; } 2>/dev/null || true
 
 exec codex "${codex_args[@]}" "$@"

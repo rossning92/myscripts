@@ -16,7 +16,6 @@ MODELS = [
     "local_llm",
     "openrouter:x-ai/grok-4.5",
     "openrouter:x-ai/grok-imagine-image-quality",
-    "openrouter:deepseek/deepseek-v4-pro",
     "openrouter:openai/gpt-image-2",
     "deepseek-v4-flash",
     "deepseek-v4-pro",

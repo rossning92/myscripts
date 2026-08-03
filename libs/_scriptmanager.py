@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -10,10 +11,10 @@ import time
 from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple
 
 from _script import (
+    Script,
     execute_script_autorun,
     get_all_script_access_time,
     get_all_scripts,
-    Script,
 )
 from _shutil import get_ahk_exe, get_selected_files, pause, refresh_env_vars
 from utils.jsonutil import load_json, save_json
@@ -24,6 +25,45 @@ from utils.term import clear_terminal
 from utils.tmux import register_tmux_hotkeys
 
 MYSCRIPT_GLOBAL_HOTKEY = os.path.join(get_data_dir(), "GlobalHotkey.ahk")
+
+
+def _linux_scripts_by_hotkey(scripts: List[Script]):
+    hotkeys: Dict[str, List[Script]] = {}
+    for script in scripts:
+        hotkey = script.cfg["globalHotkey"]
+        if hotkey and script.is_supported():
+            # Hotkey names are case insensitive on both supported Linux backends.
+            hotkeys.setdefault(hotkey.lower(), []).append(script)
+    return hotkeys
+
+
+def _linux_hotkey_command(scripts: List[Script], sway: bool = False) -> str:
+    root = get_my_script_root()
+    if len(scripts) > 1:
+        chooser = shlex.join(
+            [
+                sys.executable,
+                os.path.join(root, "bin", "select_hotkey_script.py"),
+                *(script.script_path for script in scripts),
+            ]
+        )
+        return f"alacritty -e {chooser}"
+
+    script = scripts[0]
+    title = script.get_window_title()
+    start = shlex.join(
+        [
+            sys.executable,
+            os.path.join(root, "bin", "start_script.py"),
+            "--restart-instance=auto",
+            script.script_path,
+        ]
+    )
+    if sway:
+        focus = shlex.join(["swaymsg", f'[title="{title}"] focus'])
+    else:
+        focus = f"wmctrl -a {shlex.quote(title)}"
+    return f"{focus} || {start}"
 
 
 def add_keyboard_hooks(keyboard_hooks):
@@ -59,21 +99,11 @@ def register_global_hotkeys_sxhkd(scripts: List[Script]):
         hotkey = f_key_pattern.sub(r"F\1", hotkey)
         return hotkey
 
-    for script in scripts:
-        hotkey_chain = script.cfg["globalHotkey"]
-        if hotkey_chain and script.is_supported():
-            hotkey_def = ";".join(
-                [replace_hotkey(hotkey.lower()) for hotkey in hotkey_chain.split()]
-            )
-            s += "{}\n".format(hotkey_def)
-            title = script.get_window_title()
-            s += (
-                f"  wmctrl -a '{title}'"
-                f" || python3"
-                f" {get_my_script_root()}/bin/start_script.py"
-                " --restart-instance=auto"
-                f" {script.script_path}\n\n"
-            )
+    for hotkey_chain, matching_scripts in _linux_scripts_by_hotkey(scripts).items():
+        hotkey_def = ";".join(
+            [replace_hotkey(hotkey) for hotkey in hotkey_chain.split()]
+        )
+        s += f"{hotkey_def}\n  {_linux_hotkey_command(matching_scripts)}\n\n"
 
     with open(os.path.expanduser("~/.sxhkdrc"), "w") as f:
         f.write(s)
@@ -100,39 +130,31 @@ def register_global_hotkeys_sway(scripts: List[Script]):
             hotkey = hotkey.replace(key, value)
         return hotkey
 
-    for script in scripts:
-        hotkey_chain = script.cfg["globalHotkey"]
-        if hotkey_chain and script.is_supported():
-            hotkey_chain_arr = [
-                replace_hotkey(hotkey.lower()) for hotkey in hotkey_chain.split()
-            ]
+    for hotkey_chain, matching_scripts in _linux_scripts_by_hotkey(scripts).items():
+        hotkey_chain_arr = [replace_hotkey(hotkey) for hotkey in hotkey_chain.split()]
 
-            if len(hotkey_chain_arr) == 1:
-                logging.info(
-                    f"Register global hotkey '{hotkey_chain_arr[0]}' for script '{script.name}'"
+        if len(hotkey_chain_arr) == 1:
+            logging.info(
+                f"Register global hotkey '{hotkey_chain_arr[0]}' for "
+                f"{len(matching_scripts)} script(s)"
+            )
+            exec_cmd = _linux_hotkey_command(matching_scripts, sway=True)
+            args = [
+                "sway",
+                "bindsym",
+                hotkey_chain_arr[0],
+                "exec",
+                exec_cmd,
+            ]
+            out = subprocess.check_output(args)
+            if not json.loads(out)[0]["success"]:
+                raise RuntimeError(
+                    f"Failed to register hotkey {hotkey_chain!r}: {str(out)}"
                 )
-                title = script.get_window_title()
-                exec_cmd = (
-                    f"swaymsg '[title=\"{title}\"] focus'"
-                    f" || python3 {get_my_script_root()}/bin/start_script.py"
-                    f" --restart-instance=auto {script.script_path}"
-                )
-                args = [
-                    "sway",
-                    "bindsym",
-                    hotkey_chain_arr[0],
-                    "exec",
-                    exec_cmd,
-                ]
-                out = subprocess.check_output(args)
-                if not json.loads(out)[0]["success"]:
-                    raise RuntimeError(
-                        f"Failed to register hotkey: {str(out)} for script: {script.name}"
-                    )
-            else:
-                logging.warning(
-                    f"Hotkey chain '{hotkey_chain}' is not supported on sway, only single hotkey is supported."
-                )
+        else:
+            logging.warning(
+                f"Hotkey chain '{hotkey_chain}' is not supported on sway, only single hotkey is supported."
+            )
 
 
 def register_global_hotkeys_linux(scripts: List[Script]):

@@ -45,6 +45,7 @@
     var annots = [];
     var editingId = null;
     var editingNew = false; // true while the edited annotation is unsaved (drives discard-on-cancel)
+    var selectionTimer = null;
     var els = {};
 
     function storageKey() {
@@ -105,6 +106,9 @@
 
     // idx/end are offsets into the concatenated text of `nodes`; a selection can
     // span several nodes, so wrap each node's overlapping slice separately.
+    // Keep line-break characters outside the inline marks. In a pre-wrap view,
+    // putting newlines inside an inline element can change line-box layout and
+    // make a multiline annotation appear to add blank lines.
     function wrapSpan(nodes, idx, end, a) {
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i].node;
@@ -112,16 +116,32 @@
             var s = Math.max(idx, ns);
             var e = Math.min(end, ns + node.nodeValue.length);
             if (s >= e) continue;
-            var r = document.createRange();
-            r.setStart(node, s - ns);
-            r.setEnd(node, e - ns);
-            var m = document.createElement("mark");
-            m.className = "ropen-annot";
-            m.dataset.id = a.id;
-            m.title = a.note || "(no note)";
-            try {
-                r.surroundContents(m);
-            } catch (err) {}
+
+            var from = s - ns;
+            var to = e - ns;
+            var parts = [];
+            var re = /[^\r\n]+/g;
+            var match;
+            while ((match = re.exec(node.nodeValue))) {
+                var partStart = Math.max(from, match.index);
+                var partEnd = Math.min(to, match.index + match[0].length);
+                if (partStart < partEnd) parts.push({ start: partStart, end: partEnd });
+            }
+
+            // Work backwards so splitting the text node does not invalidate the
+            // offsets of portions that still need to be wrapped.
+            for (var j = parts.length - 1; j >= 0; j--) {
+                var r = document.createRange();
+                r.setStart(node, parts[j].start);
+                r.setEnd(node, parts[j].end);
+                var m = document.createElement("mark");
+                m.className = "ropen-annot";
+                m.dataset.id = a.id;
+                m.title = a.note || "(no note)";
+                try {
+                    r.surroundContents(m);
+                } catch (err) {}
+            }
         }
     }
 
@@ -185,7 +205,18 @@
         var anc = range.commonAncestorContainer;
         var node = anc.nodeType === 1 ? anc : anc.parentElement;
         if (!node || !container.contains(node)) return null;
-        return { text: text, rect: range.getBoundingClientRect() };
+        return { text: text, rect: lastClientRect(range) };
+    }
+
+    // A range/inline element can have one client rect per rendered line. Anchor
+    // the dialog to the final fragment instead of the bounding box (or first
+    // generated mark), so a multiline selection opens beside its last line.
+    function lastClientRect(target) {
+        var rects = target.getClientRects();
+        for (var i = rects.length - 1; i >= 0; i--) {
+            if (rects[i].width || rects[i].height) return rects[i];
+        }
+        return target.getBoundingClientRect();
     }
 
     function onSelectionDone() {
@@ -198,8 +229,9 @@
         annots.push(a);
         window.getSelection().removeAllRanges();
         applyHighlights();
-        var mark = container.querySelector('mark.ropen-annot[data-id="' + a.id + '"]');
-        openPopup(a, mark ? mark.getBoundingClientRect() : sel.rect, true);
+        var marks = container.querySelectorAll('mark.ropen-annot[data-id="' + a.id + '"]');
+        var mark = marks.length ? marks[marks.length - 1] : null;
+        openPopup(a, mark ? lastClientRect(mark) : sel.rect, true);
     }
 
     function openPopup(a, rect, isNew) {
@@ -319,8 +351,10 @@
         els.cancel.onclick = cancelPopup;
         els.del.onclick = removeCurrent;
 
-        document.addEventListener("mouseup", function () {
-            setTimeout(onSelectionDone, 0);
+        // Selection handles emit intermediate ranges while they are being adjusted.
+        document.addEventListener("selectionchange", function () {
+            clearTimeout(selectionTimer);
+            selectionTimer = setTimeout(onSelectionDone, 1000);
         });
         // Keep clicks on the dialog buttons from stealing focus from the input,
         // so they don't trip the blur-to-cancel below.

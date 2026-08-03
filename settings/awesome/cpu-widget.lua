@@ -1,15 +1,16 @@
 local awful = require("awful")
+local status_widget = require("status-widget")
 
 local cpu_widget = {}
 local prev_total = 0
 local prev_idle = 0
 
 local function worker()
-    local icon = '';
-    cpu_widget = awful.widget.watch(
+    local widget, text = status_widget.new("cpu-64-bit")
+    local _, timer = awful.widget.watch(
         'cat /proc/stat',
         1,
-        function(widget, stdout)
+        function(_, stdout)
             local cpu_line = stdout:match("cpu%s+(.-)\n")
             if cpu_line then
                 local user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice = cpu_line:match(
@@ -21,7 +22,7 @@ local function worker()
                     local diff_idle = idle_sum - prev_idle
                     if diff_total > 0 then
                         local usage = math.floor(((diff_total - diff_idle) / diff_total) * 100 + 0.5)
-                        widget:set_text(icon .. usage .. "% ")
+                        text:set_text(usage .. "%")
                     end
                     prev_total = total
                     prev_idle = idle_sum
@@ -30,7 +31,8 @@ local function worker()
         end
     )
 
-    return cpu_widget
+    widget.cpu_timer = timer
+    return widget
 end
 
 return setmetatable(cpu_widget, {

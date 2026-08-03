@@ -1,23 +1,25 @@
 local awful = require("awful")
+local status_widget = require("status-widget")
 
 local memory_widget = {}
 
 local function worker()
-    local icon = "";
-    memory_widget = awful.widget.watch(
+    local widget, text = status_widget.new("memory")
+    local _, timer = awful.widget.watch(
         'free -h',
         1,
-        function(widget, stdout)
+        function(_, stdout)
             local total, used = stdout:match("Mem:%s+(%S+)%s+(%S+)")
             if total and used then
                 local formatted_used = used:gsub("Gi", "")
                 local formatted_total = total:gsub("Gi", "G")
-                widget:set_text(icon .. formatted_used .. "/" .. formatted_total .. " ")
+                text:set_text(formatted_used .. "/" .. formatted_total)
             end
         end
     )
 
-    return memory_widget
+    widget.memory_timer = timer
+    return widget
 end
 
 return setmetatable(memory_widget, {

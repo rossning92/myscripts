@@ -1,30 +1,29 @@
 local awful = require("awful")
-local wibox = require("wibox")
+local status_widget = require("status-widget")
 
 local Volume = { mt = {}, wmt = {} }
 Volume.wmt.__index = Volume
 Volume.__index = Volume
 
 function Volume:new(args)
-    local icon = ""
-
     local obj = setmetatable({}, Volume)
     obj.step = args.step or 10
 
-    local volume_text_widget, volume_text_timer = awful.widget.watch(
+    local widget, text = status_widget.new("volume-high")
+    local _, volume_text_timer = awful.widget.watch(
         "pactl get-sink-volume @DEFAULT_SINK@", 5,
-        function(widget, stdout)
+        function(_, stdout)
             local volume = stdout:match("(%d+)%%")
             if volume then
-                widget:set_text(icon .. volume .. "% ")
+                text:set_text(volume .. "%")
                 return
             end
         end,
-        wibox.widget.textbox()
+        text
     )
     obj.volume_text_timer = volume_text_timer
 
-    obj.widget = volume_text_widget
+    obj.widget = widget
 
     return obj
 end

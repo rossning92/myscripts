@@ -1,5 +1,5 @@
 local awful = require("awful")
-local wibox = require("wibox")
+local status_widget = require("status-widget")
 
 local gpu_widget = {}
 
@@ -8,7 +8,7 @@ local function worker()
         return nil
     end
 
-    local widget = wibox.widget.textbox()
+    local widget, text = status_widget.new("expansion-card")
     local icon = "󰢮";
 
     -- `-l 1` reports GPU data every 1 second
@@ -16,7 +16,7 @@ local function worker()
         stdout = function(line)
             local utilization = line:match("(%d+)")
             if utilization then
-                widget:set_text(icon .. utilization .. "% ")
+                text:set_text(utilization .. "%")
             end
         end
     })

@@ -49,9 +49,6 @@ class WindowItem:
             if any(s in self.title for s in symbols):
                 return status
 
-        if "codex" in self.title.lower():
-            return "done"
-
         title = self.title.split(TITLE_DIVIDER)[0]
         val = script_status.get(title, "normal")
         if val in _WINDOW_STATUS_PRIORITY:
@@ -391,8 +388,21 @@ def get_windows(
 def activate_window(win_id) -> Optional[str]:
     if isinstance(win_id, str) and win_id.startswith("tmux:"):
         target = win_id[len("tmux:") :]
+        session, _, window_index = target.rpartition(":")
+
+        if window_index != "1":
+            cp = subprocess.run(
+                ["tmux", "move-window", "-b", "-s", target, "-t", f"{session}:1"],
+                capture_output=True,
+                text=True,
+            )
+            if cp.returncode != 0:
+                return cp.stderr.splitlines()[0] if cp.stderr else "Error"
+
         cp = subprocess.run(
-            ["tmux", "select-window", "-t", target], capture_output=True, text=True
+            ["tmux", "select-window", "-t", f"{session}:1"],
+            capture_output=True,
+            text=True,
         )
         if cp.returncode != 0:
             return cp.stderr.splitlines()[0] if cp.stderr else "Error"

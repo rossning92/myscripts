@@ -809,17 +809,16 @@ class Menu(Generic[T]):
         return command
 
     def get_hotkey_bar(self) -> str:
-        # Build the hotkey bar (e.g. "--- [^a]diff all [!c]commit ---") from
-        # commands registered with pinned=True. Underscores in the command name
-        # are rendered as spaces.
+        # Build the hotkey bar (e.g. "^a diff all !c commit") from commands
+        # registered with pinned=True. Hotkeys are cyan and bold, and
+        # underscores in the command name are rendered as spaces.
         parts = [
-            f"[{get_hotkey_abbr(cmd.hotkey)}]{cmd.name.replace('_', ' ')}"
+            "\x1b[1;36m%s\x1b[22;39m %s"
+            % (get_hotkey_abbr(cmd.hotkey), cmd.name.replace("_", " "))
             for cmd in self.__custom_commands
             if cmd.pinned and cmd.hotkey is not None
         ]
-        if not parts:
-            return ""
-        return "--- " + " ".join(parts) + " ---"
+        return " ".join(parts)
 
     def delete_commands_if(self, condition: Callable[[_Command], bool]):
         for cmd in self.__custom_commands[:]:  # Iterate over a copy of the list
@@ -1630,14 +1629,14 @@ class Menu(Generic[T]):
                 f'row should be smaller than ymax, but row={row} yamx={ymax} s="{s}"'
             )
 
-        default_attr = curses.A_NORMAL
+        default_attr = Menu._get_color_pair(fg, bg) | curses.A_NORMAL
         if bold:
             default_attr |= curses.A_BOLD
         if dim:
             default_attr |= curses.A_DIM
         if reverse:
             default_attr |= curses.A_REVERSE
-        attr = Menu._get_color_pair(fg, bg) | default_attr
+        attr = default_attr
 
         # Draw left arrow
         if scroll_x > 0:
@@ -1809,7 +1808,7 @@ class Menu(Generic[T]):
 
         if self.__line_number and len(item_indices) > 0:
             if self.__quick_select:
-                line_number_width = 3
+                line_number_width = 1
             else:
                 line_number_width = len(self.get_line_number_text(item_indices[-1]))
         else:
@@ -1863,15 +1862,18 @@ class Menu(Generic[T]):
             if self.__line_number:
                 if self.__quick_select:
                     line_number_text = self.__get_quick_select_label(matched_item_index)
-                    gutter_fg = -1
+                    gutter_fg = _to_curses_color("cyan")
+                    gutter_bold = True
                 else:
                     line_number_text = self.get_line_number_text(item_index)
                     gutter_fg = _to_curses_color("brightblack")
+                    gutter_bold = False
                 self.__draw_text(
                     item_y,
                     0,
                     line_number_text.rjust(line_number_width) + (" " * GUTTER_SIZE),
                     fg=gutter_fg,
+                    bold=gutter_bold,
                     ymax=item_y_max,
                 )
 
@@ -2168,8 +2170,8 @@ class Menu(Generic[T]):
     @staticmethod
     def __get_quick_select_label(index: int) -> str:
         if index < 9:
-            return f"[{index + 1}]"
-        return "   "
+            return str(index + 1)
+        return " "
 
     def _select_by_shortcut_index(self, index: int) -> bool:
         item_indices = list(self.get_item_indices())

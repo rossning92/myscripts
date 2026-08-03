@@ -4,6 +4,7 @@ import threading
 import time
 from typing import List, Optional, Tuple
 
+from _script import start_script
 from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
@@ -31,6 +32,13 @@ class VcsDiffMenu(Menu):
         self._is_clean: bool = False
         self.add_command(
             self._diff_all, hotkey="ctrl+a", name="diff all", pinned=True
+        )
+        self.add_command(
+            self.__edit_file,
+            hotkey="ctrl+e",
+            name="edit",
+            pinned=True,
+            override=True,
         )
         self._init_extra_commands()
         self.add_command(self.__discard, hotkey="ctrl+d", name="discard", pinned=True)
@@ -132,6 +140,15 @@ class VcsDiffMenu(Menu):
         self.set_selected_row(begin)
         self.set_multi_select(False)
         self._refresh()
+
+    def __edit_file(self) -> None:
+        item = self.get_selected_item()
+        if item is None:
+            return
+        filename = os.path.abspath(self._get_filename(item))
+        self.run_raw(
+            lambda: start_script("ext/edit.py", args=[filename])
+        )
 
     def __commit(self) -> None:
         items = list(self.get_selected_items())
