@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Crop image</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --surface: #111318;
+      --surface-container: #1d2026;
+      --surface-container-high: #282a30;
+      --on-surface: #e2e2e9;
+      --on-surface-variant: #c5c6d0;
+      --primary: #bec2ff;
+      --on-primary: #252a61;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: var(--surface); color: var(--on-surface);
+           font: 400 16px/1.4 system-ui, -apple-system, sans-serif; }
+    header { position: relative; z-index: 1; height: 64px; padding: 0 16px 0 20px;
+             display: flex; gap: 16px; align-items: center;
+             background: var(--surface-container); box-shadow: 0 2px 6px #0006; }
+    .heading { min-width: 0; flex: 1; }
+    h1 { margin: 0; font-size: 22px; font-weight: 400; }
+    .subtitle { color: var(--on-surface-variant); font-size: 12px; white-space: nowrap;
+                overflow: hidden; text-overflow: ellipsis; }
+    .actions { display: flex; gap: 8px; }
+    button { min-width: 96px; height: 40px; padding: 0 24px; border: 0; border-radius: 20px;
+             background: var(--primary); color: var(--on-primary); cursor: pointer;
+             font: 600 14px system-ui, sans-serif; letter-spacing: .1px;
+             box-shadow: 0 1px 2px #0008; transition: box-shadow .2s, filter .2s, opacity .2s; }
+    button:hover:not(:disabled) { filter: brightness(1.06); box-shadow: 0 2px 5px #0009; }
+    button:focus-visible { outline: 3px solid #bec2ff73; outline-offset: 2px; }
+    button:active:not(:disabled) { box-shadow: none; }
+    button:disabled { opacity: .38; cursor: default; box-shadow: none; }
+    #stage { width: 100%; height: calc(100% - 64px); position: relative; touch-action: none;
+             background: var(--surface); }
+    canvas { width: 100%; height: 100%; display: block; }
+    @media (max-width: 480px) {
+      header { padding-left: 16px; }
+      .subtitle { display: none; }
+      button { min-width: 72px; padding: 0 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="heading">
+      <h1>Crop image</h1>
+      <div class="subtitle">Adjust the frame, then save or share your crop</div>
+    </div>
+    <div class="actions">
+      <button id="share" disabled>Share</button>
+      <button id="save" disabled>Save</button>
+    </div>
+  </header>
+  <main id="stage"><canvas id="canvas"></canvas></main>
+<script>
+const stage = document.querySelector('#stage');
+const canvas = document.querySelector('#canvas');
+const ctx = canvas.getContext('2d');
+const save = document.querySelector('#save');
+const share = document.querySelector('#share');
+const image = new Image();
+const pointers = new Map();
+const handleRadius = 6;
+const handleHitRadius = 24;
+let scale = 1, tx = 0, ty = 0, selection = null;
+let gesture = null, pinch = null;
+
+function resize() {
+  const dpr = devicePixelRatio || 1;
+  canvas.width = Math.round(stage.clientWidth * dpr);
+  canvas.height = Math.round(stage.clientHeight * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+function fit() {
+  const availableWidth = Math.max(1, stage.clientWidth - handleHitRadius * 2);
+  const availableHeight = Math.max(1, stage.clientHeight - handleHitRadius * 2);
+  scale = Math.min(availableWidth / image.width, availableHeight / image.height);
+  tx = (stage.clientWidth - image.width * scale) / 2;
+  ty = (stage.clientHeight - image.height * scale) / 2;
+  selection = {x: 0, y: 0, w: image.width, h: image.height};
+  save.disabled = false;
+  share.disabled = false;
+  draw();
+}
+function screenPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  return {x: e.clientX - r.left, y: e.clientY - r.top};
+}
+function imagePoint(p) {
+  return {x: Math.max(0, Math.min(image.width, (p.x - tx) / scale)),
+          y: Math.max(0, Math.min(image.height, (p.y - ty) / scale))};
+}
+function selectionOnScreen() {
+  return {x: tx + selection.x * scale, y: ty + selection.y * scale,
+          w: selection.w * scale, h: selection.h * scale};
+}
+function draw() {
+  if (!image.complete) return;
+  const w = stage.clientWidth, h = stage.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(image, tx, ty, image.width * scale, image.height * scale);
+  if (!selection) return;
+  const {x, y, w: sw, h: sh} = selectionOnScreen();
+  ctx.save();
+  ctx.fillStyle = '#0009';
+  ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.rect(x, y, sw, sh);
+  ctx.fill('evenodd');
+  ctx.strokeStyle = '#bec2ff'; ctx.lineWidth = 2; ctx.setLineDash([]);
+  ctx.strokeRect(x, y, sw, sh);
+  ctx.fillStyle = '#bec2ff';
+  for (const [hx, hy] of [[x,y], [x+sw/2,y], [x+sw,y], [x,y+sh/2],
+                          [x+sw,y+sh/2], [x,y+sh], [x+sw/2,y+sh], [x+sw,y+sh]]) {
+    ctx.beginPath(); ctx.arc(hx, hy, handleRadius, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+function hitTest(p) {
+  if (!selection) return null;
+  const r = selectionOnScreen();
+  if (p.x < r.x-handleHitRadius || p.x > r.x+r.w+handleHitRadius ||
+      p.y < r.y-handleHitRadius || p.y > r.y+r.h+handleHitRadius) return null;
+  const west = Math.abs(p.x-r.x) <= handleHitRadius;
+  const east = Math.abs(p.x-(r.x+r.w)) <= handleHitRadius;
+  const north = Math.abs(p.y-r.y) <= handleHitRadius;
+  const south = Math.abs(p.y-(r.y+r.h)) <= handleHitRadius;
+  return (north ? 'n' : south ? 's' : '') + (west ? 'w' : east ? 'e' : '') || 'pan';
+}
+function cursorFor(hit) {
+  return {n:'ns-resize', s:'ns-resize', e:'ew-resize', w:'ew-resize',
+          nw:'nwse-resize', se:'nwse-resize', ne:'nesw-resize',
+          sw:'nesw-resize', pan:'grab'}[hit] || 'default';
+}
+function setPinch() {
+  const p = [...pointers.values()];
+  const dx = p[1].x - p[0].x, dy = p[1].y - p[0].y;
+  const center = {x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2};
+  pinch = {distance: Math.hypot(dx, dy), scale,
+           imageCenter: {x: (center.x-tx)/scale, y: (center.y-ty)/scale}};
+  gesture = null;
+}
+stage.addEventListener('pointerdown', e => {
+  stage.setPointerCapture(e.pointerId);
+  const point = screenPoint(e);
+  pointers.set(e.pointerId, point);
+  if (pointers.size === 2) return setPinch();
+  const hit = hitTest(point);
+  if (!hit) return;
+  gesture = {type: hit, start: point, tx, ty, selection: {...selection}};
+  canvas.style.cursor = hit === 'pan' ? 'grabbing' : cursorFor(hit);
+});
+stage.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) {
+    canvas.style.cursor = cursorFor(hitTest(screenPoint(e)));
+    return;
+  }
+  pointers.set(e.pointerId, screenPoint(e));
+  if (pointers.size === 2 && pinch) {
+    const p = [...pointers.values()];
+    const center = {x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2};
+    scale = Math.max(.03, Math.min(40, pinch.scale * Math.hypot(p[1].x-p[0].x, p[1].y-p[0].y) / pinch.distance));
+    tx = center.x - pinch.imageCenter.x * scale;
+    ty = center.y - pinch.imageCenter.y * scale;
+    draw(); return;
+  }
+  if (!gesture || pointers.size !== 1) return;
+  const p = screenPoint(e);
+  const dx = p.x - gesture.start.x, dy = p.y - gesture.start.y;
+  if (gesture.type === 'pan') {
+    tx = gesture.tx + dx;
+    ty = gesture.ty + dy;
+  } else {
+    const original = gesture.selection;
+    let left = original.x, top = original.y;
+    let right = original.x+original.w, bottom = original.y+original.h;
+    const ip = imagePoint(p);
+    const minSize = Math.max(1, 24/scale);
+    if (gesture.type.includes('w')) left = Math.min(right-minSize, ip.x);
+    if (gesture.type.includes('e')) right = Math.max(left+minSize, ip.x);
+    if (gesture.type.includes('n')) top = Math.min(bottom-minSize, ip.y);
+    if (gesture.type.includes('s')) bottom = Math.max(top+minSize, ip.y);
+    selection = {x: left, y: top, w: right-left, h: bottom-top};
+  }
+  save.disabled = selection.w < 1 || selection.h < 1;
+  share.disabled = save.disabled;
+  draw();
+});
+function pointerUp(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  gesture = null;
+  canvas.style.cursor = cursorFor(hitTest(screenPoint(e)));
+}
+stage.addEventListener('pointerup', pointerUp);
+stage.addEventListener('pointercancel', pointerUp);
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  const p = screenPoint(e);
+  const ip = {x: (p.x-tx)/scale, y: (p.y-ty)/scale};
+  const factor = Math.exp(-e.deltaY * .0015);
+  scale = Math.max(.03, Math.min(40, scale * factor));
+  tx = p.x - ip.x * scale;
+  ty = p.y - ip.y * scale;
+  draw();
+}, {passive: false});
+async function finish() {
+  const response = await fetch('crop', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(selection)});
+  if (!response.ok) throw new Error(await response.text());
+}
+save.addEventListener('click', async () => {
+  save.disabled = true; save.textContent = 'Saving…';
+  try {
+    await finish();
+    save.textContent = 'Saved';
+  } catch (e) {
+    alert('Could not save: ' + e.message); save.disabled = false; save.textContent = 'Save';
+  }
+});
+function croppedImage() {
+  const left = Math.max(0, Math.min(image.width - 1, Math.round(selection.x)));
+  const top = Math.max(0, Math.min(image.height - 1, Math.round(selection.y)));
+  const right = Math.max(left + 1, Math.min(image.width, Math.round(selection.x + selection.w)));
+  const bottom = Math.max(top + 1, Math.min(image.height, Math.round(selection.y + selection.h)));
+  const output = document.createElement('canvas');
+  output.width = right - left;
+  output.height = bottom - top;
+  output.getContext('2d').drawImage(image, left, top, output.width, output.height,
+                                    0, 0, output.width, output.height);
+  return new Promise((resolve, reject) => output.toBlob(
+    blob => blob ? resolve(blob) : reject(new Error('Could not create the cropped image.')),
+    'image/png'
+  ));
+}
+share.addEventListener('click', async () => {
+  share.disabled = true;
+  share.textContent = 'Sharing…';
+  try {
+    const blob = await croppedImage();
+    const file = new File([blob], 'cropped-image.png', {type: blob.type});
+    if (navigator.share && (!navigator.canShare || navigator.canShare({files: [file]}))) {
+      await navigator.share({files: [file], title: 'Cropped image'});
+    } else {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = file.name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }
+    await finish();
+    window.close();
+  } catch (e) {
+    if (e.name !== 'AbortError') alert('Could not share: ' + e.message);
+  } finally {
+    share.disabled = false;
+    share.textContent = 'Share';
+  }
+});
+image.onload = () => { resize(); fit(); };
+image.src = 'image';
+addEventListener('resize', resize);
+</script>
+</body></html>

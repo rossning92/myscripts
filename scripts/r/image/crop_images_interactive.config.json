@@ -1,3 +1,4 @@
 {
-  "args.selectFiles": true
+  "args.selectFiles": true,
+  "matchClipboard": "(?i)[^\\r\\n]*\\.(jpg|jpeg|png|webp|gif|bmp)$"
 }

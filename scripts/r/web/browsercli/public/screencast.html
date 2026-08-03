@@ -13,6 +13,15 @@
         padding: 0;
         box-sizing: border-box;
       }
+      :root {
+        color-scheme: dark;
+        --chrome-toolbar: #202124;
+        --chrome-omnibox: #303134;
+        --chrome-omnibox-focus: #3c4043;
+        --chrome-text: #e8eaed;
+        --chrome-icon: #bdc1c6;
+        --chrome-focus: #8ab4f8;
+      }
       html,
       body {
         height: 100%;
@@ -23,31 +32,36 @@
         flex-direction: column;
         margin: 0;
         overflow: hidden;
-        font-family: system-ui, sans-serif;
+        font-family: Arial, sans-serif;
+        color: var(--chrome-text);
+        background: var(--chrome-toolbar);
       }
       #toolbar {
         display: flex;
         align-items: center;
         gap: 2px;
-        padding: 3px 6px;
-        background: #2b2c2f;
+        height: 48px;
+        padding: 6px 8px;
+        background: var(--chrome-toolbar);
         flex: 0 0 auto;
+        z-index: 2;
       }
       #toolbar button {
-        width: 24px;
-        height: 24px;
+        width: 36px;
+        height: 36px;
         border: none;
-        border-radius: 4px;
+        border-radius: 50%;
         background: transparent;
-        color: #ccc;
-        font-size: 14px;
+        color: var(--chrome-icon);
+        font-size: 18px;
         line-height: 1;
         cursor: pointer;
         flex: 0 0 auto;
+        transition: background-color 150ms ease, color 150ms ease;
       }
       #toolbar button svg {
-        width: 16px;
-        height: 16px;
+        width: 20px;
+        height: 20px;
         display: block;
         margin: auto;
         fill: none;
@@ -57,27 +71,46 @@
         stroke-linejoin: round;
       }
       #toolbar button:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(232, 234, 237, 0.08);
+      }
+      #toolbar button:active {
+        background: rgba(232, 234, 237, 0.16);
+      }
+      #toolbar button:focus-visible,
+      #kbBtn:focus-visible {
+        outline: 2px solid var(--chrome-focus);
+        outline-offset: 0;
       }
       #toolbar button:disabled {
-        color: #666;
+        color: rgba(189, 193, 198, 0.38);
         cursor: default;
         background: transparent;
       }
       #addr {
         flex: 1 1 auto;
-        height: 24px;
+        min-width: 80px;
+        height: 34px;
         margin-left: 4px;
-        padding: 0 10px;
+        padding: 0 16px;
         border: none;
-        border-radius: 12px;
-        background: #1c1d1f;
-        color: #eee;
-        font-size: 13px;
+        border-radius: 17px;
+        background: var(--chrome-omnibox);
+        color: var(--chrome-text);
+        font: inherit;
+        font-size: 14px;
         outline: none;
+        caret-color: var(--chrome-text);
+        transition: background-color 100ms ease, box-shadow 100ms ease;
+      }
+      #addr:hover {
+        background: var(--chrome-omnibox-focus);
+      }
+      #addr:focus {
+        background: var(--chrome-omnibox-focus);
+        box-shadow: 0 0 0 2px var(--chrome-focus);
       }
       #addr::placeholder {
-        color: #777;
+        color: #9aa0a6;
       }
       #stage {
         position: relative;
@@ -87,7 +120,7 @@
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        background: #202124;
+        background: var(--chrome-toolbar);
       }
       canvas {
         max-width: 100%;
@@ -106,33 +139,48 @@
       #kbBtn {
         display: none;
         position: fixed;
-        bottom: 12px;
-        right: 12px;
-        width: 48px;
-        height: 48px;
+        bottom: 16px;
+        right: 16px;
+        width: 56px;
+        height: 56px;
         border: none;
-        border-radius: 50%;
-        background: rgba(0, 0, 0, 0.5);
-        color: #fff;
+        border-radius: 16px;
+        background: #3c4043;
+        color: var(--chrome-text);
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
         font-size: 24px;
         cursor: pointer;
         z-index: 10;
+      }
+      @media (max-width: 600px) {
+        #toolbar {
+          height: 48px;
+          padding: 6px 4px;
+        }
+        #toolbar button {
+          width: 36px;
+          height: 36px;
+        }
+        #addr {
+          margin-left: 2px;
+          padding-inline: 12px;
+        }
       }
     </style>
   </head>
   <body>
     <div id="toolbar">
-      <button id="backBtn" title="Back" disabled>
+      <button id="backBtn" title="Back" aria-label="Back" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M15 5l-7 7 7 7" />
         </svg>
       </button>
-      <button id="fwdBtn" title="Forward" disabled>
+      <button id="fwdBtn" title="Forward" aria-label="Forward" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M9 5l7 7-7 7" />
         </svg>
       </button>
-      <button id="reloadBtn" title="Reload">
+      <button id="reloadBtn" title="Reload" aria-label="Reload">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M20 11a8 8 0 1 0-.6 4" />
           <path d="M20 4v6h-6" />
@@ -159,7 +207,7 @@
       autocorrect="off"
       spellcheck="false"
     />
-    <button id="kbBtn">&#x2328;</button>
+    <button id="kbBtn" title="Show keyboard" aria-label="Show keyboard">&#x2328;</button>
     <script type="module">
       import { setupScreencastZoom } from "/static/zoom.js";
 

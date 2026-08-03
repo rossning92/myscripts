@@ -1744,7 +1744,7 @@ class Menu(Generic[T]):
                 row=item_y,
                 col=0,
                 s=hotkey_bar,
-                fg=_to_curses_color("brightblack"),
+                fg=-1,
                 ymax=item_y_max,
                 wrap_text=True,
             )
