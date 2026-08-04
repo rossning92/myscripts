@@ -418,14 +418,17 @@
       "packages": ["IrfanSkiljan.IrfanView"]
     }
   },
+  "jdk17": {
+    "apt": {
+      "packages": ["openjdk-17-jdk"]
+    },
+    "pacman": {
+      "packages": ["jdk17-openjdk"]
+    }
+  },
   "jq": {
     "winget": {
       "packages": ["jqlang.jq"]
-    }
-  },
-  "jre": {
-    "apt": {
-      "packages": ["openjdk-17-jre"]
     }
   },
   "keepassxc": {

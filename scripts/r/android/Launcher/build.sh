@@ -1,8 +1,14 @@
 #!/bin/bash
 set -e
-cd "$(dirname "$0")"
 
-export JAVA_HOME=$(ls -d /usr/lib/jvm/java-17-openjdk* | head -1)
+PROJECT_DIR="$HOME/Projects/launcher"
+
+if [[ ! -d "$PROJECT_DIR/.git" ]]; then
+    mkdir -p "$HOME/Projects"
+    gh repo clone rossning92/launcher "$PROJECT_DIR"
+fi
+
+cd "$PROJECT_DIR"
 
 ./gradlew assembleDebug
 echo "APK built: app/build/outputs/apk/debug/app-debug.apk"

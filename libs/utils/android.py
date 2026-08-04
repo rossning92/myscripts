@@ -545,7 +545,7 @@ def setup_jdk(jdk_version=None, env=None, proot_distro=None):
             else:
                 jdk_paths += paths
         jdk_paths = sorted(jdk_paths)
-        return jdk_paths[-1]  # Choose latest JDK
+        return jdk_paths[-1] if jdk_paths else None
 
     if proot_distro:
         try:
@@ -578,10 +578,12 @@ def setup_jdk(jdk_version=None, env=None, proot_distro=None):
             jdk_version=jdk_version,
         )
     elif sys.platform == "linux":
-        javac_path = os.popen("which javac").read().strip()
-        javac_abs_path = os.path.realpath(javac_path)
-        javac_dir = os.path.dirname(javac_abs_path)
-        java_home = os.path.dirname(javac_dir)
+        jdk_version = jdk_version or "17"
+        if jdk_version.startswith("17"):
+            from _pkgmanager import require_package
+
+            require_package("jdk17", env=env)
+        java_home = find_jdk(["/usr/lib/jvm/*"], jdk_version=jdk_version)
     else:
         raise Exception("Unsupported os: %s" % sys.platform)
 
