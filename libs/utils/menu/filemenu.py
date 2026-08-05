@@ -158,7 +158,6 @@ class FileMenu(Menu[_File]):
             items=self.__files,
             wrap_text=True,
             prompt_color=prompt_color,
-            line_number=False,
         )
 
         self.add_command(self.copy_to, hotkey="alt+c")

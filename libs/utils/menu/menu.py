@@ -1323,7 +1323,9 @@ class Menu(Generic[T]):
                 self.__trigger_hotkey("alt+enter")
 
             elif ch == "\x1b":  # escape key
-                if self.clear_input():
+                if self.__multi_select_mode:
+                    self.set_multi_select(False)
+                elif self.clear_input():
                     pass
                 elif ENABLE_VIM_MODE and self.__vim_mode != VimMode.NORMAL:
                     self._set_vim_mode(VimMode.NORMAL)
@@ -1940,7 +1942,7 @@ class Menu(Generic[T]):
             total_items = len(item_indices)
             indicators = []
             if self.__multi_select_mode:
-                indicators.append("MS")
+                indicators.append("SEL")
             if self.__follow:
                 indicators.append("F")
             indicators.append(f"{current_position}/{total_items}")

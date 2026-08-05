@@ -4,6 +4,13 @@ from typing import List, Optional
 _RECENT_COMMIT_COUNT = 5
 
 
+def discard_all_changes(cwd: str, vcs: str) -> None:
+    if vcs == "git":
+        subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=cwd)
+    elif vcs == "hg":
+        subprocess.run(["hg", "revert", "--all", "--no-backup"], cwd=cwd)
+
+
 def run_vcs(cwd: Optional[str], cmd: str, *args: str) -> Optional[str]:
     try:
         r = subprocess.run(

@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
 from utils.jsonutil import load_json
+from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
 from utils.menu.shellcmdmenu import ShellCmdMenu
@@ -14,6 +15,7 @@ from utils.spinner import Spinner
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
 from git.vcs import (
+    discard_all_changes,
     get_amend_cmds,
     get_git_recent_commits,
     get_hg_recent_commits,
@@ -171,6 +173,7 @@ class RepoMenu(Menu[Repo]):
         self.add_command(self._amend, hotkey="alt+a", name="amend", pinned=True)
         self.add_command(self._commit, hotkey="alt+c", name="commit", pinned=True)
         self.add_command(self._push, hotkey="alt+p", name="push", pinned=True)
+        self.add_command(self._discard, hotkey="ctrl+d", name="discard", pinned=True)
         self.add_command(self._amend_and_push, hotkey="alt+a", name="amend+push")
         self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
         self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
@@ -256,6 +259,17 @@ class RepoMenu(Menu[Repo]):
             self._run_cmds(["git", "push"])
         elif repo.is_hg:
             self._run_cmds(["hg", "push"])
+
+    def _discard(self):
+        repo = self.get_selected_item()
+        if repo is None or not repo.vcs or not repo.dirty:
+            return
+        if not confirm(
+            f'Discard all changes in "{repo.display_path}"?', prompt_color="red"
+        ):
+            return
+        discard_all_changes(repo.path, repo.vcs)
+        self._refresh()
 
     def _amend_and_push(self):
         self._amend(push=True)
