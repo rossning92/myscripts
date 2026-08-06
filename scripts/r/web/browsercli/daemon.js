@@ -7,6 +7,7 @@ import { getBrowser, getOrOpenPage, getStatus } from "./browser-core.js";
 import { DAEMON_PORT, DEBUG_PORT } from "./config.js";
 import { close } from "./commands/close.js";
 import { getText } from "./commands/getText.js";
+import { getHtml } from "./commands/getHtml.js";
 import { getMarkdown } from "./commands/getMarkdown.js";
 import { snapshot } from "./commands/snapshot.js";
 import { scrollToBottom } from "./commands/scrollToBottom.js";
@@ -58,6 +59,10 @@ const commands = {
 
   async "get-text"({ url }) {
     return await getText(url);
+  },
+
+  async "get-html"({ url }) {
+    return await getHtml(url);
   },
 
   async "get-markdown"({ url }) {
@@ -166,7 +171,7 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ result: result ?? null }));
     } catch (err) {
       res.writeHead(500);
-      res.end(JSON.stringify({ error: err.message || String(err) }));
+      res.end(JSON.stringify({ error: err.stack || err.message || String(err) }));
     }
     return;
   }

@@ -113,6 +113,15 @@ program
   });
 
 program
+  .command("get-html")
+  .description("Get raw HTML content from a page")
+  .argument("[url]", "URL to get HTML from")
+  .action(async (url) => {
+    const html = await sendCommand("get-html", { url });
+    console.log(html);
+  });
+
+program
   .command("get-markdown")
   .description("Get markdown content from a page")
   .argument("[url]", "URL to get markdown from")

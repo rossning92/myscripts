@@ -2,7 +2,11 @@ import TurndownService from "turndown";
 import { withActivePage } from "../browser-core.js";
 
 export function htmlToMarkdown(html) {
-  const turndownService = new TurndownService();
+  const turndownService = new TurndownService({
+    blankReplacement: () => "",
+    defaultReplacement: (content, node) =>
+      node.isBlock ? `\n${content.trim()}\n` : content,
+  });
   turndownService.remove("script");
   turndownService.remove("style");
   turndownService.addRule("remove-base64-images", {

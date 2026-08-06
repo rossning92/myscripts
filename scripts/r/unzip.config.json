@@ -1,0 +1,4 @@
+{
+  "args.selectFiles": true,
+  "matchClipboard": "(?i)[^\\r\\n]*\\.zip$"
+}
