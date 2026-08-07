@@ -359,6 +359,7 @@ class _MyScriptMenu(Menu[Script]):
         return f"<file><path>{script.script_path}</path></file>"
 
     def _run_selected_script(self, close_on_exit=None, run_script_local=False):
+        script = None
         try:
             script = self.get_selected_item()
             if script:
@@ -387,8 +388,6 @@ class _MyScriptMenu(Menu[Script]):
                     logging.info("Reload scripts after running: %s" % script.name)
                     self._reload_scripts()
 
-                self.clear_input(reset_selection=True)
-
         except Exception:
             output = io.StringIO()
             traceback.print_exc(file=output)
@@ -396,6 +395,11 @@ class _MyScriptMenu(Menu[Script]):
             Menu(prompt="Error on run_selected_script", items=err_lines).exec()
 
         finally:
+            if script is not None and not self.is_closed():
+                self.clear_input(reset_selection=True)
+                self.refresh()
+                self.set_selected_item(script)
+
             # Reset the last refresh time whenever we run a script.
             self.update_last_refresh_time()
 

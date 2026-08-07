@@ -6,10 +6,8 @@ from typing import Optional
 
 from _pkgmanager import find_executable, require_package
 
-from .shutil import shell_open
 
-
-def unzip(src, dest=None, open_out_dir=False):
+def unzip(src, dest=None):
     extracted = False
     for file in src:
         gzip_extension = [".tar.gz", ".tgz", ".gz"]
@@ -47,8 +45,7 @@ def unzip(src, dest=None, open_out_dir=False):
                 with zipfile.ZipFile(file, "r") as zip_ref:
                     zip_ref.extractall(out_dir)
 
-    if open_out_dir:
-        shell_open(out_dir)
+    return out_dir
 
 
 def create_zip_file(path: str, out_file: Optional[str]):

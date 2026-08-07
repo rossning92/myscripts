@@ -156,7 +156,6 @@ class FileMenu(Menu[_File]):
 
         super().__init__(
             items=self.__files,
-            wrap_text=True,
             prompt_color=prompt_color,
         )
 

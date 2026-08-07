@@ -11,7 +11,8 @@ import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.Toast;
 
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Intercepts hardware keyboard events for tap-vs-hold gestures. A tracked key
@@ -36,13 +37,20 @@ public class LongPressAccessibilityService extends AccessibilityService {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    private final Map<Character, String> symbolByBase = Mapping.parse();
+    private Mapping mapping;
 
     // State for the key currently being tracked for tap-vs-hold.
     private int pendingKeyCode = -1;
-    private String pendingNormal;   // char to emit on a tap
+    private Runnable pendingTapAction;
     private boolean longPressFired;
     private Runnable longPressRunnable;
+
+    // Accessibility cannot replace a modifier in Android's input mapper. Track Right Alt and
+    // rewrite each affected non-modifier key as a complete Left-Alt chord instead. Keys rewritten
+    // on ACTION_DOWN are also consumed on ACTION_UP so the target never sees half of the original.
+    private boolean rightAltHeld;
+    private boolean rightShiftHeld;
+    private final Set<Integer> rewrittenKeys = new HashSet<>();
 
     private KeyboardOrientationController orientation;
     private KeyguardManager keyguardManager;
@@ -51,6 +59,7 @@ public class LongPressAccessibilityService extends AccessibilityService {
     public void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
+        reloadMappings();
         keyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
         orientation = new KeyboardOrientationController(this);
         orientation.start(handler);
@@ -59,6 +68,11 @@ public class LongPressAccessibilityService extends AccessibilityService {
     /** Turn auto-landscape on/off while the service is running (called from the UI toggle). */
     public void setAutoLandscapeEnabled(boolean enabled) {
         if (orientation != null) orientation.setEnabled(enabled);
+    }
+
+    /** Reload edits immediately when the activity saves them. */
+    public void reloadMappings() {
+        mapping = Mapping.load(this);
     }
 
     private void toggleAutoLandscape() {
@@ -72,6 +86,7 @@ public class LongPressAccessibilityService extends AccessibilityService {
         // On the lock screen our commit() can't reach the secure PIN field, so
         // consuming keys would just swallow them. Let the system handle them.
         if (keyguardManager != null && keyguardManager.isKeyguardLocked()) {
+            resetPhysicalRemapState();
             return passThrough();
         }
 
@@ -79,6 +94,46 @@ public class LongPressAccessibilityService extends AccessibilityService {
 
         android.util.Log.d("KeyLab", "onKeyEvent code=" + event.getKeyCode()
                 + " action=" + event.getAction() + " meta=" + meta);
+
+        // These used to be provided by a bundled physical-keyboard layout. Doing them here makes
+        // setup simpler, but delivery is limited to apps with an accessibility input connection.
+        if (event.getKeyCode() == KeyEvent.KEYCODE_SHIFT_RIGHT) {
+            rightShiftHeld = event.getAction() != KeyEvent.ACTION_UP;
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                sendKey(KeyEvent.KEYCODE_ESCAPE, 0);
+            }
+            return true;
+        }
+        if (event.getKeyCode() == KeyEvent.KEYCODE_ALT_RIGHT) {
+            rightAltHeld = event.getAction() != KeyEvent.ACTION_UP;
+            return true;
+        }
+
+        boolean rewriteRightAlt = rightAltHeld
+                || (meta & KeyEvent.META_ALT_RIGHT_ON) != 0;
+        boolean stripRightShift = rightShiftHeld
+                || (meta & KeyEvent.META_SHIFT_RIGHT_ON) != 0;
+        if (rewriteRightAlt || stripRightShift || rewrittenKeys.contains(event.getKeyCode())) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                rewrittenKeys.add(event.getKeyCode());
+                int rewrittenMeta = meta;
+                if (rewriteRightAlt) {
+                    rewrittenMeta &= ~KeyEvent.META_ALT_MASK;
+                    rewrittenMeta |= KeyEvent.META_ALT_ON | KeyEvent.META_ALT_LEFT_ON;
+                }
+                if (stripRightShift) {
+                    boolean leftShiftHeld = (meta & KeyEvent.META_SHIFT_LEFT_ON) != 0;
+                    rewrittenMeta &= ~KeyEvent.META_SHIFT_MASK;
+                    if (leftShiftHeld) {
+                        rewrittenMeta |= KeyEvent.META_SHIFT_ON | KeyEvent.META_SHIFT_LEFT_ON;
+                    }
+                }
+                sendKey(event.getKeyCode(), rewrittenMeta);
+            } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                rewrittenKeys.remove(event.getKeyCode());
+            }
+            return true;
+        }
 
         // Win+T launches Termux, overriding the system default. Fire once on key-down.
         if (event.getKeyCode() == KeyEvent.KEYCODE_T && (meta & KeyEvent.META_META_ON) != 0) {
@@ -102,21 +157,28 @@ public class LongPressAccessibilityService extends AccessibilityService {
             return passThrough();
         }
 
-        // Resolve what this key does when tracked: the char to type on a tap, the
-        // action to run on a hold, and the hold threshold. Untracked keys pass through.
-        int base = event.getUnicodeChar(0);
-        if (base == 0) return passThrough(); // non-printable key (Enter, arrows, ...)
-        String symbol = symbolByBase.get(Character.toLowerCase((char) base));
-        if (symbol == null) return passThrough(); // unmapped -> normal behavior
-        int normal = event.getUnicodeChar(meta); // respect Shift/CapsLock
-        String normalOnTap = normal == 0 ? null : new String(Character.toChars(normal));
-        Runnable holdAction = () -> commit(symbol);
-        long holdMs = Mapping.LONGPRESS_MS;
+        if (mapping == null) reloadMappings();
+        KeyAction tap = mapping.tapActions.get(event.getKeyCode());
+        KeyAction hold = mapping.holdActions.get(event.getKeyCode());
+        if (tap == null && hold == null) return passThrough();
+        if (hold == null) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                flushPendingAsTap();
+                perform(tap);
+            }
+            return true;
+        }
+        Runnable tapAction = tap == null
+                ? () -> commitUnicode(event.getUnicodeChar(meta)) : () -> perform(tap);
+        Runnable holdAction = () -> perform(hold);
+        return handleTrackedEvent(event, tapAction, holdAction);
+    }
 
+    private boolean handleTrackedEvent(KeyEvent event, Runnable tapAction, Runnable holdAction) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             // Arm on the first press; consume auto-repeats so the key can't repeat.
             if (event.getRepeatCount() == 0) {
-                beginPending(event.getKeyCode(), normalOnTap, holdAction, holdMs);
+                beginPending(event.getKeyCode(), tapAction, holdAction, Mapping.LONGPRESS_MS);
             }
             return true;
         }
@@ -125,7 +187,7 @@ public class LongPressAccessibilityService extends AccessibilityService {
                 && event.getKeyCode() == pendingKeyCode) {
             if (!longPressFired) {
                 cancelPending();
-                commit(pendingNormal); // released before the threshold -> it was a tap
+                pendingTapAction.run(); // released before the threshold -> it was a tap
             }
             resetPending();
             return true;
@@ -140,10 +202,10 @@ public class LongPressAccessibilityService extends AccessibilityService {
      * Every event of a tracked key is consumed, so the input dispatcher never
      * generates its own character auto-repeat.
      */
-    private void beginPending(int keyCode, String normalOnTap, Runnable holdAction, long holdMs) {
+    private void beginPending(int keyCode, Runnable tapAction, Runnable holdAction, long holdMs) {
         flushPendingAsTap(); // a different key was still pending -> resolve it as a tap
         pendingKeyCode = keyCode;
-        pendingNormal = normalOnTap;
+        pendingTapAction = tapAction;
         longPressFired = false;
         longPressRunnable = () -> {
             holdAction.run();
@@ -173,7 +235,7 @@ public class LongPressAccessibilityService extends AccessibilityService {
     private void flushPendingAsTap() {
         if (pendingKeyCode != -1 && !longPressFired) {
             cancelPending();
-            commit(pendingNormal);
+            pendingTapAction.run();
         }
         resetPending();
     }
@@ -187,7 +249,7 @@ public class LongPressAccessibilityService extends AccessibilityService {
 
     private void resetPending() {
         pendingKeyCode = -1;
-        pendingNormal = null;
+        pendingTapAction = null;
         longPressFired = false;
         longPressRunnable = null;
     }
@@ -201,6 +263,49 @@ public class LongPressAccessibilityService extends AccessibilityService {
         ic.commitText(text, 1, null);
     }
 
+    private void commitUnicode(int codePoint) {
+        if (codePoint != 0) commit(new String(Character.toChars(codePoint)));
+    }
+
+    /** Sends a complete key stroke to the focused editor through the accessibility IME. */
+    private void sendKey(int keyCode, int metaState) {
+        InputMethod im = getInputMethod();
+        if (im == null) return;
+        InputMethod.AccessibilityInputConnection ic = im.getCurrentInputConnection();
+        if (ic == null) return;
+        long now = android.os.SystemClock.uptimeMillis();
+        int[] modifierCodes = {
+                KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_ALT_LEFT,
+                KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_META_LEFT
+        };
+        int[] modifierMasks = {
+                KeyEvent.META_CTRL_ON, KeyEvent.META_ALT_ON,
+                KeyEvent.META_SHIFT_ON, KeyEvent.META_META_ON
+        };
+        int activeMeta = 0;
+        for (int i = 0; i < modifierCodes.length; i++) {
+            if ((metaState & modifierMasks[i]) != 0) {
+                activeMeta |= modifierMasks[i];
+                ic.sendKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_DOWN,
+                        modifierCodes[i], 0, activeMeta));
+            }
+        }
+        ic.sendKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0, metaState));
+        ic.sendKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0, metaState));
+        for (int i = modifierCodes.length - 1; i >= 0; i--) {
+            if ((metaState & modifierMasks[i]) != 0) {
+                activeMeta &= ~modifierMasks[i];
+                ic.sendKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_UP,
+                        modifierCodes[i], 0, activeMeta));
+            }
+        }
+    }
+
+    private void perform(KeyAction action) {
+        if (action.text != null) commit(action.text);
+        else sendKey(action.keyCode, action.modifiers);
+    }
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         // The foreground app changed - a portrait-locked one may have reset our lock.
@@ -211,6 +316,13 @@ public class LongPressAccessibilityService extends AccessibilityService {
     public void onInterrupt() {
         cancelPending();
         resetPending();
+        resetPhysicalRemapState();
+    }
+
+    private void resetPhysicalRemapState() {
+        rightAltHeld = false;
+        rightShiftHeld = false;
+        rewrittenKeys.clear();
     }
 
     @Override

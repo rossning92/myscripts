@@ -40,7 +40,7 @@ ENABLE_VIM_MODE = False
 
 GUTTER_SIZE = 1
 MESSAGE_TIMEOUT_SEC = 2.0
-PASTE_THRESHOLD_SEC = 0.05
+INPUT_SETTLE_TIMEOUT_MS = 50
 PROCESS_EVENT_INTERVAL_SEC = 0.1
 ESC_SEQUENCE_TIMEOUT_MS = 25
 SHIFT_DOWN = 0x150
@@ -67,6 +67,17 @@ def _is_backspace_key(ch: Union[int, str]):
         or ch == "\b"  # for windows
         or ch == "\x7f"  # for mac and linux
     )
+
+
+def _get_event_timeout_ms(timeout_sec: float, pending_enter: bool) -> int:
+    if pending_enter:
+        return INPUT_SETTLE_TIMEOUT_MS
+    if timeout_sec < 0.0:
+        return -1
+    elif timeout_sec > 0.0:
+        return int(timeout_sec * 1000.0)
+    else:
+        return 0
 
 
 def _read_escape_sequence_char(stdscr, restore_timeout_ms: int):
@@ -588,9 +599,6 @@ class Menu(Generic[T]):
         self.__should_update_matched_items: bool = False
         self.__auto_complete = auto_complete
         self.__pending_enter = False
-
-        # Avoid updating the matching items when input changes too often.
-        self.__last_match_time: float = 0
 
         # Only update screen when _should_update_screen is True. This is set to True to
         # trigger the initial draw.
@@ -1149,17 +1157,10 @@ class Menu(Generic[T]):
         if self.__closed:
             return True
 
-        if self.__pending_enter:
-            timeout_ms = int(PASTE_THRESHOLD_SEC * 1000)
-        elif timeout_sec < 0.0:
-            timeout_ms = -1
-        elif timeout_sec > 0.0:
-            timeout_ms = int(timeout_sec * 1000.0)
-        else:
-            timeout_ms = 0
-        Menu._stdscr.timeout(timeout_ms)
-
         self.__update_matched_items()
+
+        timeout_ms = _get_event_timeout_ms(timeout_sec, self.__pending_enter)
+        Menu._stdscr.timeout(timeout_ms)
 
         # Update screen
         if self.__should_update_screen or Menu._should_update_screen:
@@ -1348,7 +1349,9 @@ class Menu(Generic[T]):
             self.__last_key = ch
 
         event_timed_out = (
-            ch == -1 and not self.__pending_enter and timeout_sec >= 0.0
+            ch == -1
+            and timeout_sec >= 0.0
+            and not self.__pending_enter
         )
         if ch == -1:
             if self.__pending_enter:
@@ -1374,17 +1377,12 @@ class Menu(Generic[T]):
             if (
                 force_update
                 or self.__should_update_matched_items
+                or self.__last_input is None
                 or (
-                    time.time() > self.__last_match_time + PROCESS_EVENT_INTERVAL_SEC
-                    and (
-                        (
-                            not self.__search_on_enter
-                            and self.__last_input != self.__input.text
-                        )
-                        or self.__last_item_count != len(self.items)
-                    )
+                    not self.__search_on_enter
+                    and self.__last_input != self.__input.text
                 )
-                or (len(self.items) < self.__last_item_count)
+                or self.__last_item_count != len(self.items)
             ):
                 matches: List[Tuple[int, int]] = []  # list of tuple of index and rank
                 patt = (
@@ -1435,7 +1433,6 @@ class Menu(Generic[T]):
                     self.__search_history.insert(0, self.__last_input)
                 self.__last_input = self.__input.text
                 self.__last_item_count = len(self.items)
-                self.__last_match_time = time.time()
                 self.__should_update_matched_items = False
                 self.__should_update_screen = True
 
@@ -1696,8 +1693,8 @@ class Menu(Generic[T]):
                             Menu._stdscr,
                             row,
                             self.__width - 1,
-                            "…",
-                            attr,
+                            ">",
+                            attr ^ curses.A_REVERSE,
                         )
                         can_scroll_right = True
                     break

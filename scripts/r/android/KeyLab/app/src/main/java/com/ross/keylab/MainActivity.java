@@ -1,15 +1,11 @@
 package com.ross.keylab;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.util.Log;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -18,24 +14,12 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import rikka.shizuku.Shizuku;
-
 public class MainActivity extends Activity {
-
-    private static final int SHIZUKU_REQ = 1001;
 
     private TextView status;
     private Switch autoLandscape;
-
-    private final Shizuku.OnRequestPermissionResultListener shizukuPermListener =
-            (requestCode, grantResult) -> {
-                if (requestCode != SHIZUKU_REQ) return;
-                if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                    applyLayoutViaShizuku();
-                } else {
-                    toast("Shizuku permission denied.");
-                }
-            };
+    private EditText tapMappings;
+    private EditText holdMappings;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,7 +36,11 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView blurb = new TextView(this);
-        blurb.setText("Tap a mapped key to type its normal character; hold it to type the symbol.");
+        blurb.setText("Tap a mapped key for its normal action; hold it for:\n"
+                + "Q -> Esc    H -> Home    E -> End\n"
+                + "U -> Page Up    D -> Page Down\n"
+                + "I -> Up    J -> Left    K -> Down    L -> Right\n\n"
+                + "The existing letter and number holds still type their symbols.");
         blurb.setPadding(0, dp(8), 0, dp(16));
         root.addView(blurb);
 
@@ -66,35 +54,53 @@ public class MainActivity extends Activity {
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         root.addView(enable);
 
+        TextView mappingTitle = new TextView(this);
+        mappingTitle.setText("Custom key actions");
+        mappingTitle.setTextSize(20);
+        mappingTitle.setPadding(0, dp(20), 0, dp(4));
+        root.addView(mappingTitle);
+
+        TextView mappingHelp = new TextView(this);
+        mappingHelp.setText("One mapping per line: Key = Action. Actions can be text, a special "
+                + "key (Left, Esc, Home, PageDown), or a combination (Ctrl+A, Ctrl+Shift+B). "
+                + "Use text:Home when a word should be typed literally. Hold actions fire after "
+                + Mapping.LONGPRESS_MS + " ms.");
+        root.addView(mappingHelp);
+
+        TextView tapLabel = new TextView(this);
+        tapLabel.setText("Tap overrides");
+        tapLabel.setPadding(0, dp(12), 0, 0);
+        root.addView(tapLabel);
+        tapMappings = mappingEditor("Example: H = Left", Mapping.getTapSpec(this));
+        root.addView(tapMappings);
+
+        TextView holdLabel = new TextView(this);
+        holdLabel.setText("Long-press actions");
+        holdLabel.setPadding(0, dp(12), 0, 0);
+        root.addView(holdLabel);
+        holdMappings = mappingEditor("Example: B = Ctrl+B", Mapping.getHoldSpec(this));
+        root.addView(holdMappings);
+
+        Button saveMappings = new Button(this);
+        saveMappings.setText("Save key actions");
+        saveMappings.setOnClickListener(v -> saveMappings());
+        root.addView(saveMappings);
+
+        Button resetMappings = new Button(this);
+        resetMappings.setText("Restore default key actions");
+        resetMappings.setOnClickListener(v -> {
+            tapMappings.setText("");
+            holdMappings.setText(Mapping.DEFAULT_HOLD_SPEC);
+            saveMappings();
+        });
+        root.addView(resetMappings);
+
         TextView remapBlurb = new TextView(this);
         remapBlurb.setPadding(0, dp(20), 0, dp(4));
-        remapBlurb.setText("Right Shift -> Esc uses a bundled keyboard layout (no root, works "
-                + "in every app). Enable it under Physical keyboard, pick your keyboard, then "
-                + "select \"KeyLab Layout\".");
+        remapBlurb.setText("While the accessibility service is enabled, Right Shift sends Esc "
+                + "and Right Alt is treated as Left Alt. These app-level remaps work only where "
+                + "Android provides KeyLab an accessibility input connection.");
         root.addView(remapBlurb);
-
-        Button hardKb = new Button(this);
-        hardKb.setText("Open Physical keyboard settings");
-        hardKb.setOnClickListener(v -> {
-            try {
-                startActivity(new Intent("android.settings.HARD_KEYBOARD_SETTINGS"));
-            } catch (Exception e) {
-                startActivity(new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS));
-            }
-        });
-        root.addView(hardKb);
-
-        TextView shizukuBlurb = new TextView(this);
-        shizukuBlurb.setPadding(0, dp(20), 0, dp(4));
-        shizukuBlurb.setText("Or, with Shizuku running, apply the KeyLab layout to every keyboard "
-                + "and IME at once - no per-IME picking. Re-run after enabling a new IME or "
-                + "connecting a new keyboard.");
-        root.addView(shizukuBlurb);
-
-        Button applyAll = new Button(this);
-        applyAll.setText("Apply KeyLab to all IMEs (Shizuku)");
-        applyAll.setOnClickListener(v -> applyLayoutViaShizuku());
-        root.addView(applyAll);
 
         TextView stickyBlurb = new TextView(this);
         stickyBlurb.setPadding(0, dp(20), 0, dp(4));
@@ -146,13 +152,6 @@ public class MainActivity extends Activity {
         scroll.addView(root);
         setContentView(scroll);
 
-        Shizuku.addRequestPermissionResultListener(shizukuPermListener);
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        Shizuku.removeRequestPermissionResultListener(shizukuPermListener);
     }
 
     @Override
@@ -177,35 +176,37 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void applyLayoutViaShizuku() {
-        if (!Shizuku.pingBinder()) {
-            toast("Shizuku is not running. Start the Shizuku app first.");
-            return;
-        }
-        if (Shizuku.isPreV11()) {
-            toast("Shizuku pre-v11 is not supported.");
-            return;
-        }
-        if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-            Shizuku.requestPermission(SHIZUKU_REQ);
-            return;
-        }
-        // The apply loop makes many cross-process binder calls; keep it off the UI thread.
-        new Thread(() -> {
-            String result;
-            try {
-                result = ShizukuLayoutApplier.apply(this);
-            } catch (Throwable t) {
-                Log.e("KeyLab", "Shizuku apply failed", t);
-                result = "Failed: " + t;
-            }
-            String msg = result;
-            runOnUiThread(() -> toast(msg));
-        }).start();
-    }
-
     private void toast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+    }
+
+    private EditText mappingEditor(String hint, String value) {
+        EditText editor = new EditText(this);
+        editor.setHint(hint);
+        editor.setText(value);
+        editor.setMinLines(3);
+        editor.setGravity(Gravity.TOP | Gravity.START);
+        editor.setHorizontallyScrolling(false);
+        return editor;
+    }
+
+    private void saveMappings() {
+        String taps = tapMappings.getText().toString();
+        String holds = holdMappings.getText().toString();
+        String error = Mapping.validate(taps);
+        if (error != null) {
+            toast("Tap overrides: " + error);
+            return;
+        }
+        error = Mapping.validate(holds);
+        if (error != null) {
+            toast("Long-press actions: " + error);
+            return;
+        }
+        Mapping.save(this, taps, holds);
+        LongPressAccessibilityService service = LongPressAccessibilityService.getInstance();
+        if (service != null) service.reloadMappings();
+        toast("Key actions saved" + (service == null ? ". They apply when the service starts." : "."));
     }
 
     private int dp(int v) {

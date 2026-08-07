@@ -244,6 +244,7 @@ def _main():
         help="context file path or context text",
     )
     parser.add_argument("--system-prompt", type=str, help="extra system prompt")
+    parser.add_argument("-p", "--prompt", type=str, help="initial user prompt")
     parser.add_argument("-m", "--model", type=str)
     parser.add_argument("--allow", action="append", help="allow certain bash commands")
     parser.add_argument("--voice-input", action="store_true")
@@ -289,6 +290,7 @@ def _main():
         files=files,
         context=args.context,
         extra_system_prompt=system_prompt,
+        message=args.prompt,
         voice_input=args.voice_input,
     )
     menu.exec()

@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="accessibility_description">Intercepts physical keyboard keys so that long-pressing a key types a symbol.</string>
-    <string name="keyboard_layout_keylab_label">KeyLab Layout (Right Shift -&gt; Esc)</string>
+    <string name="accessibility_description">Intercepts physical keyboard keys for modifier remaps, long-press symbols, and missing navigation keys.</string>
 </resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 baseline primary, matching the other app icon in this repo. -->
+    <color name="ic_launcher_background">#65558F</color>
+</resources>

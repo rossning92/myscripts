@@ -1,3 +1,4 @@
 {
-  "adk": true
+  "adk": true,
+  "termux.proot": true
 }
