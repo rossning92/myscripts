@@ -82,12 +82,96 @@ class _DuckDuckGoResultsParser(HTMLParser):
         return self.results
 
 
+class _GoogleResultsParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.results: list[dict[str, str]] = []
+        self.link_url: str | None = None
+        self.link_depth = 0
+        self.title_depth = 0
+        self.title_buffer: list[str] = []
+        self.snippet_depth = 0
+        self.snippet_buffer: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs):
+        if self.snippet_depth:
+            self.snippet_depth += 1
+            return
+
+        if self.link_url is not None:
+            self.link_depth += 1
+            if tag == "h3":
+                self.title_depth = 1
+                self.title_buffer = []
+            elif self.title_depth:
+                self.title_depth += 1
+            return
+
+        attributes = dict(attrs)
+        if attributes.get("data-sncf") == "1" and self.results:
+            self.snippet_depth = 1
+            self.snippet_buffer = []
+            return
+
+        if tag != "a":
+            return
+        href = dict(attrs).get("href", "")
+        destination = _google_destination_url(href)
+        if destination:
+            self.link_url = destination
+            self.link_depth = 1
+
+    def handle_endtag(self, tag: str):
+        if self.snippet_depth:
+            self.snippet_depth -= 1
+            if not self.snippet_depth:
+                snippet = re.sub(
+                    r"\s+", " ", "".join(self.snippet_buffer)
+                ).strip()
+                if snippet:
+                    self.results[-1]["snippet"] = snippet
+                self.snippet_buffer = []
+            return
+
+        if self.link_url is None:
+            return
+
+        if self.title_depth:
+            self.title_depth -= 1
+            if not self.title_depth and tag == "h3":
+                title = re.sub(r"\s+", " ", "".join(self.title_buffer)).strip()
+                if title:
+                    self.results.append({"title": title, "url": self.link_url})
+
+        self.link_depth -= 1
+        if not self.link_depth:
+            self.link_url = None
+
+    def handle_data(self, data: str):
+        if self.snippet_depth:
+            self.snippet_buffer.append(data)
+        elif self.title_depth:
+            self.title_buffer.append(data)
+
+
 def _destination_url(url: str) -> str:
     if url.startswith("//"):
         url = "https:" + url
     parsed = urllib.parse.urlparse(url)
     destination = urllib.parse.parse_qs(parsed.query).get("uddg")
     return destination[0] if destination else url
+
+
+def _google_destination_url(url: str) -> str | None:
+    if url.startswith("/url?"):
+        destination = urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("q")
+        url = destination[0] if destination else ""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    if parsed.netloc == "google.com" or parsed.netloc.endswith(".google.com"):
+        return None
+    return url
 
 
 def extract_search_results(html: str) -> str:
@@ -100,6 +184,21 @@ def extract_search_results(html: str) -> str:
     sections = []
     for index, result in enumerate(results, 1):
         lines = [f"{index}. {result.get('title', '')}", _destination_url(result["url"])]
+        if result.get("snippet"):
+            lines.append(result["snippet"])
+        sections.append("\n".join(lines))
+    return "\n\n".join(sections)
+
+
+def extract_google_search_results(html: str) -> str:
+    parser = _GoogleResultsParser()
+    parser.feed(html)
+    if not parser.results:
+        raise ValueError("No Google search results found in page HTML")
+
+    sections = []
+    for index, result in enumerate(parser.results, 1):
+        lines = [f"{index}. {result['title']}", result["url"]]
         if result.get("snippet"):
             lines.append(result["snippet"])
         sections.append("\n".join(lines))
@@ -131,7 +230,7 @@ def _fetch_search_html(url: str) -> str:
             raise Exception(result.stdout)
 
 
-def web_search(query: str) -> str:
+def web_search(query: str, engine: str = "duckduckgo") -> str:
     """Perform web searches to gather information for user questions.
     - You can call this tool multiple times to gather enough information.
     - Start with broader queries to get an overview, then narrow down with more specific queries based on the results you receive.
@@ -139,13 +238,27 @@ def web_search(query: str) -> str:
     """
 
     encoded_query = urllib.parse.quote_plus(query)
-    url = f"https://lite.duckduckgo.com/lite/?q={encoded_query}"
+    if engine == "google":
+        url = f"https://www.google.com/search?q={encoded_query}&udm=14&hl=en"
+        extract_results = extract_google_search_results
+    elif engine == "duckduckgo":
+        url = f"https://lite.duckduckgo.com/lite/?q={encoded_query}"
+        extract_results = extract_search_results
+    else:
+        raise ValueError(f"Unsupported search engine: {engine}")
     html = _fetch_search_html(url)
-    return extract_search_results(html)
+    return extract_results(html)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("query")
+    parser.add_argument(
+        "-e",
+        "--engine",
+        choices=("google", "duckduckgo"),
+        default="duckduckgo",
+        help="search engine to use (default: duckduckgo)",
+    )
     args = parser.parse_args()
-    print(web_search(args.query))
+    print(web_search(args.query, engine=args.engine))

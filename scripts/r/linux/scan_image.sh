@@ -45,7 +45,7 @@ else
     output_file="$output_dir/scan_$(date +%Y%m%d_%H%M%S).$scan_format"
 fi
 
-scanner_device="$(scanimage -L | sed -n "s/^device [\`']\([^']*\)'.*/\1/p" | head -n 1)"
+scanner_device="$(scanimage -L | sed -n "s/^device [\`']\([^']*\)'.*/\1/p" | grep -v '^v4l:' | head -n 1)"
 
 if [[ -z "$scanner_device" ]]; then
     printf 'No scanner found\n' >&2

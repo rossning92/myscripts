@@ -1979,8 +1979,8 @@ class Menu(Generic[T]):
 
     def on_char(self, ch: Union[int, str]):
         if self.__quick_select and isinstance(ch, str) and ch.isdigit():
-            index = int(ch) - 1
-            if 0 <= index <= 8 and self._select_by_shortcut_index(index):
+            index = 9 if ch == "0" else int(ch) - 1
+            if 0 <= index <= 9 and self._select_by_shortcut_index(index):
                 return True
 
         if ch == "\t":
@@ -2170,6 +2170,8 @@ class Menu(Generic[T]):
     def __get_quick_select_label(index: int) -> str:
         if index < 9:
             return str(index + 1)
+        if index == 9:
+            return "0"
         return " "
 
     def _select_by_shortcut_index(self, index: int) -> bool:

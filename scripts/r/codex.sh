@@ -56,7 +56,10 @@ codex_args+=(
 )
 
 if [[ "${1:-}" == "--context" ]]; then
-    [[ -n "${2+x}" ]] || { echo "--context requires a value" >&2; exit 2; }
+    [[ -n "${2+x}" ]] || {
+        echo "--context requires a value" >&2
+        exit 2
+    }
     if [[ -n "$2" ]]; then
         codex_args+=(-c "developer_instructions=$2")
     fi
@@ -65,6 +68,6 @@ fi
 
 # The hooks do not run until the first prompt is submitted, so provide a useful
 # title while Codex is initially idle.
-{ printf '\033]0;Codex\007' > /dev/tty; } 2>/dev/null || true
+{ printf '\033]0;Codex (new)\007' >/dev/tty; } 2>/dev/null || true
 
 exec codex "${codex_args[@]}" "$@"

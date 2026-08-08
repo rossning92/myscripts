@@ -37,6 +37,28 @@ StartScript(scriptTitle, scriptPath, restartInstance)
     LastScript := scriptPath
 }
 
+SelectScript(scripts)
+{
+    message := "Select script:`n"
+    maxItems := scripts.Length() < 9 ? scripts.Length() : 9
+    Loop, %maxItems%
+        message .= "[" . A_Index . "] " . scripts[A_Index][1] . "`n"
+
+    if (scripts.Length() > 9)
+        message .= "Only the first 9 scripts are shown.`n"
+
+    key := WaitKey(message)
+    if key is not digit
+        return
+
+    index := key + 0
+    if (index < 1 or index > maxItems)
+        return
+
+    selected := scripts[index]
+    StartScript(selected[2], selected[3], selected[4])
+}
+
 RestartLastScript()
 {
     global LastScript

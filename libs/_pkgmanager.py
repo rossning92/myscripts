@@ -104,7 +104,8 @@ def require_package(
     force_install=False,
     upgrade=False,
     win_package_manager: List[Literal["choco", "winget"]] = ["winget", "choco"],
-):
+) -> bool:
+    """Ensure a package is available and report whether it was just installed."""
     wsl = wsl and sys.platform == "win32"
     if proot_distro is not None and not is_in_termux():
         raise RuntimeError("PRoot package installation is only supported on Termux")
@@ -313,6 +314,8 @@ def require_package(
 
     if not package_matched:
         raise Exception(f"{pkg} is not found")
+
+    return newly_installed
 
 
 @lru_cache(maxsize=None)

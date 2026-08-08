@@ -612,52 +612,41 @@ def setup_android_env(
         env = os.environ
 
     path = []
+    android_sdk_installed = False
 
     # ANDROID_HOME
-    if proot_distro and android_home is None:
-        proot_android_home = "/usr/lib/android-sdk"
-        if (
-            subprocess.call(
-                [
-                    "proot-distro",
-                    "login",
-                    proot_distro,
-                    "--",
-                    "test",
-                    "-d",
-                    proot_android_home,
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            == 0
-        ):
-            android_home = proot_android_home
+    if proot_distro:
+        from _pkgmanager import require_package
+
+        android_sdk_installed = require_package(
+            "android-sdk", env=env, proot_distro=proot_distro
+        )
+        if android_home is None:
+            android_home = "/usr/lib/android-sdk"
     else:
         if android_home is None:
             android_home = os.environ.get("ANDROID_HOME")
         if android_home is None:
             android_home = get_adk_path()
-    if android_home is None:
-        from _pkgmanager import require_package
+        if android_home is None:
+            from _pkgmanager import require_package
 
-        logging.info("Android SDK was not found; installing android-sdk...")
-        require_package("android-sdk", env=env, proot_distro=proot_distro)
-        android_home = "/usr/lib/android-sdk" if proot_distro else get_adk_path()
+            logging.info("Android SDK was not found; installing android-sdk...")
+            android_sdk_installed = require_package("android-sdk", env=env)
+            android_home = get_adk_path()
     if android_home is None:
         raise Exception("Cannot find ANDROID_HOME")
     logging.info("ANDROID_HOME: %s" % android_home)
     env["ANDROID_HOME"] = android_home
     _configure_native_aapt2(env, android_home, proot_distro)
 
-    if proot_distro:
-        from _pkgmanager import require_package
-
-        require_package("android-sdk", env=env, proot_distro=proot_distro)
-    accept_android_sdk_licenses(
-        android_home=android_home,
-        proot_distro=proot_distro,
-    )
+    if android_sdk_installed:
+        accept_android_sdk_licenses(
+            android_home=android_home,
+            proot_distro=proot_distro,
+        )
+    else:
+        logging.info("Android SDK already installed; skipping license acceptance.")
 
     path += [
         env["ANDROID_HOME"] + "/platform-tools",

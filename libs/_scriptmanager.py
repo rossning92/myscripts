@@ -40,14 +40,22 @@ def _linux_scripts_by_hotkey(scripts: List[Script]):
 def _linux_hotkey_command(scripts: List[Script], sway: bool = False) -> str:
     root = get_my_script_root()
     if len(scripts) > 1:
+        scripts = sorted(
+            scripts,
+            key=lambda script: (
+                os.path.basename(script.script_path).casefold(),
+                os.path.basename(script.script_path),
+                script.script_path,
+            ),
+        )
         chooser = shlex.join(
             [
+                os.path.join(root, "bin", "select_hotkey_script.sh"),
                 sys.executable,
-                os.path.join(root, "bin", "select_hotkey_script.py"),
                 *(script.script_path for script in scripts),
             ]
         )
-        return f"alacritty -e {chooser}"
+        return chooser
 
     script = scripts[0]
     title = script.get_window_title()
@@ -174,6 +182,45 @@ def _to_ahk_hotkey(hotkey: str):
     )
 
 
+def _ahk_quote(value: str) -> str:
+    return '"' + value.replace('"', '""') + '"'
+
+
+def _windows_hotkey_action(scripts: List[Script]) -> str:
+    scripts = sorted(
+        scripts,
+        key=lambda script: (
+            os.path.basename(script.script_path).casefold(),
+            os.path.basename(script.script_path),
+            script.script_path,
+        ),
+    )
+    if len(scripts) == 1:
+        script = scripts[0]
+        restart_instance = "true" if script.cfg["restartInstance"] else "false"
+        return (
+            f"StartScript({_ahk_quote(script.get_window_title())}, "
+            f"{_ahk_quote(script.script_path)}, {restart_instance})"
+        )
+
+    entries = []
+    for script in scripts:
+        restart_instance = "true" if script.cfg["restartInstance"] else "false"
+        entries.append(
+            "["
+            + ", ".join(
+                [
+                    _ahk_quote(os.path.basename(script.script_path)),
+                    _ahk_quote(script.get_window_title()),
+                    _ahk_quote(script.script_path),
+                    restart_instance,
+                ]
+            )
+            + "]"
+        )
+    return f"SelectScript([{', '.join(entries)}])"
+
+
 def register_global_hotkeys_win(scripts: List[Script]):
     def wrap_hotkey_def_with_context_expr(hotkey_def: str, expr: str):
         return f"#If {expr}\n    {hotkey_def}\n#If\n\n"
@@ -183,40 +230,43 @@ def register_global_hotkeys_win(scripts: List[Script]):
     match_clipboard = []
     first_hotkey_defined: Set[str] = set()
 
+    scripts_by_hotkey: Dict[str, List[Script]] = {}
     for script in scripts:
-        restart_instance = "true" if script.cfg["restartInstance"] else "false"
-        function_def = f'StartScript("{script.get_window_title()}", "{script.script_path}", {restart_instance})'
         hotkey_chain = script.cfg["globalHotkey"]
         if hotkey_chain and script.is_supported():
-            hotkey_array = hotkey_chain.split()
-            if len(hotkey_array) == 1:
-                htk = _to_ahk_hotkey(hotkey_array[0])
-                hotkeys += wrap_hotkey_def_with_context_expr(
-                    f"{htk}::{function_def}", default_hotkey_context
-                )
-            elif len(hotkey_array) == 2:
-                # First hotkey in the key combination
-                key1 = _to_ahk_hotkey(hotkey_array[0])
-                if key1 not in first_hotkey_defined:
-                    hotkeys += wrap_hotkey_def_with_context_expr(
-                        f"{key1}::return", default_hotkey_context
-                    )
-
-                first_hotkey_defined.add(key1)
-
-                # Second hotkey in the key combination
-                key2 = _to_ahk_hotkey(hotkey_array[1])
-                hotkeys += wrap_hotkey_def_with_context_expr(
-                    f"{key2}::{function_def}",
-                    f'{default_hotkey_context} and A_PriorHotkey = "{key1}"',
-                )
-
-            else:
-                raise Exception("Only support chaining two hotkeys.")
+            scripts_by_hotkey.setdefault(hotkey_chain.lower(), []).append(script)
 
         patt = script.cfg["matchClipboard"]
         if patt:
             match_clipboard.append([patt, script.name, script.script_path])
+
+    for hotkey_chain, matching_scripts in scripts_by_hotkey.items():
+        function_def = _windows_hotkey_action(matching_scripts)
+        hotkey_array = hotkey_chain.split()
+        if len(hotkey_array) == 1:
+            htk = _to_ahk_hotkey(hotkey_array[0])
+            hotkeys += wrap_hotkey_def_with_context_expr(
+                f"{htk}::{function_def}", default_hotkey_context
+            )
+        elif len(hotkey_array) == 2:
+            # First hotkey in the key combination
+            key1 = _to_ahk_hotkey(hotkey_array[0])
+            if key1 not in first_hotkey_defined:
+                hotkeys += wrap_hotkey_def_with_context_expr(
+                    f"{key1}::return", default_hotkey_context
+                )
+
+            first_hotkey_defined.add(key1)
+
+            # Second hotkey in the key combination
+            key2 = _to_ahk_hotkey(hotkey_array[1])
+            hotkeys += wrap_hotkey_def_with_context_expr(
+                f"{key2}::{function_def}",
+                f'{default_hotkey_context} and A_PriorHotkey = "{key1}"',
+            )
+
+        else:
+            raise Exception("Only support chaining two hotkeys.")
 
     match_clipboard = sorted(match_clipboard, key=lambda x: x[1])  # sort by name
 

@@ -25,7 +25,7 @@ local function worker()
             10,
             function(_, stdout)
                 local temp = math.floor(tonumber(stdout) / 1000)
-                text:set_text(tostring(temp) .. "°C")
+                text:set_text(tostring(temp) .. "°")
             end
         )
         container.temperature_timer = timer
