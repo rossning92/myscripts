@@ -113,16 +113,23 @@ async def complete_chat(
             on_reasoning=on_reasoning,
             usage=usage,
         )
-    elif model == "local_llm":
+    elif model == "llama_cpp":
         return ai.openai_compatible.chat.complete_chat(
-            endpoint_url=os.environ["LOCAL_LLM_ENDPOINT"],
-            api_key=os.environ["LOCAL_LLM_API_KEY"],
+            endpoint_url=os.environ.get(
+                "LLAMA_CPP_ENDPOINT",
+                "http://127.0.0.1:8080/v1/chat/completions",
+            ),
+            api_key=os.environ.get("LLAMA_CPP_API_KEY", "no-key"),
             messages=messages,
             out_message=out_message,
-            model=os.environ["LOCAL_LLM_MODEL"],
+            model=os.environ.get(
+                "LLAMA_CPP_MODEL",
+                "Qwen/Qwen3-1.7B-GGUF",
+            ),
             system_prompt=system_prompt,
             tools=tools,
             on_tool_use=on_tool_use,
+            on_reasoning=on_reasoning,
             usage=usage,
         )
     else:

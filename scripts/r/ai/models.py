@@ -12,7 +12,7 @@ MODELS = [
     "gemini-3.1-flash-lite-preview",
     "gpt-image-2",
     "openrouter:google/gemini-3-flash-preview",
-    "local_llm",
+    "llama_cpp",
     "openrouter:x-ai/grok-4.5",
     "openrouter:x-ai/grok-imagine-image-quality",
     "openrouter:openai/gpt-image-2",

@@ -450,6 +450,11 @@
       "packages": ["less"]
     }
   },
+  "llama-cpp": {
+    "pacman": {
+      "packages": ["llama-cpp"]
+    }
+  },
   "libreoffice": {
     "pacman": {
       "packages": ["libreoffice-still"]

@@ -4,10 +4,10 @@ import logging
 import logging.handlers
 import os
 import re
-from enum import Enum, auto
 import subprocess
 import sys
 import time
+from enum import Enum, auto
 from queue import Queue
 from typing import (
     Any,
@@ -163,9 +163,7 @@ def _decode_escape_sequence(
                 return curses.KEY_NPAGE
         elif ch3 == "1" and ch4 == ";":
             try:
-                ch5 = _read_escape_sequence_char(
-                    stdscr, restore_timeout_ms
-                )  # Modifier
+                ch5 = _read_escape_sequence_char(stdscr, restore_timeout_ms)  # Modifier
                 ch6 = _read_escape_sequence_char(
                     stdscr, restore_timeout_ms
                 )  # Direction
@@ -1348,11 +1346,7 @@ class Menu(Generic[T]):
 
             self.__last_key = ch
 
-        event_timed_out = (
-            ch == -1
-            and timeout_sec >= 0.0
-            and not self.__pending_enter
-        )
+        event_timed_out = ch == -1 and timeout_sec >= 0.0 and not self.__pending_enter
         if ch == -1:
             if self.__pending_enter:
                 self.__pending_enter = False
@@ -1941,7 +1935,7 @@ class Menu(Generic[T]):
             if self.__multi_select_mode:
                 indicators.append("SEL")
             if self.__follow:
-                indicators.append("F")
+                indicators.append("FLW")
             indicators.append(f"{current_position}/{total_items}")
             status += " ".join(indicators)
         return status

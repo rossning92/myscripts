@@ -1,13 +1,8 @@
 import argparse
 import logging
 import os
-import tempfile
-from threading import Event, Thread
-from typing import Optional
 
 import requests
-from audio.record_audio import record_audio
-from utils.getch import getch
 
 DEFAULT_PROMPT = "audio is english and simplified chinese."
 
@@ -37,52 +32,12 @@ def convert_audio_to_text(file: str, prompt: str = DEFAULT_PROMPT) -> str:
     return json["text"]
 
 
-def speech_to_text(prompt: str = DEFAULT_PROMPT) -> Optional[str]:
-    fd, out_file = tempfile.mkstemp(suffix=".wav")
-    os.close(fd)
-    stop_event = Event()
-    t = Thread(target=record_audio, args=(out_file, stop_event))
-    t.start()
-
-    try:
-        print("Recording... (Press ENTER to finish, ESC to cancel)", end="", flush=True)
-        try:
-            while True:
-                ch = getch()
-                if ch in ["\r", "\n"]:
-                    print()
-                    break
-                elif ch == "\x1b":  # ESC
-                    print("\nCancelled")
-                    return None
-        except KeyboardInterrupt:
-            print("\nCancelled")
-            return None
-        finally:
-            stop_event.set()
-            t.join()
-
-        if not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
-            return None
-
-        print("Converting audio to text...")
-        return convert_audio_to_text(file=out_file, prompt=prompt)
-    finally:
-        if os.path.exists(out_file):
-            os.remove(out_file)
-
-
 def _main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--file", type=str, help="Path to the audio file", default=None)
+    parser.add_argument("--file", type=str, help="Path to the audio file", required=True)
     args = parser.parse_args()
 
-    result: Optional[str]
-    if args.file:
-        result = convert_audio_to_text(args.file)
-    else:
-        result = speech_to_text()
-
+    result = convert_audio_to_text(args.file)
     print(result, end="")
 
 
