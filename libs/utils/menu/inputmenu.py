@@ -22,6 +22,7 @@ class InputMenu(Menu[str]):
         show_clipboard: bool = False,
         return_selection_if_empty: bool = False,
         item_hotkey: Optional[Dict[str, str]] = None,
+        item_hotkey_name: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
         self.__history_list = history_list
@@ -52,7 +53,8 @@ class InputMenu(Menu[str]):
                 self.add_command(
                     func=lambda item=item: self._set_input_and_close(item),
                     hotkey=hotkey,
-                    name=f"select {item}",
+                    name=(item_hotkey_name or {}).get(item, f"select {item}"),
+                    pinned=True,
                 )
 
     def __run_script_and_insert_output(self):

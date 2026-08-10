@@ -460,14 +460,26 @@ class FileMenu(Menu[_File]):
             self._select_file_by_name(new_name)
 
     def _goto_dir(self):
+        shortcut_paths = {
+            get_download_dir(): ("ctrl+d", "downloads"),
+            get_home_path(): ("ctrl+h", "home"),
+        }
+        removable_media_dir = os.path.join(
+            "/run/media", os.path.basename(get_home_path())
+        )
+        if os.path.isdir(removable_media_dir):
+            shortcut_paths[removable_media_dir] = ("ctrl+m", "removable media")
+
         path = InputMenu(
-            items=self.__config.path_history,
+            items=[
+                path
+                for path in self.__config.path_history
+                if path not in shortcut_paths
+            ],
             prompt=self._submenu_prompt("goto"),
             return_selection_if_empty=True,
-            item_hotkey={
-                get_download_dir(): "ctrl+d",
-                get_home_path(): "ctrl+h",
-            },
+            item_hotkey={path: hotkey for path, (hotkey, _) in shortcut_paths.items()},
+            item_hotkey_name={path: name for path, (_, name) in shortcut_paths.items()},
             auto_complete=True,
         ).request_input()
         if path is not None and os.path.isdir(path):

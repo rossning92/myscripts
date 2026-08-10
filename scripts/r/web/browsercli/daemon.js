@@ -101,8 +101,8 @@ const commands = {
     await upload(ref, filePath);
   },
 
-  async screenshot({ filePath }) {
-    return await screenshot(filePath);
+  async screenshot() {
+    return await screenshot();
   },
 
   async inspect() {

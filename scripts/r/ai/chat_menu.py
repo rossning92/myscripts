@@ -25,6 +25,7 @@ from ai.chat import (
     get_tool_use_text,
 )
 from ai.models import DEFAULT_MODEL, MODELS
+from ai.utils.llama_cpp_server import ensure_llama_cpp_server
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolResult, ToolUse
 from ai.utils.usagemetadata import UsageMetadata
@@ -37,7 +38,6 @@ from utils.historymanager import HistoryManager
 from utils.jsonschema import JSONSchema
 from utils.jsonutil import load_json, save_json
 from utils.menu import Menu
-from utils.menu.confirmmenu import confirm
 from utils.menu.exceptionmenu import ExceptionMenu
 from utils.menu.filemenu import FileMenu
 from utils.menu.inputmenu import InputMenu
@@ -884,6 +884,9 @@ class ChatMenu(Menu[Line]):
 
     def __complete_chat(self, status: Optional[str] = None):
         if self.__is_generating:
+            return
+
+        if not ensure_llama_cpp_server(self.get_settings()["model"]):
             return
 
         self.on_generating()

@@ -206,10 +206,9 @@ program
 
 program
   .command("screenshot")
-  .description("Take a screenshot of the current page")
-  .argument("[filePath]", "Path to save the screenshot (default: temp file)")
-  .action(async (filePath) => {
-    const savedPath = await sendCommand("screenshot", { filePath });
+  .description("Take a screenshot and save it to a temporary file")
+  .action(async () => {
+    const savedPath = await sendCommand("screenshot");
     console.log(savedPath);
   });
 

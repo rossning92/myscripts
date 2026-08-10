@@ -71,6 +71,8 @@ class GitMenu(VcsDiffMenu):
         return f"{repo_name} ({branch}{dirty_marker})"
 
     def get_item_color(self, item):
+        if self._is_clean:
+            return super().get_item_color(item)
         status = item[:2]
         if "D" in status:
             return "red"

@@ -31,6 +31,7 @@ if __name__ == "__main__":
     parser.add_argument("--cd", type=str2bool, default=True)
     parser.add_argument("--restart-instance", type=str2bool, default=True)
     parser.add_argument("--minimized", action="store_true")
+    parser.add_argument("--background", action="store_true")
     parser.add_argument("--run-in-tmux", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("args", nargs=argparse.REMAINDER)
@@ -47,6 +48,7 @@ if __name__ == "__main__":
         file=args.file,
         args=args.args,
         cd=args.cd,
+        background=args.background,
         minimized=args.minimized,
         restart_instance=args.restart_instance,
         run_in_tmux=args.run_in_tmux,

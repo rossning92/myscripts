@@ -1,11 +1,9 @@
-import threading
 import time
 from pathlib import Path
 from typing import Dict, Optional, Set
 
 from utils.menu import Menu
 from utils.notify import get_notifications
-from utils.spinner import Spinner
 from utils.term import hide_terminal_from_taskbar, set_terminal_title
 from utils.window import (
     WindowItem,
@@ -39,8 +37,6 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.script_status: Dict[str, str] = {}
         self.__visited_done: Set[str] = set()
         self.__pinned: Set[str] = set()
-        self.__refresh_spinner = Spinner()
-        self.__refresh_thread: Optional[threading.Thread] = None
         self.add_command(self.__refresh_windows, hotkey="ctrl+r")
         self.add_command(self.__close_windows, hotkey="delete")
         self.add_command(self.__close_windows, hotkey="ctrl+k")
@@ -63,35 +59,13 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.__refresh_windows()
 
     def __refresh_windows(self, message: Optional[str] = None):
-        if self.__refresh_thread is not None:
-            return
-
-        result = None
-
-        def worker():
-            nonlocal result
-            notifications = get_notifications()
-            script_status = {
-                n["app"]: n.get("hint")
-                for n in (notifications or [])
-                if isinstance(n, dict) and isinstance(n.get("app"), str)
-            }
-            result = (script_status, get_windows(script_status=script_status))
-
-        self.__refresh_thread = threading.Thread(target=worker, daemon=True)
-        self.__refresh_thread.start()
-        while self.__refresh_thread.is_alive():
-            self.set_prompt(f"{_PROMPT} {self.__refresh_spinner.frame}")
-            self.__refresh_spinner.advance()
-            self.process_events(timeout_sec=0.1)
-
-        self.__refresh_thread.join()
-        self.__refresh_thread = None
-        self.set_prompt(_PROMPT)
-        if result is None:
-            return
-
-        self.script_status, self.items = result
+        notifications = get_notifications()
+        self.script_status = {
+            n["app"]: n.get("hint")
+            for n in (notifications or [])
+            if isinstance(n, dict) and isinstance(n.get("app"), str)
+        }
+        self.items = get_windows(script_status=self.script_status)
         self.items.sort(
             key=lambda w: (
                 0

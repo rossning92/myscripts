@@ -453,6 +453,9 @@
   "llama-cpp": {
     "pacman": {
       "packages": ["llama-cpp"]
+    },
+    "termux": {
+      "packages": ["llama-cpp"]
     }
   },
   "libreoffice": {

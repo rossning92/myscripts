@@ -1849,6 +1849,7 @@ def start_script(
     variables=None,
     run_in_tmux=False,
     run_script_local=False,
+    background=False,
 ):
     start_time = time.time()
 
@@ -1893,6 +1894,7 @@ def start_script(
 
     ret = script.execute(
         args=args,
+        background=background,
         cd=cd,
         command_wrapper=command_wrapper,
         minimized=minimized,

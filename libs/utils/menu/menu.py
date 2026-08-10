@@ -1935,7 +1935,7 @@ class Menu(Generic[T]):
             if self.__multi_select_mode:
                 indicators.append("SEL")
             if self.__follow:
-                indicators.append("FLW")
+                indicators.append("+F")
             indicators.append(f"{current_position}/{total_items}")
             status += " ".join(indicators)
         return status
