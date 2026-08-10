@@ -33,3 +33,7 @@ Tests mirror the source path under `tests/` (e.g. `ai/utils/menu/confirmcommandm
 PYTHONPATH=libs:scripts:scripts/r python3 -m unittest discover -s tests -v   # top-level only
 PYTHONPATH=libs:scripts:scripts/r python3 -m unittest tests.ai.utils.menu.test_confirmcommandmenu -v   # a subdir test
 ```
+
+## External repositories
+
+- Clone external repositories under the ignored `repos/` directory.

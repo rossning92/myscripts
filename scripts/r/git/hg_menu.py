@@ -3,7 +3,7 @@ import subprocess
 
 from utils.menu.diffmenu import DiffMenu
 
-from git.vcs import get_hg_recent_commits
+from git.vcs import get_hg_recent_commits, run_vcs
 from git.vcs_menu import VcsDiffMenu
 
 
@@ -76,7 +76,7 @@ class HgMenu(VcsDiffMenu):
             else:
                 os.remove(path)
         else:
-            subprocess.run(["hg", "revert", "--no-backup", "--", filename])
+            run_vcs("hg", "revert", "--no-backup", "--", filename)
 
     def _commit_files(self, filenames, message, *, stage):
         cmds = [["hg", "add", "--"] + filenames] if stage else []

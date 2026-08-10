@@ -4,14 +4,21 @@ from typing import List, Optional
 _RECENT_COMMIT_COUNT = 5
 
 
+def run_vcs(cmd: str, *args: str, cwd: Optional[str] = None):
+    """Run a VCS action without allowing output to corrupt the active TUI."""
+    return subprocess.run(
+        [cmd, *args], cwd=cwd, capture_output=True, text=True
+    )
+
+
 def discard_all_changes(cwd: str, vcs: str) -> None:
     if vcs == "git":
-        subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=cwd)
+        run_vcs("git", "reset", "--hard", "HEAD", cwd=cwd)
     elif vcs == "hg":
-        subprocess.run(["hg", "revert", "--all", "--no-backup"], cwd=cwd)
+        run_vcs("hg", "revert", "--all", "--no-backup", cwd=cwd)
 
 
-def run_vcs(cwd: Optional[str], cmd: str, *args: str) -> Optional[str]:
+def get_vcs_output(cmd: str, *args: str, cwd: Optional[str] = None) -> Optional[str]:
     try:
         r = subprocess.run(
             [cmd, *args],
@@ -26,19 +33,21 @@ def run_vcs(cwd: Optional[str], cmd: str, *args: str) -> Optional[str]:
 
 
 def get_git_recent_commits(cwd: Optional[str] = None) -> List[str]:
-    log = run_vcs(cwd, "git", "log", f"-{_RECENT_COMMIT_COUNT}", "--format=%h %as %s")
+    log = get_vcs_output(
+        "git", "log", f"-{_RECENT_COMMIT_COUNT}", "--format=%h %as %s", cwd=cwd
+    )
     return log.splitlines() if log else []
 
 
 def get_hg_recent_commits(cwd: Optional[str] = None) -> List[str]:
-    log = run_vcs(
-        cwd,
+    log = get_vcs_output(
         "sl",
         "log",
         "-T",
         "{node|short} {date|shortdate} {pad(phabdiff, 12)} {desc|firstline}\n",
         "-r",
         "reverse(draft() & (::. + .::))",
+        cwd=cwd,
     )
     return log.splitlines() if log else []
 

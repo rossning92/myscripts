@@ -19,8 +19,8 @@ from git.vcs import (
     get_amend_cmds,
     get_git_recent_commits,
     get_hg_recent_commits,
+    get_vcs_output,
     prepend_recent_commits,
-    run_vcs,
 )
 
 _MODULE_NAME = "repos"
@@ -71,7 +71,9 @@ class Repo:
 
         # One call yields branch, upstream tracking, ahead/behind and dirty,
         # replacing separate rev-parse + status + rev-list invocations.
-        output = run_vcs(self.path, "git", "status", "--porcelain=v2", "--branch")
+        output = get_vcs_output(
+            "git", "status", "--porcelain=v2", "--branch", cwd=self.path
+        )
         if output:
             for line in output.splitlines():
                 if line.startswith("# branch.head "):
@@ -91,16 +93,18 @@ class Repo:
         self.recent_commits = get_git_recent_commits(self.path)
 
     def _refresh_hg(self):
-        self.branch = run_vcs(
-            self.path, "hg", "log", "-r", ".", "--template", "{activebookmark}"
+        self.branch = get_vcs_output(
+            "hg", "log", "-r", ".", "--template", "{activebookmark}", cwd=self.path
         )
         if not self.branch:
             self.branch = (
-                run_vcs(self.path, "hg", "log", "-r", ".", "--template", "{branch}")
+                get_vcs_output(
+                    "hg", "log", "-r", ".", "--template", "{branch}", cwd=self.path
+                )
                 or "?"
             )
 
-        status = run_vcs(self.path, "hg", "status")
+        status = get_vcs_output("hg", "status", cwd=self.path)
         self.dirty = bool(status)
 
         self.ahead = self.behind = 0
@@ -128,11 +132,31 @@ class Repo:
         return self.display_path
 
 
+def _get_myscripts_repos() -> List[str]:
+    """Return every repository directory managed under myscripts/repos."""
+    script_root = get_my_script_root()
+    repos_dir = os.path.join(script_root, "repos")
+    if not os.path.isdir(repos_dir):
+        return []
+    return [
+        os.path.join(repos_dir, name)
+        for name in sorted(os.listdir(repos_dir))
+        if os.path.isdir(os.path.join(repos_dir, name))
+    ]
+
+
 def _get_repos() -> List[Repo]:
-    dirs = [get_my_script_root()]
+    script_root = get_my_script_root()
+    dirs = [script_root]
     config_file = get_script_dirs_config_file()
     data = load_json(config_file, default=[])
     seen_paths = {os.path.realpath(dirs[0])}
+
+    for path in _get_myscripts_repos():
+        real = os.path.realpath(path)
+        if real not in seen_paths:
+            seen_paths.add(real)
+            dirs.append(path)
 
     extra_dirs = [entry["directory"] for entry in data]
     extra = os.environ.get("REPO_PATHS", "")
@@ -284,7 +308,9 @@ class RepoMenu(Menu[Repo]):
         if repo.is_git:
             # If something is already staged, commit only the staged files.
             # Otherwise fall back to staging everything.
-            staged = run_vcs(repo.path, "git", "diff", "--cached", "--name-only")
+            staged = get_vcs_output(
+                "git", "diff", "--cached", "--name-only", cwd=repo.path
+            )
             cmds = [] if staged else [["git", "add", "-A"]]
             cmds += [["git", "commit", "-m", message]]
         elif repo.is_hg:

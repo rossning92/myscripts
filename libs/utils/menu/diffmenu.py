@@ -206,7 +206,9 @@ class DiffMenu(TextMenu):
                 args = self.__git_args
             else:
                 args = []
-                if subprocess.run(["git", "diff", "--quiet"]).returncode == 0:
+                if subprocess.run(
+                    ["git", "diff", "--quiet"], capture_output=True
+                ).returncode == 0:
                     args.extend(["HEAD~1", "HEAD"])
 
             lines = _run_diff_cmd(_build_git_diff_cmd(args))

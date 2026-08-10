@@ -3,12 +3,16 @@ import subprocess
 
 from utils.menu.diffmenu import DiffMenu
 
-from git.vcs import get_git_recent_commits
+from git.vcs import get_git_recent_commits, run_vcs
 from git.vcs_menu import VcsDiffMenu
 
 
 def _git_output(*args, **kwargs):
     """Run Git without escaping non-ASCII characters in pathnames."""
+    # This runs while the menu owns the terminal.  stdout is captured by
+    # check_output; capture stderr as well so warnings/errors cannot corrupt
+    # the active TUI.
+    kwargs.setdefault("stderr", subprocess.PIPE)
     return subprocess.check_output(
         ["git", "-c", "core.quotePath=false", *args], **kwargs
     )
@@ -89,26 +93,22 @@ class GitMenu(VcsDiffMenu):
         if "?" in status:
             path = os.path.join(os.getcwd(), filename)
             if os.path.isdir(path):
-                subprocess.run(["git", "clean", "-fd", "--", filename])
+                run_vcs("git", "clean", "-fd", "--", filename)
             else:
                 os.remove(path)
         else:
-            subprocess.run(["git", "checkout", "HEAD", "--", filename])
+            run_vcs("git", "checkout", "HEAD", "--", filename)
 
     def __stage(self):
         for item in self.get_selected_items():
             filename = self._get_filename(item)
-            subprocess.run(["git", "add", "--", filename])
+            run_vcs("git", "add", "--", filename)
         self._after_action()
 
     def __unstage(self):
         for item in self.get_selected_items():
             filename = self._get_filename(item)
-            subprocess.run(
-                ["git", "reset", "HEAD", "--", filename],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            run_vcs("git", "reset", "HEAD", "--", filename)
         self._after_action()
 
     def _resolve_commit_files(self, selected_filenames):
