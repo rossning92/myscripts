@@ -7,10 +7,10 @@ if [[ -f "$VENV_DIR/Scripts/python.exe" ]]; then
 	PYTHON_EXEC="$VENV_DIR/Scripts/python.exe"
 elif [[ -f "$VENV_DIR/bin/python" ]]; then
 	PYTHON_EXEC="$VENV_DIR/bin/python"
-elif command -v python >/dev/null 2>&1; then
-	PYTHON_EXEC="python"
 elif command -v python3 >/dev/null 2>&1; then
 	PYTHON_EXEC="python3"
+elif command -v python >/dev/null 2>&1; then
+	PYTHON_EXEC="python"
 else
 	echo "Neither 'python' nor 'python3' was found. Please install Python."
 	exit 1

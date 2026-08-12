@@ -4,6 +4,12 @@
       "packages": ["7zip"]
     },
     "executables": ["C:\\Program Files\\7-Zip\\7z.exe"],
+    "pacman": {
+      "packages": ["7zip"]
+    },
+    "termux": {
+      "packages": ["7zip"]
+    },
     "winget": {
       "packages": ["7zip.7zip"]
     }

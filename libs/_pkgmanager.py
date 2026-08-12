@@ -228,9 +228,9 @@ def require_package(
             package_matched = True
 
         elif "brew" in packages[pkg] and shutil.which("brew"):
-            for p in packages[pkg]["pacman"]["packages"]:
+            for p in packages[pkg]["brew"]["packages"]:
                 if not _call_without_output(["brew", "list", p]) or force_install:
-                    logging.info(f"Installing package using pacman: {p}")
+                    logging.info(f"Installing package using brew: {p}")
                     subprocess.check_call(["brew", "install", p])
                     newly_installed = True
             package_matched = True

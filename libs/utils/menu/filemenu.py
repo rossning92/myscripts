@@ -711,7 +711,11 @@ class FileMenu(Menu[_File]):
     def open_file(self, full_path: str):
         _, ext = os.path.splitext(full_path)
         if ext.lower() in [".zip", ".gz"]:
-            subprocess.check_call(["run_script", "r/unzip.py", full_path])
+            self.run_raw(
+                lambda: subprocess.check_call(
+                    ["run_script", "r/unzip.py", full_path]
+                )
+            )
             out_dir = os.path.splitext(full_path)[0]
             self.goto_directory(out_dir)
         else:
