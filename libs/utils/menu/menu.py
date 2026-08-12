@@ -43,6 +43,7 @@ MESSAGE_TIMEOUT_SEC = 2.0
 INPUT_SETTLE_TIMEOUT_MS = 50
 PROCESS_EVENT_INTERVAL_SEC = 0.1
 ESC_SEQUENCE_TIMEOUT_MS = 25
+MAX_RENDER_PASSES = 10
 SHIFT_DOWN = 0x150
 SHIFT_UP = 0x151
 KEY_A2 = 450
@@ -1060,12 +1061,20 @@ class Menu(Generic[T]):
 
         self._height, self.__width = Menu._stdscr.getmaxyx()  # type: ignore
 
-        if sys.platform == "win32":
-            Menu._stdscr.clear()
+        # Rendering also measures the viewport. Repeat until layout-dependent
+        # state, such as the vertical scroll position, has stabilized.
+        for _ in range(MAX_RENDER_PASSES):
+            if sys.platform == "win32":
+                Menu._stdscr.clear()
+            else:
+                # Use erase instead of clear to prevent flickering
+                Menu._stdscr.erase()
+            if not self.__on_update_screen(item_y_max=self._height - 1):
+                break
         else:
-            # Use erase instead of clear to prevent flickering
-            Menu._stdscr.erase()
-        self.__on_update_screen(item_y_max=self._height - 1)
+            raise RuntimeError(
+                f"Menu layout did not stabilize after {MAX_RENDER_PASSES} render passes"
+            )
         Menu._stdscr.refresh()
 
     def reset_selection(self):
@@ -1428,7 +1437,7 @@ class Menu(Generic[T]):
                 self.__last_input = self.__input.text
                 self.__last_item_count = len(self.items)
                 self.__should_update_matched_items = False
-                self.__should_update_screen = True
+                self.update_screen()
 
                 self.on_matched_items_updated()
 
@@ -1718,8 +1727,9 @@ class Menu(Generic[T]):
     def item_wrap(self, item: T) -> bool:
         return self.__wrap_text
 
-    def __on_update_screen(self, item_y_max: int):
+    def __on_update_screen(self, item_y_max: int) -> bool:
         assert Menu._stdscr is not None
+        needs_rerender = False
 
         # Render input widget
         draw_input_result = self.__input.draw_input(
@@ -1889,8 +1899,10 @@ class Menu(Generic[T]):
                 self.__selected_row_end == matched_item_index
                 and item_y + increments >= item_y_max
             ):
-                self.__scroll_y = max(self.__scroll_y - 1, 0)
-                self.update_screen()
+                new_scroll_y = max(self.__scroll_y - 1, 0)
+                if new_scroll_y != self.__scroll_y:
+                    self.__scroll_y = new_scroll_y
+                    needs_rerender = True
 
             if self.item_wrap(item):
                 matched_item_index += 1
@@ -1905,7 +1917,7 @@ class Menu(Generic[T]):
                 self.__can_scroll = True
 
         if items_per_page != self.get_items_per_page():
-            self.update_screen()
+            needs_rerender = True
 
         try:
             in_normal = ENABLE_VIM_MODE and self.__vim_mode == VimMode.NORMAL
@@ -1918,6 +1930,8 @@ class Menu(Generic[T]):
             Menu._stdscr.move(draw_input_result.cursor_y, draw_input_result.cursor_x)
         except curses.error:
             pass
+
+        return needs_rerender
 
     def get_scroll_distance(self) -> int:
         return 10
