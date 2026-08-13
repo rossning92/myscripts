@@ -1,6 +1,7 @@
 {
   "globalHotkey": "win+alt+s",
   "hotkey": "alt+s",
+  "packages": "git git-lfs",
   "template": false,
   "tmuxHotkey": "s"
 }

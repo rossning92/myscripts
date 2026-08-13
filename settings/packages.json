@@ -325,6 +325,9 @@
     "pacman": {
       "packages": ["git-lfs"]
     },
+    "termux": {
+      "packages": ["git-lfs"]
+    },
     "winget": {
       "packages": ["GitHub.GitLFS"]
     }

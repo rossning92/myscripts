@@ -67,7 +67,10 @@ from utils.slugify import slugify
 from utils.template import render_template
 from utils.term import args_to_str, wrap_args_cmd
 from utils.term.alacritty import is_alacritty_installed, wrap_args_alacritty
-from utils.termux import is_in_termux
+from utils.termux_proot import (
+    prepare_termux_proot,
+    wrap_proot,
+)
 from utils.term.wezterm import WEZTERM_EXECUTABLE, wrap_args_wezterm
 from utils.timed import timed
 from utils.tmux import is_in_tmux
@@ -114,6 +117,20 @@ VARIABLE_NAME_EXCLUDE = {"HOME", "PATH"}
 class _DefaultStrDict(dict):
     def __missing__(self, key):
         return ""
+
+
+def _is_build_gradle(path: str) -> bool:
+    return os.path.basename(path).lower() == "build.gradle"
+
+
+def _is_script(path: str) -> bool:
+    return os.path.splitext(path)[1].lower() in SCRIPT_EXTENSIONS or _is_build_gradle(path)
+
+
+def _get_build_gradle_command(build_file: str) -> List[str]:
+    gradle_wrapper = os.path.join(os.path.dirname(build_file), "gradlew")
+    executable = "./gradlew" if os.path.isfile(gradle_wrapper) else "gradle"
+    return [executable, "assembleDebug"]
 
 
 class BackgroundProcessOutputType(IntEnum):
@@ -168,61 +185,6 @@ def get_last_script_and_args() -> Tuple[str, Any]:
         return data["file"], data["args"]
     else:
         raise ValueError("file cannot be None.")
-
-
-def _get_termux_proot_distro(
-    config: Dict[str, Union[str, bool, None]],
-) -> Optional[str]:
-    if not is_in_termux():
-        return None
-
-    # proot-distro refuses to start from inside another PRoot. This can happen
-    # when a script configured with "termux.proot" calls run_script again.
-    try:
-        process_root = os.readlink("/proc/self/root")
-    except OSError:
-        process_root = ""
-    if re.search(
-        r"/com\.termux/files/usr/var/lib/proot-distro/containers/[^/]+/rootfs/?$",
-        process_root,
-    ):
-        return None
-
-    proot = config["termux.proot"]
-    if isinstance(proot, bool):
-        return "debian" if proot else None
-    if isinstance(proot, str):
-        proot = proot.strip()
-        if not proot:
-            return None
-        if proot.lower() in ("1", "true", "yes"):
-            return "debian"
-        if proot.lower() in ("0", "false", "no"):
-            return None
-        return proot
-    return None
-
-
-def wrap_proot(
-    commands: List[str],
-    env: Optional[Dict[str, str]],
-    distro: str = "debian",
-    cwd: Optional[str] = None,
-) -> List[str]:
-    if sys.platform != "android":
-        raise RuntimeError("PRoot script config is only supported on Termux/Android")
-    if not shutil.which("proot-distro"):
-        raise FileNotFoundError("proot-distro is not installed")
-
-    args = ["proot-distro", "login"]
-    if cwd:
-        args += ["-w", cwd]
-    if env is not None:
-        for k, v in env.items():
-            if k == "PATH" or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k):
-                continue
-            args += ["-e", f"{k}={v}"]
-    return args + [distro, "--"] + commands
 
 
 def wrap_wsl(
@@ -834,7 +796,7 @@ class Script:
         ext = self.real_ext if self.real_ext else self.ext
 
         # If this is not a text/script file
-        if self.ext not in SCRIPT_EXTENSIONS:
+        if not _is_script(script_path):
             shell_open(self.get_script_path())
             return True
 
@@ -955,7 +917,7 @@ class Script:
 
         shell = False
         use_shell_execute_win32 = False
-        proot_distro = _get_termux_proot_distro(self.cfg)
+        proot_distro = prepare_termux_proot(self.cfg)
 
         if self.cfg["adk"]:
             setup_android_env(
@@ -1185,6 +1147,9 @@ class Script:
                 msys2=self.cfg["msys2"],
                 shell="expect" if ext == ".expect" else "bash",
             )
+
+        elif _is_build_gradle(script_path):
+            arg_list = _get_build_gradle_command(script_path) + arg_list
 
         elif ext == ".py" or ext == ".ipynb":
             if self.cfg["venv.name"]:
@@ -1757,7 +1722,7 @@ class Script:
     def get_variable_names(self) -> List[str]:
         VARIABLE_NAME_PATT = r"\b([A-Z_$][A-Z_$0-9]{4,})\b"
         if self.cfg["variableNames"] == "auto":
-            if self.ext in SCRIPT_EXTENSIONS:
+            if _is_script(self.script_path):
                 try:
                     with open(self.script_path, "r", encoding="utf-8") as f:
                         s = f.read()
@@ -1817,13 +1782,17 @@ def find_script(patt: str) -> Optional[str]:
     # Fuzzy search
     logging.debug(f"fuzzy search by: {patt}")
     for d in get_script_directories():
-        path = os.path.join(d.path, "**", patt)
+        path = (
+            os.path.join(d.path, "**", patt)
+            if d.recursive
+            else os.path.join(d.path, patt)
+        )
 
-        match = glob.glob(path, recursive=True)
+        match = glob.glob(path, recursive=d.recursive)
         match = [
             f
             for f in match
-            if not os.path.isdir(f) and os.path.splitext(f)[1] in SCRIPT_EXTENSIONS
+            if not os.path.isdir(f) and _is_script(f)
         ]
         if len(match) == 1:
             return match[0]
@@ -2041,6 +2010,11 @@ def load_script_config(script_path) -> Dict[str, Union[str, bool, None]]:
         if script_level_config is not None:
             config.update(script_level_config)
 
+    # This reserved launcher entry always uses the Android build environment.
+    if _is_build_gradle(script_path):
+        config["adk"] = True
+        config["termux.proot"] = True
+
     if "matchClipboard" in config and config["matchClipboard"]:
         config["matchClipboard"] = render_template(
             config["matchClipboard"], file_locator=find_script
@@ -2160,7 +2134,10 @@ def _get_scripts_recursive(
         return False
 
     for root, dirs, files in os.walk(directory.path, topdown=True):
-        dirs[:] = [d for d in dirs if not should_ignore(root, d)]
+        if directory.recursive:
+            dirs[:] = [d for d in dirs if not should_ignore(root, d)]
+        else:
+            dirs.clear()
 
         for file in files:
             ext = os.path.splitext(file)[1].lower()
@@ -2174,6 +2151,7 @@ def _get_scripts_recursive(
                     ext not in SCRIPT_EXTENSIONS
                     and ext not in include_exts
                     and ext not in BINARY_EXTENSIONS
+                    and not _is_build_gradle(file)
                     and not file.endswith(".excalidraw.png")
                 ):
                     continue

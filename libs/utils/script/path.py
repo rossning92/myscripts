@@ -18,6 +18,7 @@ class ScriptDirectory:
     name: str
     path: str  # absolute path of script directory
     glob: Optional[str] = None  # glob pattern to match files in this directory
+    recursive: bool = True
 
 
 @lru_cache(maxsize=None)
@@ -54,6 +55,17 @@ def get_script_directories() -> List[ScriptDirectory]:
             path=os.path.join(get_my_script_root(), "libs"),
         )
     )
+
+    # Expose each repository under its directory name (for example,
+    # repos/<name>/foo.py becomes <name>/foo.py in the script UI).
+    repos_dir = os.path.join(get_my_script_root(), "repos")
+    if os.path.isdir(repos_dir):
+        for name in sorted(os.listdir(repos_dir), key=str.casefold):
+            path = os.path.join(repos_dir, name)
+            if os.path.isdir(path):
+                directories.append(
+                    ScriptDirectory(name=name, path=path, recursive=False)
+                )
 
     config_file = get_script_dirs_config_file()
     data = load_json(config_file, default=[])

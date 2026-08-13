@@ -4,7 +4,6 @@ import logging
 import os
 import platform
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -26,7 +25,6 @@ from _shutil import (
 
 logger = logging.getLogger(__name__)
 
-
 ANDROID_SDK_INSTALL_DIR = os.path.join(
     os.path.expandvars("%LOCALAPPDATA%"), "Android", "Sdk"
 )
@@ -40,42 +38,19 @@ def _prepend_proot_path(paths, env):
     env["PATH"] = os.pathsep.join(dict.fromkeys(p for p in combined if p))
 
 
-def _configure_native_aapt2(env, android_home, proot_distro=None):
-    # Google Maven ships x86-64 AAPT2 for Linux, so ARM64 uses Debian's native binary.
+def _configure_arm64_ndk(proot_distro=None):
+    """Install and select the community ARM64-hosted NDK on ARM64 Linux."""
     if platform.machine().lower() not in ("aarch64", "arm64"):
         return
 
-    property_name = "android.aapt2FromMavenOverride"
-    gradle_opts = env.get("GRADLE_OPTS", os.environ.get("GRADLE_OPTS", ""))
-    if property_name in gradle_opts:
-        return
+    command_prefix = (
+        ["proot-distro", "login", proot_distro, "--"] if proot_distro else []
+    )
 
-    native_aapt2 = os.path.join(android_home, "build-tools", "debian", "aapt2")
-    if proot_distro:
-        is_executable = (
-            subprocess.call(
-                [
-                    "proot-distro",
-                    "login",
-                    proot_distro,
-                    "--",
-                    "test",
-                    "-x",
-                    native_aapt2,
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            == 0
-        )
-    else:
-        is_executable = os.access(native_aapt2, os.X_OK)
-
-    if is_executable:
-        option = f"-Dorg.gradle.project.{property_name}={native_aapt2}"
-        env["GRADLE_OPTS"] = " ".join(
-            part for part in (gradle_opts, shlex.quote(option)) if part
-        )
+    installer = os.path.join(
+        os.path.dirname(__file__), "install_android_arm64_ndk.sh"
+    )
+    subprocess.run(command_prefix + ["bash", installer], check=True)
 
 
 def accept_android_sdk_licenses(android_home, proot_distro=None):
@@ -507,6 +482,7 @@ def get_adk_path():
 
     elif sys.platform == "linux":
         ADK_SEARCH_PATH = [
+            "/usr/lib/android-sdk",  # Debian/Ubuntu
             "/opt/android-sdk/",  # arch linux
             os.path.expanduser("~/Android/Sdk"),
             os.path.expanduser("~/android-sdk"),
@@ -638,7 +614,7 @@ def setup_android_env(
         raise Exception("Cannot find ANDROID_HOME")
     logging.info("ANDROID_HOME: %s" % android_home)
     env["ANDROID_HOME"] = android_home
-    _configure_native_aapt2(env, android_home, proot_distro)
+    _configure_arm64_ndk(proot_distro)
 
     if android_sdk_installed:
         accept_android_sdk_licenses(

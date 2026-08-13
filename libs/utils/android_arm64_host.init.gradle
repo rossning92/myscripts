@@ -1,0 +1,20 @@
+gradle.settingsEvaluated { settings ->
+    def propertiesFile = new File(settings.rootDir, 'local.properties')
+    def properties = new Properties()
+    if (propertiesFile.exists()) {
+        propertiesFile.withInputStream { properties.load(it) }
+    }
+    properties.setProperty('sdk.dir', '/usr/lib/android-sdk')
+    properties.setProperty('cmake.dir', '/usr')
+    propertiesFile.withOutputStream { properties.store(it, null) }
+}
+
+gradle.beforeProject { project ->
+    project.afterEvaluate {
+        def android = project.extensions.findByName('android')
+        if (android != null) {
+            android.ndkVersion = '@NDK_VERSION@'
+            android.externalNativeBuild.cmake.version = null
+        }
+    }
+}
