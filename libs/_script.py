@@ -42,6 +42,7 @@ from utils.browser import open_url
 from utils.clip import get_clip, get_selection
 from utils.dotenv import load_dotenv
 from utils.email import send_email_md
+from utils.gradle import get_gradle_command, is_gradle_build_file
 from utils.jsonutil import load_json, save_json
 from utils.menu.csvmenu import CsvMenu
 from utils.process import start_process
@@ -119,18 +120,11 @@ class _DefaultStrDict(dict):
         return ""
 
 
-def _is_build_gradle(path: str) -> bool:
-    return os.path.basename(path).lower() == "build.gradle"
-
-
 def _is_script(path: str) -> bool:
-    return os.path.splitext(path)[1].lower() in SCRIPT_EXTENSIONS or _is_build_gradle(path)
-
-
-def _get_build_gradle_command(build_file: str) -> List[str]:
-    gradle_wrapper = os.path.join(os.path.dirname(build_file), "gradlew")
-    executable = "./gradlew" if os.path.isfile(gradle_wrapper) else "gradle"
-    return [executable, "assembleDebug"]
+    return (
+        os.path.splitext(path)[1].lower() in SCRIPT_EXTENSIONS
+        or is_gradle_build_file(path)
+    )
 
 
 class BackgroundProcessOutputType(IntEnum):
@@ -1148,8 +1142,8 @@ class Script:
                 shell="expect" if ext == ".expect" else "bash",
             )
 
-        elif _is_build_gradle(script_path):
-            arg_list = _get_build_gradle_command(script_path) + arg_list
+        elif is_gradle_build_file(script_path):
+            arg_list = get_gradle_command(script_path, arg_list)
 
         elif ext == ".py" or ext == ".ipynb":
             if self.cfg["venv.name"]:
@@ -2011,7 +2005,7 @@ def load_script_config(script_path) -> Dict[str, Union[str, bool, None]]:
             config.update(script_level_config)
 
     # This reserved launcher entry always uses the Android build environment.
-    if _is_build_gradle(script_path):
+    if is_gradle_build_file(script_path):
         config["adk"] = True
         config["termux.proot"] = True
 
@@ -2151,7 +2145,7 @@ def _get_scripts_recursive(
                     ext not in SCRIPT_EXTENSIONS
                     and ext not in include_exts
                     and ext not in BINARY_EXTENSIONS
-                    and not _is_build_gradle(file)
+                    and not is_gradle_build_file(file)
                     and not file.endswith(".excalidraw.png")
                 ):
                     continue

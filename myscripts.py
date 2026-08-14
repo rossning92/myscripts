@@ -49,6 +49,7 @@ from _shutil import (
 )
 from utils.clip import set_clip_osc52
 from utils.fileutils import read_last_line
+from utils.gradle import COMMON_GRADLE_TASKS, is_gradle_build_file
 from utils.jsonutil import load_json, save_json
 from utils.logger import setup_logger
 from utils.menu import Menu
@@ -363,6 +364,25 @@ class _MyScriptMenu(Menu[Script]):
         try:
             script = self.get_selected_item()
             if script:
+                args = self.__cmdline_args if self.__cmdline_args else None
+                if (
+                    args is None
+                    and is_gradle_build_file(script.get_script_path())
+                    and not self.__run_script_and_quit
+                ):
+                    task_line = InputMenu(
+                        items=COMMON_GRADLE_TASKS,
+                        prompt="Gradle task",
+                        return_selection_if_empty=True,
+                    ).request_input()
+                    if task_line is None:
+                        return
+                    try:
+                        args = shlex.split(task_line)
+                    except ValueError as ex:
+                        Menu(prompt="Invalid Gradle arguments", items=[str(ex)]).exec()
+                        return
+
                 script.update_script_access_time()
                 self.script_manager.sort_scripts()
                 self.refresh()
@@ -370,7 +390,7 @@ class _MyScriptMenu(Menu[Script]):
                 self.run_raw(
                     lambda: execute_script(
                         script,
-                        args=self.__cmdline_args if self.__cmdline_args else None,
+                        args=args,
                         cd=len(self.__cmdline_args) == 0
                         and not self.__run_script_and_quit,
                         close_on_exit=close_on_exit,
