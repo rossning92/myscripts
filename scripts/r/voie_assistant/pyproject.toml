@@ -1,0 +1,15 @@
+[project]
+name = "voice-assistant"
+version = "0.1.0"
+description = "Listen for a wake word and transcribe the following speech locally"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "faster-whisper>=1.1,<2",
+    "numpy>=1.24,<3",
+    "onnxruntime>=1.17,<2",
+    "openwakeword>=0.6,<1",
+    "sounddevice>=0.5,<1",
+]
+
+[tool.uv]
+package = false
