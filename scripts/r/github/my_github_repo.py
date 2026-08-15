@@ -10,6 +10,9 @@ from pathlib import Path
 from utils.menu import Menu
 
 
+PRIVATE_REPOSITORY_SYMBOL = "🔒"
+
+
 @dataclass(frozen=True)
 class Repository:
     name: str
@@ -18,8 +21,8 @@ class Repository:
 
     def __str__(self) -> str:
         if self.visibility == "PRIVATE":
-            return f"{self.name} (private, ★{self.stargazerCount})"
-        return f"{self.name} (★{self.stargazerCount})"
+            return f"{self.name} {PRIVATE_REPOSITORY_SYMBOL} ★{self.stargazerCount}"
+        return f"{self.name} ★{self.stargazerCount}"
 
 
 class GithubRepoMenu(Menu[Repository]):

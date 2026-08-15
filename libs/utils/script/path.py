@@ -107,6 +107,12 @@ def get_script_root() -> str:
     raise Exception("Failed to find script root directory.")
 
 
+def invalidate_script_directories_cache() -> None:
+    """Reload script directory configuration on the next lookup."""
+    get_script_directories.cache_clear()
+    get_script_root.cache_clear()
+
+
 @lru_cache(maxsize=None)
 def get_my_script_root():
     return os.path.abspath(os.path.dirname(os.path.abspath(__file__)) + "/../../../")

@@ -136,7 +136,10 @@ class GitMenu(VcsDiffMenu):
         if self._is_clean:
             git_args = ["HEAD~1", "HEAD", filename]
         elif item.startswith("??"):
-            git_args = ["--no-index", os.devnull, filename]
+            DiffMenu(
+                untracked_file=filename, prompt_prefix=self.get_prompt()
+            ).exec()
+            return
         else:
             git_args = [filename]
         DiffMenu(git_args=git_args, prompt_prefix=self.get_prompt()).exec()

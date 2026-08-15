@@ -19,7 +19,12 @@ from _script import (
 from _shutil import get_ahk_exe, get_selected_files, pause, refresh_env_vars
 from utils.jsonutil import load_json, save_json
 from utils.process import start_process
-from utils.script.path import get_data_dir, get_my_script_root, get_script_history_file
+from utils.script.path import (
+    get_data_dir,
+    get_my_script_root,
+    get_script_history_file,
+    invalidate_script_directories_cache,
+)
 from utils.template import render_template_file
 from utils.term import clear_terminal
 from utils.tmux import register_tmux_hotkeys
@@ -509,6 +514,7 @@ class ScriptManager:
         on_register_hotkeys: Optional[Callable[[Dict[str, Script]], None]] = None,
     ):
         begin_time = time.time()
+        invalidate_script_directories_cache()
 
         if self.reload_scripts(autorun=self.start_daemon, on_progress=on_progress):
             # Register hotkeys

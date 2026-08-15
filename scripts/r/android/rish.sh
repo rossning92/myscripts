@@ -8,12 +8,14 @@ if [ ! -f "$DEX" ]; then
 fi
 
 if [ $(getprop ro.build.version.sdk) -ge 34 ]; then
-  if [ -w $DEX ]; then
+  DEX_PERMISSIONS=$(/system/bin/stat -c %A "$DEX")
+  if echo "$DEX_PERMISSIONS" | grep -q w; then
     echo "On Android 14+, app_process cannot load writable dex."
     echo "Attempting to remove the write permission..."
     chmod 400 $DEX
+    DEX_PERMISSIONS=$(/system/bin/stat -c %A "$DEX")
   fi
-  if [ -w $DEX ]; then
+  if echo "$DEX_PERMISSIONS" | grep -q w; then
     echo "Cannot remove the write permission of $DEX."
     echo "You can copy to file to terminal app's private directory (/data/data/<package>, so that remove write permission is possible"
     exit 1

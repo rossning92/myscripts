@@ -70,6 +70,7 @@ from utils.timeutil import time_diff_str
 from utils.tmux import has_tmux_session, is_in_tmux
 
 _REFRESH_INTERVAL_SECS = 60
+BUILD_AND_INSTALL_RISH = "Build and install (RISH)"
 
 
 script_server: Optional[ScriptServer] = None
@@ -364,21 +365,37 @@ class _MyScriptMenu(Menu[Script]):
         try:
             script = self.get_selected_item()
             if script:
+                script_to_run = script
                 args = self.__cmdline_args if self.__cmdline_args else None
                 if (
                     args is None
                     and is_gradle_build_file(script.get_script_path())
                     and not self.__run_script_and_quit
                 ):
+                    gradle_tasks = list(COMMON_GRADLE_TASKS)
+                    if is_termux():
+                        gradle_tasks.insert(1, BUILD_AND_INSTALL_RISH)
                     task_line = InputMenu(
-                        items=COMMON_GRADLE_TASKS,
+                        items=gradle_tasks,
+                        history="gradle_task",
                         prompt="Gradle task",
                         return_selection_if_empty=True,
+                        quick_select=True,
                     ).request_input()
                     if task_line is None:
                         return
                     try:
-                        args = shlex.split(task_line)
+                        if task_line == BUILD_AND_INSTALL_RISH:
+                            args = [script.get_script_path()]
+                            script_to_run = Script(
+                                os.path.join(
+                                    MYSCRIPT_ROOT,
+                                    "scripts/r/android/build_and_install_gradle.sh",
+                                )
+                            )
+                        else:
+                            args = shlex.split(task_line)
+                            script_to_run = script
                     except ValueError as ex:
                         Menu(prompt="Invalid Gradle arguments", items=[str(ex)]).exec()
                         return
@@ -389,7 +406,7 @@ class _MyScriptMenu(Menu[Script]):
 
                 self.run_raw(
                     lambda: execute_script(
-                        script,
+                        script_to_run,
                         args=args,
                         cd=len(self.__cmdline_args) == 0
                         and not self.__run_script_and_quit,

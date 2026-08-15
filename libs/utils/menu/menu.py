@@ -1895,9 +1895,10 @@ class Menu(Generic[T]):
             increments = draw_text_result.last_y + 1 - item_y
 
             # Ensure the selected item text is fully visible on the screen.
+            # item_y_max is exclusive, so an item ending exactly there fits.
             if (
                 self.__selected_row_end == matched_item_index
-                and item_y + increments >= item_y_max
+                and item_y + increments > item_y_max
             ):
                 new_scroll_y = max(self.__scroll_y - 1, 0)
                 if new_scroll_y != self.__scroll_y:

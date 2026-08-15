@@ -2004,11 +2004,6 @@ def load_script_config(script_path) -> Dict[str, Union[str, bool, None]]:
         if script_level_config is not None:
             config.update(script_level_config)
 
-    # This reserved launcher entry always uses the Android build environment.
-    if is_gradle_build_file(script_path):
-        config["adk"] = True
-        config["termux.proot"] = True
-
     if "matchClipboard" in config and config["matchClipboard"]:
         config["matchClipboard"] = render_template(
             config["matchClipboard"], file_locator=find_script

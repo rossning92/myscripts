@@ -155,6 +155,27 @@ def _build_git_diff_cmd(args: List[str]) -> List[str]:
     ] + args
 
 
+def _supports_patch_action(
+    action: str,
+    files: Optional[List[Tuple[str, str]]],
+    diff_cmd: Optional[List[str]],
+    git_args: Optional[List[str]],
+    untracked_file: Optional[str],
+) -> bool:
+    if files is not None or diff_cmd is not None:
+        return False
+    if untracked_file is not None:
+        # The /dev/null diff used to display an untracked file is also a valid
+        # new-file patch for the index. Discarding part of such a patch from the
+        # working tree is not generally valid, however.
+        return action == "stage"
+    if git_args is not None and any(
+        a == "--no-index" or a.startswith("HEAD") for a in git_args
+    ):
+        return False
+    return True
+
+
 class DiffMenu(TextMenu):
     def __init__(
         self,
@@ -162,6 +183,7 @@ class DiffMenu(TextMenu):
         files: Optional[List[Tuple[str, str]]] = None,
         git_args: Optional[List[str]] = None,
         diff_cmd: Optional[List[str]] = None,
+        untracked_file: Optional[str] = None,
         prompt_prefix: str = "",
         **kwargs,
     ):
@@ -169,6 +191,7 @@ class DiffMenu(TextMenu):
         self.__files = files
         self.__git_args = git_args
         self.__diff_cmd = diff_cmd
+        self.__untracked_file = untracked_file
         self.__last_refresh_time = time.monotonic()
         self.__refresh_thread: Optional[threading.Thread] = None
 
@@ -202,7 +225,9 @@ class DiffMenu(TextMenu):
                 if git_root:
                     self.__root = str(git_root)
 
-            if self.__git_args is not None:
+            if self.__untracked_file is not None:
+                args = ["--no-index", os.devnull, self.__untracked_file]
+            elif self.__git_args is not None:
                 args = self.__git_args
             else:
                 args = []
@@ -244,17 +269,14 @@ class DiffMenu(TextMenu):
         if time.monotonic() - self.__last_refresh_time >= 5:
             self.__refresh()
 
-    def __is_working_tree_diff(self) -> bool:
-        if self.__files is not None or self.__diff_cmd is not None:
-            return False
-        if self.__git_args is not None and any(
-            a == "--no-index" or a.startswith("HEAD") for a in self.__git_args
-        ):
-            return False
-        return True
-
     def __apply_patch(self, action: str, extra_args: List[str]) -> None:
-        if not self.__is_working_tree_diff():
+        if not _supports_patch_action(
+            action,
+            self.__files,
+            self.__diff_cmd,
+            self.__git_args,
+            self.__untracked_file,
+        ):
             self.set_message(f"{action} not supported for this diff")
             return
 
@@ -278,6 +300,11 @@ class DiffMenu(TextMenu):
             return
         self.set_message(f"{action}d selection")
         self.set_multi_select(False)
+        if action == "stage" and self.__untracked_file is not None:
+            # Once any part is in the index, the remaining changes must be
+            # compared with the index rather than /dev/null.
+            self.__git_args = [self.__untracked_file]
+            self.__untracked_file = None
         self.__refresh()
 
     def __stage_lines(self):
