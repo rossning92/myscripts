@@ -46,6 +46,7 @@ class Repo:
         self.is_git = os.path.isdir(os.path.join(path, ".git"))
         self.is_hg = not self.is_git and os.path.isdir(os.path.join(path, ".hg"))
         self.branch: Optional[str] = None
+        self.upstream: Optional[str] = None
         self.dirty = False
         self.ahead = 0
         self.behind = 0
@@ -67,6 +68,7 @@ class Repo:
 
     def _refresh_git(self):
         self.branch = "?"
+        self.upstream = None
         self.dirty = False
         self.ahead = self.behind = 0
 
@@ -79,6 +81,8 @@ class Repo:
             for line in output.splitlines():
                 if line.startswith("# branch.head "):
                     self.branch = line[len("# branch.head ") :]
+                elif line.startswith("# branch.upstream "):
+                    self.upstream = line[len("# branch.upstream ") :]
                 elif line.startswith("# branch.ab "):
                     # Format: "# branch.ab +<ahead> -<behind>".
                     parts = line.split()
@@ -121,6 +125,8 @@ class Repo:
         if not self.vcs:
             return ""
         parts = [f"{self.vcs}:{self.branch}"]
+        if self.upstream:
+            parts.append(f"→ {self.upstream}")
         if self.dirty:
             parts.append("*")
         if self.ahead:
