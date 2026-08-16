@@ -268,7 +268,7 @@ class _MyScriptMenu(Menu[Script]):
         self.add_command(self._copy_file_path, hotkey="alt+y")
         self.add_command(self._delete_file, hotkey="ctrl+k")
         self.add_command(self._duplicate_script, hotkey="ctrl+d")
-        self.add_command(self._edit_script_settings, hotkey="ctrl+s")
+        self.add_command(self._edit_script_settings, hotkey="alt+s")
         self.add_command(self._new_script, hotkey="ctrl+n")
         self.add_command(self._list_scheduled_scripts)
         self.add_command(self._open_with_script, hotkey="alt+o")

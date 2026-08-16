@@ -968,6 +968,9 @@
   "uv": {
     "pacman": {
       "packages": ["uv"]
+    },
+    "termux": {
+      "packages": ["uv"]
     }
   },
   "veracrypt": {

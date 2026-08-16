@@ -14,6 +14,10 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
+import openwakeword
+import sounddevice as sd
+from faster_whisper import WhisperModel
+from openwakeword.model import Model as WakeModel
 
 # Configuration
 WAKE_MODEL = "hey_rhasspy"  # Bundled model name or path to a custom .onnx model
@@ -35,20 +39,6 @@ MAX_COMMAND_SECONDS = 30.0
 MIN_RMS = 250.0
 NOISE_MULTIPLIER = 2.5
 NOISE_HISTORY_CHUNKS = 100
-
-
-def import_dependencies():
-    try:
-        import openwakeword
-        import sounddevice as sd
-        from faster_whisper import WhisperModel
-        from openwakeword.model import Model
-    except ImportError as exc:
-        raise SystemExit(
-            f"Missing dependency: {exc.name}. Run this script with uv:\n"
-            "  uv run voice_assistant.py"
-        ) from exc
-    return sd, openwakeword, Model, WhisperModel
 
 
 def rms(chunk: np.ndarray) -> float:
@@ -78,8 +68,6 @@ def ensure_wake_model(openwakeword, model: str) -> None:
 
 
 def main() -> int:
-    sd, openwakeword, WakeModel, WhisperModel = import_dependencies()
-
     ensure_wake_model(openwakeword, WAKE_MODEL)
     try:
         wake_model = WakeModel(

@@ -6,6 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
+from _script import start_script
 from utils.jsonutil import load_json
 from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
@@ -201,6 +202,11 @@ class RepoMenu(Menu[Repo]):
         self.add_command(self._amend_and_push, hotkey="alt+a", name="amend+push")
         self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
         self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
+        self.add_command(
+            self._browse,
+            hotkey="ctrl+o",
+            pinned=True,
+        )
 
     def get_item_text(self, item: Repo) -> str:
         vcs_info = item.vcs_info
@@ -238,6 +244,12 @@ class RepoMenu(Menu[Repo]):
         finally:
             os.chdir(saved_cwd)
         self._refresh()
+
+    def _browse(self):
+        repo = self.get_selected_item()
+        if repo is None:
+            return
+        start_script("ext/filemgr.py", args=[repo.path])
 
     def _run_cmds(self, *commands: List[str]):
         repo = self.get_selected_item()

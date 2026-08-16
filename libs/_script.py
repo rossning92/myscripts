@@ -76,6 +76,12 @@ from utils.term.wezterm import WEZTERM_EXECUTABLE, wrap_args_wezterm
 from utils.timed import timed
 from utils.tmux import is_in_tmux
 from utils.venv import activate_python_venv, get_venv_python_executable
+from utils.uv import (
+    ensure_uv_available,
+    find_uv_project,
+    get_uv_python_executable,
+    wrap_uv_command,
+)
 from utils.window import activate_window_by_name, close_window_by_name
 
 SCRIPT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -1146,10 +1152,22 @@ class Script:
             arg_list = get_gradle_command(script_path, arg_list)
 
         elif ext == ".py" or ext == ".ipynb":
+            uv_project = None
+            if (
+                ext == ".py"
+                and not self.cfg["venv.name"]
+                and not self.cfg["conda"]
+            ):
+                uv_project = find_uv_project(script_path)
+                if uv_project:
+                    ensure_uv_available(
+                        wsl=self.cfg["wsl"], env=env, proot_distro=proot_distro
+                    )
+
             if self.cfg["venv.name"]:
                 python_exec = get_venv_python_executable(self.cfg["venv.name"])
             else:
-                python_exec = sys.executable
+                python_exec = get_uv_python_executable(uv_project, sys.executable)
 
             if template and ext == ".py":
                 python_file = write_temp_file(
@@ -1162,6 +1180,10 @@ class Script:
             if sys.platform == "win32" and self.cfg["wsl"]:
                 python_file = convert_to_unix_path(python_file, wsl=self.cfg["wsl"])
                 python_exec = "python3"
+                if uv_project:
+                    uv_project = convert_to_unix_path(
+                        uv_project, wsl=self.cfg["wsl"]
+                    )
 
             setup_python_path(env, script_path, wsl=self.cfg["wsl"])
             # env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -1212,6 +1234,9 @@ class Script:
                     arg_list = (
                         args_activate + [python_exec, "-u", python_file] + arg_list
                     )
+
+                if uv_project:
+                    arg_list = wrap_uv_command(arg_list, uv_project)
             elif ext == ".ipynb":
                 arg_list = (
                     args_activate + ["jupyter", "notebook", python_file] + arg_list
