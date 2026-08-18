@@ -16,7 +16,7 @@ from _shutil import (
     print2,
     wait_for_key,
 )
-from utils.hotkey import register_global_hotkey
+from utils.hotkey import wait_for_global_hotkeys
 from utils.notify import send_notify
 from utils.process import start_process
 from utils.slugify import slugify
@@ -314,7 +314,7 @@ def _main():
             out_dir = os.path.expanduser("~/Desktop")
     os.chdir(out_dir)
 
-    def on_hotkey():
+    def on_hotkey() -> None:
         if not recorder.is_recording():
             recorder.start_record()
             if args.max_length:
@@ -332,9 +332,9 @@ def _main():
                 recorder.save(file)
                 call_echo(["mpv", os.path.abspath(file)])
 
-        return False
-
-    register_global_hotkey("F9", on_hotkey)
+    while True:
+        wait_for_global_hotkeys("F9")
+        on_hotkey()
 
 
 if __name__ == "__main__":
