@@ -70,7 +70,7 @@ from utils.timeutil import time_diff_str
 from utils.tmux import has_tmux_session, is_in_tmux
 
 _REFRESH_INTERVAL_SECS = 60
-BUILD_AND_INSTALL_RISH = "Build and install (RISH)"
+_GRADLE_INSTALL_RISH = "install (rish)"
 
 
 script_server: Optional[ScriptServer] = None
@@ -374,7 +374,7 @@ class _MyScriptMenu(Menu[Script]):
                 ):
                     gradle_tasks = list(COMMON_GRADLE_TASKS)
                     if is_termux():
-                        gradle_tasks.insert(1, BUILD_AND_INSTALL_RISH)
+                        gradle_tasks.insert(1, _GRADLE_INSTALL_RISH)
                     task_line = InputMenu(
                         items=gradle_tasks,
                         history="gradle_task",
@@ -385,7 +385,7 @@ class _MyScriptMenu(Menu[Script]):
                     if task_line is None:
                         return
                     try:
-                        if task_line == BUILD_AND_INSTALL_RISH:
+                        if task_line == _GRADLE_INSTALL_RISH:
                             args = [script.get_script_path()]
                             script_to_run = Script(
                                 os.path.join(

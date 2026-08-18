@@ -172,7 +172,7 @@ class FileMenu(Menu[_File]):
         self.add_command(self._open_terminal, hotkey="ctrl+t")
         self.add_command(self._refresh_cur_dir, hotkey="ctrl+r")
         self.add_command(self._rename_file, hotkey="alt+n")
-        self.add_command(self._reveal_in_file_explorer, hotkey="ctrl+o")
+        self.add_command(self._open, hotkey="ctrl+o")
         self.add_command(self._open_with_script, hotkey="alt+o")
         self.add_command(self._duplicate_file, hotkey="ctrl+d")
         self.add_command(self._preview_image)
@@ -245,8 +245,10 @@ class FileMenu(Menu[_File]):
             "/" if item.is_dir and not item.full_path.endswith("/") else ""
         )
 
-    def _reveal_in_file_explorer(self):
-        shell_open(self.get_cur_dir())
+    def _open(self):
+        selected_path = self.get_selected_file_full_path()
+        if selected_path is not None:
+            shell_open(selected_path)
 
     def get_cur_dir(self) -> str:
         return self.__config.cur_dir

@@ -231,7 +231,9 @@ def get_script_alias(name_without_ext: str) -> str:
     if basename:
         words = re.split("[^a-zA-Z0-9]+", basename)
         if 1 <= len(words) <= 4:
-            return "".join((w[0].lower() if w else "" for w in words))
+            alias = "".join((w[0].lower() if w else "" for w in words))
+            # Digits are allowed in aliases, but an alias must start with a letter.
+            return alias if alias and not alias[0].isdigit() else ""
         else:
             return ""
     else:

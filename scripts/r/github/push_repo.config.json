@@ -1,0 +1,5 @@
+{
+  "packages": "gh",
+  "workingDir": "{GIT_REPO}",
+  "variableNames": "GIT_REPO"
+}
