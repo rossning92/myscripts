@@ -1,4 +1,3 @@
-import os
 from typing import (
     AsyncIterator,
     Callable,
@@ -11,7 +10,7 @@ import ai.gemini.chat
 import ai.openai.chat
 import ai.openai_compatible.chat
 import ai.openai_image.chat
-import ai.openrouter.chat
+from ai.models import get_model
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolResult, ToolUse
 from ai.utils.usagemetadata import UsageMetadata
@@ -53,13 +52,13 @@ async def complete_chat(
     on_reasoning: Optional[Callable[[str], None]] = None,
     usage: Optional[UsageMetadata] = None,
 ) -> AsyncIterator[str]:
-    OPENROUTER_PREFIX = "openrouter:"
+    selected_model = get_model(model)
 
-    if model and model.startswith("claude"):
+    if selected_model.api_type == "anthropic_messages":
         return ai.anthropic.chat.complete_chat(
             messages=messages,
             out_message=out_message,
-            model=model,
+            model=selected_model.model,
             system_prompt=system_prompt,
             tools=tools,
             on_tool_use_start=on_tool_use_start,
@@ -67,79 +66,70 @@ async def complete_chat(
             on_tool_use=on_tool_use,
             usage=usage,
         )
-    elif model and model.startswith(OPENROUTER_PREFIX):
-        model = model[len(OPENROUTER_PREFIX) :]
-
-        return await ai.openrouter.chat.complete_chat(
-            messages=messages,
-            out_message=out_message,
-            model=model,
-            system_prompt=system_prompt,
-            tools=tools,
-            on_image=on_image,
-            on_tool_use=on_tool_use,
-            on_reasoning=on_reasoning,
-            usage=usage,
-        )
-    elif model and model.startswith("gemini"):
-        return ai.gemini.chat.complete_chat(
-            messages=messages,
-            out_message=out_message,
-            model=model,
-            system_prompt=system_prompt,
-            tools=tools,
-            on_image=on_image,
-            on_tool_use=on_tool_use,
-            usage=usage,
-        )
-    elif model and model in ai.openai_image.chat.IMAGE_MODELS:
-        return ai.openai_image.chat.complete_chat(
-            messages=messages,
-            out_message=out_message,
-            model=model,
-            on_image=on_image,
-            usage=usage,
-        )
-    elif model and model.startswith("deepseek"):
-        return ai.openai_compatible.chat.complete_chat(
-            endpoint_url="https://api.deepseek.com/chat/completions",
-            api_key=os.environ["DEEPSEEK_API_KEY"],
-            messages=messages,
-            out_message=out_message,
-            model=model,
-            system_prompt=system_prompt,
-            tools=tools,
-            on_tool_use=on_tool_use,
-            on_reasoning=on_reasoning,
-            usage=usage,
-        )
-    elif model == "llama_cpp":
-        return ai.openai_compatible.chat.complete_chat(
-            endpoint_url=os.environ.get(
-                "LLAMA_CPP_ENDPOINT",
-                "http://127.0.0.1:8080/v1/chat/completions",
-            ),
-            api_key=os.environ.get("LLAMA_CPP_API_KEY", "no-key"),
-            messages=messages,
-            out_message=out_message,
-            model=os.environ.get(
-                "LLAMA_CPP_MODEL",
-                "Qwen/Qwen3-1.7B-GGUF",
-            ),
-            system_prompt=system_prompt,
-            tools=tools,
-            on_tool_use=on_tool_use,
-            on_reasoning=on_reasoning,
-            usage=usage,
-        )
-    else:
+    elif selected_model.api_type == "openai_responses":
         return ai.openai.chat.complete_chat(
             messages=messages,
             out_message=out_message,
-            model=model,
+            model=selected_model.model,
             system_prompt=system_prompt,
             tools=tools,
             on_tool_use_start=on_tool_use_start,
             on_tool_use=on_tool_use,
             usage=usage,
+            **(
+                {"base_url": selected_model.base_url}
+                if selected_model.base_url
+                else {}
+            ),
+            api_key=selected_model.api_key,
+            reasoning_effort=selected_model.reasoning_effort,
         )
+    elif selected_model.api_type == "gemini_generate_content":
+        return ai.gemini.chat.complete_chat(
+            messages=messages,
+            out_message=out_message,
+            model=selected_model.model,
+            system_prompt=system_prompt,
+            tools=tools,
+            on_image=on_image,
+            on_tool_use=on_tool_use,
+            usage=usage,
+        )
+    elif selected_model.api_type == "openai_images":
+        return ai.openai_image.chat.complete_chat(
+            messages=messages,
+            out_message=out_message,
+            model=selected_model.model,
+            on_image=on_image,
+            usage=usage,
+        )
+    elif selected_model.api_type == "openai_chat_completions":
+        if not selected_model.base_url:
+            raise ValueError(f"Model {selected_model.id!r} requires a base URL")
+        if not selected_model.api_key:
+            raise ValueError(f"Model {selected_model.id!r} requires an API key")
+        endpoint_url = selected_model.base_url.rstrip("/")
+        if not endpoint_url.endswith("/chat/completions"):
+            endpoint_url += "/chat/completions"
+
+        extra_payload = {}
+        if selected_model.reasoning_effort:
+            extra_payload.setdefault("extra_body", {})["reasoning"] = {
+                "effort": selected_model.reasoning_effort
+            }
+        return ai.openai_compatible.chat.complete_chat(
+            endpoint_url=endpoint_url,
+            api_key=selected_model.api_key,
+            messages=messages,
+            out_message=out_message,
+            model=selected_model.model,
+            system_prompt=system_prompt,
+            tools=tools,
+            on_image=on_image,
+            on_tool_use=on_tool_use,
+            on_reasoning=on_reasoning,
+            extra_payload=extra_payload,
+            usage=usage,
+        )
+
+    raise ValueError(f"Unsupported API type: {selected_model.api_type}")

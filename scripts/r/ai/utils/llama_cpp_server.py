@@ -58,8 +58,8 @@ class _WaitForServerMenu(Menu):
         return self.__available
 
 
-def ensure_llama_cpp_server(model: str) -> bool:
-    if model != "llama_cpp" or _is_server_available():
+def ensure_llama_cpp_server() -> bool:
+    if _is_server_available():
         return True
     if not confirm("llama.cpp server is unavailable. Start it?"):
         return False

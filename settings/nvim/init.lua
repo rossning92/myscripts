@@ -17,6 +17,13 @@ vim.opt.smartcase = true
 vim.opt.incsearch = true
 vim.opt.hlsearch = true
 
+-- Folding: detect folds from indentation, but open files fully expanded.
+vim.opt.foldmethod = "indent"
+vim.opt.foldenable = true
+vim.opt.foldlevel = 99
+vim.opt.foldlevelstart = 99
+vim.opt.foldcolumn = "1"
+
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 vim.g.loaded_netrw = 1         -- built-in file explorer (replaced by telescope)

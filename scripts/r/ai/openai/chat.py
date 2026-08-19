@@ -91,13 +91,16 @@ async def complete_chat(
     on_tool_use_start: Optional[Callable[[ToolUse], None]] = None,
     on_tool_use: Optional[Callable[[ToolUse], None]] = None,
     usage: Optional[UsageMetadata] = None,
+    base_url: str = "https://api.openai.com/v1",
+    api_key: Optional[str] = None,
+    reasoning_effort: Optional[str] = None,
 ) -> AsyncIterator[str]:
-    api_key = os.environ["OPENAI_API_KEY"]
+    api_key = api_key if api_key is not None else os.environ["OPENAI_API_KEY"]
     if not api_key:
-        raise Exception("OPENAI_API_KEY must be provided.")
+        raise Exception("An OpenAI-compatible API key must be provided.")
 
     # https://platform.openai.com/docs/api-reference/responses
-    url = "https://api.openai.com/v1/responses"
+    url = f"{base_url.rstrip('/')}/responses"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -105,7 +108,9 @@ async def complete_chat(
 
     payload: Dict[str, Any] = {}
 
-    if model:
+    if reasoning_effort:
+        payload["reasoning"] = {"effort": reasoning_effort}
+    elif model:
         # https://platform.openai.com/docs/guides/reasoning
         if model.endswith("(low)"):
             model = model[:-5]

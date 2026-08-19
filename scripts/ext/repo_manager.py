@@ -125,8 +125,12 @@ class Repo:
         if not self.vcs:
             return ""
         parts = [f"{self.vcs}:{self.branch}"]
-        if self.upstream:
-            parts.append(f"→ {self.upstream}")
+        if (
+            self.is_git
+            and not self.upstream
+            and self.branch not in (None, "?", "(detached)")
+        ):
+            parts.append("(no upstream)")
         if self.dirty:
             parts.append("*")
         if self.ahead:
@@ -209,6 +213,11 @@ class RepoMenu(Menu[Repo]):
         self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
         self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
         self.add_command(
+            self._terminal,
+            hotkey="ctrl+t",
+            pinned=True,
+        )
+        self.add_command(
             self._browse,
             hotkey="ctrl+o",
             pinned=True,
@@ -256,6 +265,15 @@ class RepoMenu(Menu[Repo]):
         if repo is None:
             return
         start_script("ext/filemgr.py", args=[repo.path])
+
+    def _terminal(self):
+        repo = self.get_selected_item()
+        if repo is None:
+            return
+        subprocess.check_call(
+            ["start_script", "--cd=false", "r/command_prompt.sh"],
+            cwd=repo.path,
+        )
 
     def _run_cmds(self, *commands: List[str]):
         repo = self.get_selected_item()

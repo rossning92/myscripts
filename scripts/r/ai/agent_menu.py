@@ -15,7 +15,6 @@ import ai.utils.tools.grep
 import ai.utils.tools.list
 import ai.utils.tools.powershell
 import ai.utils.tools.read
-import ai.utils.tools.tts
 import ai.utils.tools.web_fetch
 import ai.utils.tools.web_search
 from ai.chat_menu import ChatMenu, Line
@@ -158,7 +157,6 @@ class AgentMenu(ChatMenu):
                 ai.utils.tools.grep.grep,
                 ai.utils.tools.web_fetch.web_fetch,
                 ai.utils.tools.web_search.web_search,
-                ai.utils.tools.tts.tts,
             ]
         )
 

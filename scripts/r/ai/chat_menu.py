@@ -24,7 +24,7 @@ from ai.chat import (
     get_tool_result_text,
     get_tool_use_text,
 )
-from ai.models import DEFAULT_MODEL, MODELS
+from ai.models import DEFAULT_MODEL, MODEL_IDS, get_model
 from ai.utils.llama_cpp_server import ensure_llama_cpp_server
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolResult, ToolUse
@@ -104,7 +104,7 @@ class SettingsMenu(JsonEditMenu):
         return {
             "type": "object",
             "properties": {
-                "model": {"type": "string", "enum": MODELS},
+                "model": {"type": "string", "enum": MODEL_IDS},
                 "retry": {"type": "boolean"},
             },
         }
@@ -886,7 +886,11 @@ class ChatMenu(Menu[Line]):
         if self.__is_generating:
             return
 
-        if not ensure_llama_cpp_server(self.get_settings()["model"]):
+        selected_model = get_model(self.get_settings()["model"])
+        if (
+            selected_model.provider == "llama_cpp"
+            and not ensure_llama_cpp_server()
+        ):
             return
 
         self.on_generating()
