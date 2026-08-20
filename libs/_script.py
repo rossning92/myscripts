@@ -58,6 +58,7 @@ from utils.script.path import (
     get_script_config_file,
     get_script_config_file_path,
     get_script_directories,
+    get_script_directory_config,
     get_script_dirs_config_file,
     get_script_history_file,
     get_temp_dir,
@@ -2110,19 +2111,15 @@ def get_all_script_access_time() -> Dict[str, float]:
     return _cached_script_access_time
 
 
-script_dir_config_file = ".scriptdirconfig.json"
-
-
-def get_default_script_dir_config():
-    return {"includeExts": ""}
-
-
 def _get_scripts_recursive(
-    directory: ScriptDirectory, include_exts=[]
+    directory: ScriptDirectory, include_exts=None
 ) -> Iterator[str]:
-    dir_config = load_json(
-        os.path.join(directory.path, script_dir_config_file),
-        default=get_default_script_dir_config(),
+    if include_exts is None:
+        include_exts = []
+    dir_config = get_script_directory_config(
+        directory.path,
+        default_prefix=directory.name,
+        default_recursive=directory.recursive,
     )
     include_exts += dir_config["includeExts"].split()
 

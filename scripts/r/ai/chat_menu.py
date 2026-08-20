@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from concurrent.futures import Future
 from datetime import datetime
 from pathlib import Path
@@ -316,6 +317,8 @@ class ChatMenu(Menu[Line]):
         )
 
         self.add_command(self.__add_file, hotkey="alt+f")
+        if is_termux():
+            self.add_command(self.__add_file_native, hotkey="alt+f")
         self.add_command(self.__edit_context)
         self.add_command(self.__edit_image_urls, hotkey="alt+i")
         self.add_command(self.__edit_message, hotkey="alt+e")
@@ -353,16 +356,46 @@ class ChatMenu(Menu[Line]):
     def __add_file(self):
         file = self.__add_file_menu.select_file()
         if file:
+            self.__add_file_path(file)
+
+    def __add_file_native(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            selected_file = os.path.join(tmp_dir, "selected_file")
             try:
-                if _is_image_file(file):
-                    self.__image_urls.append(encode_image_base64(file))
-                else:
-                    with open(file, "r", encoding="utf-8") as f:
-                        self.__context = f.read()
-            except (OSError, UnicodeError, ValueError) as e:
-                self.set_message(f"failed to add file: {e}")
+                subprocess.run(
+                    ["termux-storage-get", selected_file],
+                    check=True,
+                )
+            except (OSError, subprocess.CalledProcessError) as e:
+                self.set_message(f"failed to select file: {e}")
                 return
-            self.__update_prompt()
+
+            if not _wait_for_file_copy(selected_file):
+                self.set_message("file selection timed out")
+                return
+
+            self.__add_file_path(selected_file, detect_image_content=True)
+
+    def __add_file_path(self, file: str, detect_image_content: bool = False):
+        try:
+            image_mime_type = (
+                _detect_image_mime_type(file) if detect_image_content else None
+            )
+            if image_mime_type:
+                with open(file, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode("utf-8")
+                self.__image_urls.append(
+                    f"data:{image_mime_type};base64,{encoded}"
+                )
+            elif _is_image_file(file):
+                self.__image_urls.append(encode_image_base64(file))
+            else:
+                with open(file, "r", encoding="utf-8") as f:
+                    self.__context = f.read()
+        except (OSError, UnicodeError, ValueError) as e:
+            self.set_message(f"failed to add file: {e}")
+            return
+        self.__update_prompt()
 
     def __copy_block(self, index: int):
         # Check if it's in the code block; if so, copy all the code.
@@ -1224,6 +1257,50 @@ class ChatMenu(Menu[Line]):
 def _is_image_file(path: str) -> bool:
     ext = os.path.splitext(path)[1].lower()
     return ext in _IMAGE_EXTENSIONS
+
+
+def _detect_image_mime_type(path: str) -> Optional[str]:
+    """Detect image types whose filename was discarded by termux-storage-get."""
+    with open(path, "rb") as f:
+        header = f.read(12)
+
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if header.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if header.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if header.startswith(b"BM"):
+        return "image/bmp"
+    if header.startswith(b"RIFF") and header[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def _wait_for_file_copy(
+    path: str,
+    timeout: float = 300,
+    stable_duration: float = 0.5,
+    poll_interval: float = 0.1,
+) -> bool:
+    """Wait for an asynchronous file copy to appear and stop growing."""
+    deadline = time.monotonic() + timeout
+    while not os.path.exists(path):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(poll_interval)
+
+    previous_size = -1
+    stable_since = time.monotonic()
+    while time.monotonic() < deadline:
+        size = os.path.getsize(path)
+        if size != previous_size:
+            previous_size = size
+            stable_since = time.monotonic()
+        elif time.monotonic() - stable_since >= stable_duration:
+            return True
+        time.sleep(poll_interval)
+    return False
 
 
 def _main():

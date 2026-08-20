@@ -6,11 +6,38 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 
 from _shutil import convert_to_unix_path, is_in_wsl
 
 from utils.jsonutil import load_json, save_json
+
+
+SCRIPT_DIR_CONFIG_FILE = ".scriptdirconfig.json"
+
+
+class ScriptDirectoryConfig(TypedDict):
+    prefix: str
+    recursive: bool
+    includeExts: str
+
+
+@lru_cache(maxsize=None)
+def get_script_directory_config(
+    path: str, *, default_prefix: str, default_recursive: bool
+) -> ScriptDirectoryConfig:
+    config = load_json(
+        os.path.join(path, SCRIPT_DIR_CONFIG_FILE),
+        default={
+            "prefix": default_prefix,
+            "recursive": default_recursive,
+            "includeExts": "",
+        },
+    )
+    assert isinstance(config["prefix"], str)
+    assert isinstance(config["recursive"], bool)
+    assert isinstance(config["includeExts"], str)
+    return config
 
 
 @dataclass
@@ -63,8 +90,17 @@ def get_script_directories() -> List[ScriptDirectory]:
         for name in sorted(os.listdir(repos_dir), key=str.casefold):
             path = os.path.join(repos_dir, name)
             if os.path.isdir(path):
+                config = get_script_directory_config(
+                    path,
+                    default_prefix=name,
+                    default_recursive=False,
+                )
                 directories.append(
-                    ScriptDirectory(name=name, path=path, recursive=False)
+                    ScriptDirectory(
+                        name=config["prefix"],
+                        path=path,
+                        recursive=config["recursive"],
+                    )
                 )
 
     config_file = get_script_dirs_config_file()
@@ -109,6 +145,7 @@ def get_script_root() -> str:
 
 def invalidate_script_directories_cache() -> None:
     """Reload script directory configuration on the next lookup."""
+    get_script_directory_config.cache_clear()
     get_script_directories.cache_clear()
     get_script_root.cache_clear()
 

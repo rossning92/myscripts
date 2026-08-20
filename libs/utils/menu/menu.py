@@ -589,6 +589,7 @@ class Menu(Generic[T]):
         self.__scroll_y: int = 0
         self.__scroll_x = 0
         self.__can_scroll = False
+        self.__gutter_width = 0
 
         # Selection
         self.__follow = follow
@@ -1816,6 +1817,9 @@ class Menu(Generic[T]):
                 line_number_width = len(self.get_line_number_text(item_indices[-1]))
         else:
             line_number_width = 0
+        self.__gutter_width = line_number_width + (
+            GUTTER_SIZE if self.__line_number else 0
+        )
 
         assert len(item_indices) <= len(self.items)
         while matched_item_index < len(item_indices) and item_y < item_y_max:
@@ -1851,7 +1855,7 @@ class Menu(Generic[T]):
             # Draw item
             draw_text_result = self.__draw_text(
                 item_y,
-                line_number_width + (GUTTER_SIZE if self.__line_number else 0),
+                self.__gutter_width,
                 item_text,
                 wrap_text=self.item_wrap(item),
                 fg=fg,
@@ -1935,7 +1939,7 @@ class Menu(Generic[T]):
         return needs_rerender
 
     def get_scroll_distance(self) -> int:
-        return 10
+        return max(1, (self.__width - self.__gutter_width) // 2)
 
     def get_status_text(self) -> str:
         status = ""

@@ -46,11 +46,8 @@ export function formatSnapshot(node, state = { index: 0 }, depth = 0) {
   let line = indent;
 
   const interactive = isInteractive(node);
-  if (interactive) {
-    line += `[@e${state.index++}] `;
-  } else {
-    line += "- ";
-  }
+  const ref = interactive ? `@e${state.index++}` : null;
+  line += "- ";
 
   line += node.role;
 
@@ -80,6 +77,10 @@ export function formatSnapshot(node, state = { index: 0 }, depth = 0) {
   const value = node.value !== undefined ? node.value : node.valuetext;
   if (value !== undefined && value !== "" && value !== null) {
     line += `: ${value}`;
+  }
+
+  if (ref) {
+    line += ` [ref=${ref}]`;
   }
 
   let result = line + "\n";
@@ -230,4 +231,3 @@ export async function snapshot() {
     return output;
   });
 }
-
