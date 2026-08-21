@@ -24,6 +24,52 @@ from .menu import Menu
 
 SortBy = Literal["name", "mtime", "size"]
 
+ARCHIVE_EXTENSIONS = {
+    ".7z",
+    ".bz",
+    ".bz2",
+    ".gz",
+    ".rar",
+    ".tar",
+    ".tbz",
+    ".tbz2",
+    ".tgz",
+    ".txz",
+    ".xz",
+    ".zip",
+}
+IMAGE_EXTENSIONS = {
+    ".avif",
+    ".bmp",
+    ".gif",
+    ".heic",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".svg",
+    ".tif",
+    ".tiff",
+    ".webp",
+}
+MEDIA_EXTENSIONS = {
+    ".aac",
+    ".avi",
+    ".flac",
+    ".m4a",
+    ".m4v",
+    ".mkv",
+    ".mov",
+    ".mp3",
+    ".mp4",
+    ".mpeg",
+    ".mpg",
+    ".ogg",
+    ".opus",
+    ".wav",
+    ".webm",
+}
+WINDOWS_EXECUTABLE_EXTENSIONS = {".bat", ".cmd", ".com", ".exe", ".ps1"}
+
 
 def get_download_dir():
     if is_termux():
@@ -216,9 +262,27 @@ class FileMenu(Menu[_File]):
         self._refresh_cur_dir()
 
     def get_item_color(self, item: _File) -> str:
+        # Follow the familiar GNU ls/dircolors palette for the most common types.
+        # Check links first because a link to a directory also has item.is_dir set.
+        if os.path.islink(item.full_path):
+            return "cyan" if os.path.exists(item.full_path) else "red"
+        if item.is_dir:
+            return "blue"
+
+        extension = Path(item.name).suffix.lower()
+        if os.access(item.full_path, os.X_OK) or (
+            sys.platform == "win32" and extension in WINDOWS_EXECUTABLE_EXTENSIONS
+        ):
+            return "green"
+        if extension in ARCHIVE_EXTENSIONS:
+            return "red"
+        if extension in IMAGE_EXTENSIONS:
+            return "magenta"
+        if extension in MEDIA_EXTENSIONS:
+            return "cyan"
         if item.name.startswith("."):
             return "darkgray"
-        return "blue" if item.is_dir else "white"
+        return "white"
 
     def get_item_text(self, item: _File) -> str:
         s = ""

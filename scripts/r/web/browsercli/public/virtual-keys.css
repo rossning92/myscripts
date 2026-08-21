@@ -1,0 +1,33 @@
+#virtualKeys {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  #virtualKeys {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    flex: 0 0 auto;
+    background: var(--chrome-toolbar);
+    border-top: 1px solid rgba(232, 234, 237, 0.12);
+  }
+
+  #virtualKeys button {
+    min-width: 0;
+    height: 38px;
+    padding-inline: 3px;
+    border: none;
+    color: var(--chrome-icon);
+    background: transparent;
+    font: 600 12px/1 Arial, sans-serif;
+    appearance: none;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #virtualKeys button:active {
+    color: var(--chrome-text);
+    background: rgba(232, 234, 237, 0.16);
+  }
+}

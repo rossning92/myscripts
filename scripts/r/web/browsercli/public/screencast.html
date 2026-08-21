@@ -7,6 +7,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content"
     />
     <title>Screencast</title>
+    <link rel="stylesheet" href="/static/virtual-keys.css" />
     <style>
       * {
         margin: 0;
@@ -76,8 +77,7 @@
       #toolbar button:active {
         background: rgba(232, 234, 237, 0.16);
       }
-      #toolbar button:focus-visible,
-      #kbBtn:focus-visible {
+      #toolbar button:focus-visible {
         outline: 2px solid var(--chrome-focus);
         outline-offset: 0;
       }
@@ -85,6 +85,10 @@
         color: rgba(189, 193, 198, 0.38);
         cursor: default;
         background: transparent;
+      }
+      #pipBtn[aria-pressed="true"] {
+        color: var(--chrome-focus);
+        background: rgba(138, 180, 248, 0.16);
       }
       #addr {
         flex: 1 1 auto;
@@ -136,22 +140,6 @@
         height: 1px;
         z-index: -1;
       }
-      #kbBtn {
-        display: none;
-        position: fixed;
-        bottom: 16px;
-        right: 16px;
-        width: 56px;
-        height: 56px;
-        border: none;
-        border-radius: 16px;
-        background: #3c4043;
-        color: var(--chrome-text);
-        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
-        font-size: 24px;
-        cursor: pointer;
-        z-index: 10;
-      }
       @media (max-width: 600px) {
         #toolbar {
           height: 48px;
@@ -195,9 +183,34 @@
         autocorrect="off"
         spellcheck="false"
       />
+      <button
+        id="pipBtn"
+        title="Picture in picture"
+        aria-label="Open picture in picture"
+        aria-pressed="false"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <rect x="11" y="11" width="8" height="6" rx="1" />
+        </svg>
+      </button>
     </div>
     <div id="stage">
       <canvas id="screen"></canvas>
+    </div>
+    <div id="virtualKeys" role="group" aria-label="Remote keyboard controls">
+      <button type="button" data-key="Escape" data-code="Escape" data-key-code="27">Esc</button>
+      <button type="button" data-key="Home" data-code="Home" data-key-code="36">Home</button>
+      <button type="button" data-key="ArrowUp" data-code="ArrowUp" data-key-code="38" aria-label="Arrow up">&#8593;</button>
+      <button type="button" data-key="End" data-code="End" data-key-code="35">End</button>
+      <button type="button" data-key="PageUp" data-code="PageUp" data-key-code="33">PgUp</button>
+      <button type="button" data-key="Backspace" data-code="Backspace" data-key-code="8" aria-label="Backspace">&#9003;</button>
+      <button type="button" data-key="Tab" data-code="Tab" data-key-code="9">Tab</button>
+      <button type="button" data-key="ArrowLeft" data-code="ArrowLeft" data-key-code="37" aria-label="Arrow left">&#8592;</button>
+      <button type="button" data-key="ArrowDown" data-code="ArrowDown" data-key-code="40" aria-label="Arrow down">&#8595;</button>
+      <button type="button" data-key="ArrowRight" data-code="ArrowRight" data-key-code="39" aria-label="Arrow right">&#8594;</button>
+      <button type="button" data-key="PageDown" data-code="PageDown" data-key-code="34">PgDn</button>
+      <button type="button" data-key="Enter" data-code="Enter" data-key-code="13">Enter</button>
     </div>
     <input
       id="hiddenInput"
@@ -207,9 +220,10 @@
       autocorrect="off"
       spellcheck="false"
     />
-    <button id="kbBtn" title="Show keyboard" aria-label="Show keyboard">&#x2328;</button>
     <script type="module">
+      import { setupPictureInPicture } from "/static/pip.js";
       import { setupScreencastZoom } from "/static/zoom.js";
+      import { setupVirtualKeys } from "/static/virtual-keys.js";
 
       const canvas = document.getElementById("screen");
       const ctx = canvas.getContext("2d");
@@ -239,6 +253,23 @@
       const backBtn = document.getElementById("backBtn");
       const fwdBtn = document.getElementById("fwdBtn");
       const reloadBtn = document.getElementById("reloadBtn");
+      const hiddenInput = document.getElementById("hiddenInput");
+      const virtualKeys = document.getElementById("virtualKeys");
+      const pipBtn = document.getElementById("pipBtn");
+      const stage = document.getElementById("stage");
+      setupVirtualKeys(virtualKeys, send);
+      const pictureInPicture = setupPictureInPicture({
+        button: pipBtn,
+        elements: [stage, hiddenInput],
+        videoSource: canvas,
+        width: 480,
+        height: 320,
+        title: "Screencast",
+      });
+
+      function focusRemoteInput() {
+        hiddenInput.focus({ preventScroll: true });
+      }
 
       // Pull the current navigation history to sync the address bar and the
       // enabled/disabled state of the back/forward buttons.
@@ -280,9 +311,8 @@
             body: JSON.stringify({ command: "open", args: { url } }),
           }).catch(() => {});
         }
-        // Drop focus from the address bar so subsequent keystrokes are
-        // forwarded to the page (the document keydown handler ignores INPUTs).
-        addr.blur();
+        // Return keyboard input to the remote page on every platform.
+        focusRemoteInput();
       }
 
       backBtn.addEventListener("click", () => navHistory(-1));
@@ -340,6 +370,7 @@
               canvas.width = img.width;
               canvas.height = img.height;
               ctx.drawImage(img, 0, 0);
+              pictureInPicture.refreshVideo();
             };
             img.src = "data:image/jpeg;base64," + msg.params.data;
             send("Page.screencastFrameAck", {
@@ -420,6 +451,11 @@
         window.removeEventListener("mouseup", onWindowMouseUp);
       }
 
+      // For touch pointers, transient user activation is granted on release.
+      // Focusing from click lets mobile browsers open the software keyboard;
+      // pointerdown may focus the input without showing it.
+      canvas.addEventListener("click", focusRemoteInput);
+
       canvas.addEventListener("mousedown", (e) => {
         const { x, y } = toPageCoords(e);
         pressedButton = mouseButton(e);
@@ -459,42 +495,32 @@
 
       canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-      if ("ontouchstart" in window) {
-        const hiddenInput = document.getElementById("hiddenInput");
-        const kbBtn = document.getElementById("kbBtn");
-        kbBtn.style.display = "block";
-        kbBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          hiddenInput.focus();
-        });
-        hiddenInput.addEventListener("input", (e) => {
-          const text = e.data;
-          if (!text) return;
-          for (const char of text) {
-            send("Input.dispatchKeyEvent", {
-              type: "keyDown",
-              key: char,
-              text: char,
-              unmodifiedText: char,
-            });
-            send("Input.dispatchKeyEvent", { type: "keyUp", key: char });
-          }
-          hiddenInput.value = "";
-        });
-      }
+      // The local input is a keyboard/IME proxy for the focused element in the
+      // remote page. Keep composition text local until the IME commits it, then
+      // insert the complete Unicode string instead of guessing it from keydown.
+      hiddenInput.addEventListener("input", (e) => {
+        if (e.isComposing) return;
+        const text = hiddenInput.value;
+        if (text) send("Input.insertText", { text });
+        hiddenInput.value = "";
+      });
 
-      document.addEventListener("keydown", (e) => {
-        // Let the local toolbar inputs handle their own keystrokes.
-        if (e.target.tagName === "INPUT") return;
-        e.preventDefault();
+      hiddenInput.addEventListener("keydown", (e) => {
+        const usesAltGraph = e.getModifierState("AltGraph");
+        const producesText =
+          (!e.ctrlKey || usesAltGraph) &&
+          !e.metaKey &&
+          (e.key.length === 1 || e.key === "Dead" || e.key === "Process" || e.isComposing);
+        // Printable keys must perform their local default action so the input
+        // event above receives the browser/OS-resolved text. Suppress local
+        // defaults for navigation, editing keys, and shortcuts.
+        if (!producesText) e.preventDefault();
         send("Input.dispatchKeyEvent", {
-          type: e.key.length === 1 ? "keyDown" : "rawKeyDown",
+          type: "rawKeyDown",
           key: e.key,
           code: e.code,
           windowsVirtualKeyCode: e.keyCode,
           nativeVirtualKeyCode: e.keyCode,
-          text: e.key.length === 1 ? e.key : undefined,
-          unmodifiedText: e.key.length === 1 ? e.key : undefined,
           modifiers:
             (e.altKey ? 1 : 0) |
             (e.ctrlKey ? 2 : 0) |
@@ -503,8 +529,7 @@
         });
       });
 
-      document.addEventListener("keyup", (e) => {
-        if (e.target.tagName === "INPUT") return;
+      hiddenInput.addEventListener("keyup", (e) => {
         e.preventDefault();
         send("Input.dispatchKeyEvent", {
           type: "keyUp",

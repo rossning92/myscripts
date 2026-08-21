@@ -12,6 +12,7 @@
     "cat *",
     "curl *",
     "date",
+    "date *",
     "dir *",
     "find *",
     "gcm *",

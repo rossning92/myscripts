@@ -10,6 +10,7 @@ import ai.gemini.chat
 import ai.openai.chat
 import ai.openai_compatible.chat
 import ai.openai_image.chat
+import ai.utils.tools.bash
 from ai.models import get_model
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolResult, ToolUse
@@ -31,8 +32,14 @@ def get_tool_result_text(tool_result: ToolResult) -> str:
 
 def get_tool_use_text(tool_use: ToolUse) -> str:
     tool_name = tool_use["tool_name"]
-    args = truncate_text(str(tool_use["args"]))
-    return "\033[34m● \033[1m{}\033[22m: {}\033[0m".format(tool_name, args)
+    args = tool_use["args"]
+    preview = (
+        ai.utils.tools.bash.get_tool_use_preview(args)
+        if tool_name == "bash"
+        else str(args)
+    )
+    args_text = truncate_text(preview)
+    return "\033[34m● \033[1m{}\033[22m: {}\033[0m".format(tool_name, args_text)
 
 
 def get_reasoning_text(text: str) -> str:

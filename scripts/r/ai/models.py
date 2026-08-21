@@ -75,12 +75,12 @@ MODELS: List[Model] = [
     ),
     Model(
         "gemini",
-        "gemini-3-pro-image-preview",
+        "gemini-3-pro-image",
         api_type="gemini_generate_content",
     ),
     Model(
         "gemini",
-        "gemini-3.1-flash-image-preview",
+        "gemini-3.1-flash-image",
         api_type="gemini_generate_content",
     ),
     Model(

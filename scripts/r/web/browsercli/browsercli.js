@@ -87,13 +87,38 @@ program
   .description("Open a URL or connect to an existing browser")
   .argument("[url]", "URL to open")
   .option("--headed", "Open browser in headed mode")
+  .option(
+    "--extension",
+    "Open in the active tab of Chrome running the browsercli extension"
+  )
   .action(async (url, options) => {
-    const status = await sendCommand("open", { url, headed: options.headed });
+    const status = await sendCommand("open", {
+      url,
+      headed: options.headed,
+      extension: options.extension,
+    });
     if (status) {
-      console.error(
-        `[browsercli] :${status.port} ${status.mode} profile=${status.profile}`,
-      );
+      if (status.mode === "extension") {
+        console.error("[browsercli] extension active-tab");
+      } else {
+        console.error(
+          `[browsercli] :${status.port} ${status.mode} profile=${status.profile}`,
+        );
+      }
     }
+  });
+
+program
+  .command("connect")
+  .description("Select the browser backend used by subsequent commands")
+  .argument("<backend>", "Backend to use: browser or extension")
+  .option("--headed", "Open the managed browser in headed mode")
+  .action(async (backend, options) => {
+    const status = await sendCommand("connect", {
+      backend,
+      headed: options.headed,
+    });
+    console.error(`[browsercli] connected to ${status.backend}`);
   });
 
 program

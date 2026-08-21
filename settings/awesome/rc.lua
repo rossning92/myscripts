@@ -4,7 +4,7 @@
 -- found (e.g. lgi). If LuaRocks is not installed, do nothing.
 pcall(require, "luarocks.loader")
 
-local splitscreen = require("splitscreen")
+local screenlayout = require("screenlayout")
 
 -- Standard awesome library
 local gears = require("gears")
@@ -158,9 +158,9 @@ local function set_wallpaper(s)
 end
 
 -- When a screen's geometry changes (e.g. different resolution)
-screen.connect_signal("property::geometry", function()
-    set_wallpaper()
-    splitscreen:init_layout()
+screen.connect_signal("property::geometry", function(s)
+    set_wallpaper(s)
+    screenlayout.apply_usable_region()
 end)
 
 
@@ -389,10 +389,10 @@ local globalkeys = gears.table.join(
     --     description = "lua execute prompt",
     --     group = "awesome"
     -- }),
-    awful.key({ modkey }, "\\", function()
-        splitscreen:toggle_layout()
+    awful.key({ modkey }, "p", function()
+        screenlayout.toggle_pin(client.focus)
     end, {
-        description = "toggle fake screen layout",
+        description = "pin/unpin focused window on the right",
         group = "layouts"
     }),
 
@@ -563,7 +563,7 @@ awful.rules.rules = { -- All clients will match this rule.
             raise = true,
             keys = clientkeys,
             buttons = clientbuttons,
-            screen = awful.screen.preferred,
+            screen = screenlayout.preferred_screen,
             placement = awful.placement.no_overlap + awful.placement.no_offscreen
         }
     }, -- Floating clients.
@@ -588,6 +588,19 @@ awful.rules.rules = { -- All clients will match this rule.
         },
         properties = {
             floating = true
+        }
+    },
+    -- Chrome exposes picture-in-picture as a normal window, so it would
+    -- otherwise fill the screen when the active layout is max.
+    {
+        rule = {
+            class = "Google%-chrome",
+            role = "pop%-up",
+            name = "^Screencast$"
+        },
+        properties = {
+            floating = true,
+            ontop = true
         }
     }, -- Add titlebars to normal clients and dialogs
     {
@@ -615,10 +628,6 @@ client.connect_signal("manage", function(c)
         awful.placement.no_offscreen(c)
     end
 
-    if c.floating or (c.first_tag and c.first_tag.layout.name == "floating") then
-        -- Center the new window on the screen
-        awful.placement.centered(c, { honor_workarea = true, honor_padding = true })
-    end
 end)
 
 -- Add a titlebar if titlebars_enabled is set to true in the rules.
@@ -679,4 +688,4 @@ end)
 -- }}}
 
 awful.spawn.once("fcitx5 -d")
-splitscreen:init_layout()
+screenlayout.apply_usable_region()

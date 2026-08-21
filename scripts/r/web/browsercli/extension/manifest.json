@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "browsercli bridge",
+  "version": "0.1.1",
+  "description": "Lets browsercli control this Chrome profile.",
+  "permissions": ["tabs", "alarms", "debugger"],
+  "host_permissions": ["http://127.0.0.1:21224/*"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Connect browsercli"
+  }
+}

@@ -2,6 +2,11 @@ import subprocess
 from typing import List, Optional
 
 _RECENT_COMMIT_COUNT = 5
+DEFAULT_COMMIT_MESSAGE = "commit with no message"
+
+
+def commit_message_or_default(message: str) -> str:
+    return message if message.strip() else DEFAULT_COMMIT_MESSAGE
 
 
 def run_vcs(cmd: str, *args: str, cwd: Optional[str] = None):

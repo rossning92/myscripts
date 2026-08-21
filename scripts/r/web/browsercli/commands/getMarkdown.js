@@ -1,5 +1,6 @@
 import TurndownService from "turndown";
 import { withActivePage } from "../browser-core.js";
+import { extractPageContent } from "../extension/page-content.js";
 
 export function htmlToMarkdown(html) {
   const turndownService = new TurndownService({
@@ -30,10 +31,7 @@ export function htmlToMarkdown(html) {
 }
 
 export async function getPageHtml(page) {
-  return page.evaluate(() => {
-    const el = document.getElementById("content");
-    return el ? el.innerHTML : document.body.innerHTML;
-  });
+  return page.evaluate(extractPageContent, "get-markdown");
 }
 
 export async function getMarkdown(url) {

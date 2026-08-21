@@ -1,13 +1,9 @@
 import { withActivePage } from "../browser-core.js";
+import { extractPageContent } from "../extension/page-content.js";
 
 export async function getText(url) {
   return withActivePage(
-    async (page) => {
-      return await page.evaluate(() => {
-        const el = document.getElementById("content");
-        return el ? el.innerText : document.body.innerText;
-      });
-    },
+    async (page) => await page.evaluate(extractPageContent, "get-text"),
     { url },
   );
 }

@@ -3,8 +3,14 @@ import subprocess
 import tempfile
 import time
 import uuid
+from typing import Any, Dict
 
 from utils.textutil import truncate_output
+
+
+def get_tool_use_preview(args: Dict[str, Any]) -> str:
+    command = args.get("command")
+    return command if isinstance(command, str) else str(args)
 
 
 def _run_bash(command: str) -> str:

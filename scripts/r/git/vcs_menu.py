@@ -11,11 +11,12 @@ from utils.menu.menu import Menu
 from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.spinner import Spinner
 
-from git.vcs import get_amend_cmds, prepend_recent_commits
-
-
-def _default_commit_message(filenames: List[str]) -> str:
-    return "update " + ", ".join(os.path.basename(f) for f in filenames)
+from git.vcs import (
+    DEFAULT_COMMIT_MESSAGE,
+    commit_message_or_default,
+    get_amend_cmds,
+    prepend_recent_commits,
+)
 
 
 class VcsDiffMenu(Menu):
@@ -158,17 +159,15 @@ class VcsDiffMenu(Menu):
         filenames, source, stage = self._resolve_commit_files(selected)
         if not filenames:
             return
-        default_message = _default_commit_message(filenames)
         label = (
             f"Commit {len(filenames)} {source} file(s) "
-            f'(empty="{default_message}")'
+            f'(empty="{DEFAULT_COMMIT_MESSAGE}")'
         )
         menu = InputMenu(prompt=label, prompt_color="green")
         message = menu.request_input()
         if message is None:
             return
-        if not message.strip():
-            message = default_message
+        message = commit_message_or_default(message)
         self._commit_files(filenames, message, stage=stage)
         self._after_action()
 

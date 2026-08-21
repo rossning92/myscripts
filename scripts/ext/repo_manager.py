@@ -16,6 +16,8 @@ from utils.spinner import Spinner
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
 from git.vcs import (
+    DEFAULT_COMMIT_MESSAGE,
+    commit_message_or_default,
     discard_all_changes,
     get_amend_cmds,
     get_git_recent_commits,
@@ -25,19 +27,19 @@ from git.vcs import (
 )
 
 _MODULE_NAME = "repos"
-_DEFAULT_COMMIT_MESSAGE = "commit with no message"
 
 
 def _prompt_commit_message() -> Optional[str]:
     # Prompt for a commit message. Returns None if cancelled, or the default
     # message when the input is left empty.
-    menu = InputMenu(prompt=f'Commit message (empty="{_DEFAULT_COMMIT_MESSAGE}"):', prompt_color="green")
+    menu = InputMenu(
+        prompt=f'Commit message (empty="{DEFAULT_COMMIT_MESSAGE}"):',
+        prompt_color="green",
+    )
     message = menu.request_input()
     if message is None:
         return None
-    if not message.strip():
-        return _DEFAULT_COMMIT_MESSAGE
-    return message
+    return commit_message_or_default(message)
 
 
 class Repo:
