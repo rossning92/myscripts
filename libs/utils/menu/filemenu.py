@@ -633,11 +633,12 @@ class FileMenu(Menu[_File]):
     ):
         self.set_message(None)
 
-        # Remember last selected file
-        if directory != self.get_cur_dir():
-            selected_item = self.get_selected_item()
-            if selected_item is not None:
-                self.__selected_file_dict[self.get_cur_dir()] = selected_item.name
+        # Remember the selected file even when refreshing the current directory.
+        # A refresh rebuilds and may reorder the item list, so retaining only the
+        # selected row can silently move the selection to a different file.
+        selected_item = self.get_selected_item()
+        if selected_item is not None:
+            self.__selected_file_dict[self.get_cur_dir()] = selected_item.name
 
         # Change directory
         if not os.path.isdir(directory):

@@ -186,7 +186,7 @@ local function speech_to_text()
 end
 vim.keymap.set('n', "<leader><space>", speech_to_text)
 
-local function run_coder()
+local function run_agent()
     local full_path = vim.api.nvim_buf_get_name(0)
     if full_path ~= "" then
         local mode = vim.fn.mode()
@@ -207,7 +207,7 @@ local function run_coder()
             full_path = full_path .. "#" .. line_start .. "-" .. line_end
         end
 
-        run_in_terminal('start_script --cd=false r/ai/coder.py "' .. full_path .. '"', {
+        run_in_terminal('start_script --cd=false r/ai/agent.py --context ' .. vim.fn.shellescape(full_path), {
             on_exit = function()
                 -- Reload the current file from disk
                 vim.api.nvim_command('edit!')
@@ -215,7 +215,7 @@ local function run_coder()
         })
     end
 end
-vim.keymap.set({ "n", "i", "v", "x" }, "<C-k>c", run_coder)
+vim.keymap.set({ "n", "i", "v", "x" }, "<M-i>", run_agent)
 
 local function start_script_with_selection()
     local text = get_selected_text()

@@ -99,6 +99,34 @@ def format_variables(variables, variable_names, variable_prefix) -> List[str]:
     return result
 
 
+def _highlight_matches(text: str, query: str) -> str:
+    """Highlight text ranges matched by the menu's fuzzy search."""
+    highlight_on = "\x1b[1;33m"
+    highlight_off = "\x1b[22;39m"
+
+    if not query or (query.isascii() and query.isdigit()):
+        return text
+
+    matched = [False] * len(text)
+    for term in query.split():
+        for match in re.finditer(re.escape(term), text, re.IGNORECASE):
+            matched[match.start() : match.end()] = [True] * len(match.group())
+
+    if not any(matched):
+        return text
+
+    result = []
+    highlighting = False
+    for index, char in enumerate(text):
+        if matched[index] != highlighting:
+            result.append(highlight_on if matched[index] else highlight_off)
+            highlighting = matched[index]
+        result.append(char)
+    if highlighting:
+        result.append(highlight_off)
+    return "".join(result)
+
+
 class EditVariableMenu(DictEditMenu):
     def __init__(self, script: Script):
         self.variables = get_script_variables(script)
@@ -359,6 +387,9 @@ class _MyScriptMenu(Menu[Script]):
 
     def get_item_metadata(self, script: Script) -> str:
         return f"<file><path>{script.script_path}</path></file>"
+
+    def get_item_text(self, script: Script) -> str:
+        return _highlight_matches(str(script), self.get_input())
 
     def _run_selected_script(self, close_on_exit=None, run_script_local=False):
         script = None

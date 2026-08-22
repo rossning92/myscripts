@@ -54,7 +54,7 @@ pac_install \
 append_line_dedup "$HOME/.bashrc" 'alias v=nvim'
 
 # Install fonts
-pac_install $(pacman -Ssq 'noto-fonts-*') ttf-noto-nerd
+pac_install $(pacman -Ssq 'noto-fonts-*')
 pac_install ttf-jetbrains-mono
 
 {{ include('r/linux/arch/install_yay.sh') }}
@@ -208,6 +208,9 @@ append_line_sudo /etc/sudoers "$(whoami) ALL=(ALL:ALL) NOPASSWD: ALL"
 # ------------
 # Install Apps
 # ------------
+
+# Image viewer
+run_script r/linux/setup_nsxiv.sh
 
 # Screenshot
 pac_install flameshot

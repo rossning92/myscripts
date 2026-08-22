@@ -27,6 +27,9 @@ adb shell settings put system screen_off_timeout 300000
 echo 'Disable adaptive tone (Pixel only)...'
 adb shell settings put secure display_white_balance_enabled 0
 
+echo 'Disable "Block connections without VPN"...'
+adb shell settings put secure always_on_vpn_lockdown 0
+
 echo 'Turn on Battery saver (sticky) and keep "turn off at 90%" disabled...'
 adb shell settings put global low_power 1
 adb shell settings put global low_power_sticky 1

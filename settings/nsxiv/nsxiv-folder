@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+set -u
+
+if (( $# == 0 )); then
+    exec nsxiv
+fi
+
+selected=$(readlink -f -- "$1") || exit 1
+directory=${selected%/*}
+
+images=()
+while IFS= read -r -d '' image; do
+    images+=("$image")
+done < <(
+    find "$directory" -maxdepth 1 -type f \
+        \( -iname '*.avif' -o -iname '*.bmp' -o -iname '*.gif' \
+        -o -iname '*.heic' -o -iname '*.heif' -o -iname '*.jpeg' \
+        -o -iname '*.jpg' -o -iname '*.jxl' -o -iname '*.jp2' \
+        -o -iname '*.png' -o -iname '*.pnm' -o -iname '*.svg' \
+        -o -iname '*.tga' -o -iname '*.tif' -o -iname '*.tiff' \
+        -o -iname '*.webp' -o -iname '*.xpm' \) \
+        -print0 | sort -z -f
+)
+
+start=1
+for index in "${!images[@]}"; do
+    if [[ ${images[index]} == "$selected" ]]; then
+        start=$((index + 1))
+        break
+    fi
+done
+
+if (( ${#images[@]} == 0 )); then
+    exec nsxiv "$selected"
+fi
+
+exec nsxiv -n "$start" "${images[@]}"

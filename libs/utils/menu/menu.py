@@ -293,7 +293,7 @@ def _get_ansi_color(code: int) -> int:
     ][code - 30]
 
 
-_ANSI_CSI_RE = re.compile(r"(?:\\x1b\[|\x1b\[)([0-9;]*)m")
+_ANSI_CSI_RE = re.compile(r"\x1b\[([0-9;]*)m")
 
 
 def _apply_ansi_escape(
@@ -392,7 +392,7 @@ class _TextInput:
         i = 0
         while i < len(self.prompt):
             ch = self.prompt[i]
-            if ch == "\\" or ch == "\x1b":
+            if ch == "\x1b":
                 result = _apply_ansi_escape(self.prompt, i, attr, color_attr)
                 if result is not None:
                     attr, i = result
@@ -1663,7 +1663,7 @@ class Menu(Generic[T]):
             ch = s[i]
 
             # Handle ANSI color codes
-            if ch == "\\" or ch == "\x1b":
+            if ch == "\x1b":
                 result = _apply_ansi_escape(s, i, attr, default_attr)
                 if result is not None:
                     attr, i = result
@@ -2200,23 +2200,6 @@ class Menu(Generic[T]):
         return "\n".join([self.get_item_metadata(x) for x in selected_items])
 
     def __ai_agent(self):
-        agents = {
-            "coder": "r/ai/coder.py",
-            "codex": "r/codex.sh",
-        }
-        menu = Menu(
-            prompt="ask ai agent",
-            items=list(agents),
-            enable_command_palette=False,
-            quick_select=True,
-        )
-        menu.exec()
-
-        selected = menu.get_selected_item()
-        if selected is None:
-            self.update_screen()
-            return
-
         selected_items = list(self.get_selected_items())
         if not selected_items:
             self.update_screen()
@@ -2229,7 +2212,7 @@ class Menu(Generic[T]):
         context_parts = ["<selected_items>", *formatted_items, "</selected_items>"]
         context = "\n".join(context_parts)
         # TODO: Use a non-argv transport if selected context can exceed command-line limits.
-        args = ["start_script", agents[selected], "--context", context]
+        args = ["start_script", "r/ai/agent.py", "--context", context]
         self.run_raw(lambda: subprocess.run(args))
         self.update_screen()
 
