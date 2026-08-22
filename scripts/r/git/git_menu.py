@@ -119,10 +119,10 @@ class GitMenu(VcsDiffMenu):
             return staged, "staged", False
         return selected_filenames, "selected", True
 
-    def _commit_files(self, filenames, message, *, stage):
+    def _get_commit_cmds(self, filenames, message, *, stage):
         cmds = [["git", "add", "--"] + filenames] if stage else []
         cmds += [["git", "commit", "-m", message]]
-        self._run_shell_cmds(cmds)
+        return cmds
 
     def _diff_all(self):
         if self._is_clean:

@@ -722,13 +722,6 @@ class _MyScriptMenu(Menu[Script]):
             return super().get_status_text()
 
     def _run_hotkey(self, script: Script):
-        if is_in_tmux() and subprocess.call(
-            ["tmux", "select-window", "-t", script.get_window_title()],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ) == 0:
-            return True
-
         selected_script = self.get_selected_item()
         if selected_script is not None:
             selected_script_abs_path = os.path.abspath(selected_script.script_path)

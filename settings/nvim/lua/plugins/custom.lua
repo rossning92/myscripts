@@ -217,11 +217,11 @@ local function run_agent()
 end
 vim.keymap.set({ "n", "i", "v", "x" }, "<M-i>", run_agent)
 
-local function start_script_with_selection()
+local function run_agent_with_selection()
     local text = get_selected_text()
     local temp_file = write_to_temp_file(text, ".txt")
-    vim.fn.jobstart('start_script r/ai/ask.py ' .. temp_file)
+    vim.fn.jobstart('start_script r/ai/agent.py --context ' .. vim.fn.shellescape(temp_file))
 end
-vim.keymap.set({ "n", "i", "v", "x" }, "<C-k>a", start_script_with_selection)
+vim.keymap.set({ "n", "i", "v", "x" }, "<C-k>a", run_agent_with_selection)
 
 return {}

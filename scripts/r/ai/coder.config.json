@@ -1,8 +1,6 @@
 {
   "dynamicTitle": true,
-  "globalHotkey": "win+alt+k",
   "matchClipboard": "[^\\\\]*\\.(jpg|jpeg|png|txt)$",
   "singleInstance": false,
-  "title": "coder",
-  "tmuxHotkey": "k"
+  "title": "coder"
 }

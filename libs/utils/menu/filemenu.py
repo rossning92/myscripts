@@ -70,6 +70,10 @@ MEDIA_EXTENSIONS = {
 }
 WINDOWS_EXECUTABLE_EXTENSIONS = {".bat", ".cmd", ".com", ".exe", ".ps1"}
 
+# Checking a directory's own metadata is O(1), unlike repeatedly enumerating all
+# of its entries.  One second keeps the UI responsive without busy polling.
+AUTO_REFRESH_INTERVAL_SEC = 1.0
+
 
 def get_download_dir():
     if is_termux():
@@ -199,10 +203,13 @@ class FileMenu(Menu[_File]):
         self.__recursive = recursive
         self.__dir_size_cache: Dict[str, int] = {}
         self.__show_dir_sizes = False
+        self.__focused = True
+        self.__dir_change_token: Optional[tuple[int, int]] = None
 
         super().__init__(
             items=self.__files,
             prompt_color=prompt_color,
+            timeout_sec=AUTO_REFRESH_INTERVAL_SEC,
         )
 
         self.add_command(self.copy_to, hotkey="alt+c")
@@ -259,7 +266,21 @@ class FileMenu(Menu[_File]):
 
     def on_focus_gained(self):
         super().on_focus_gained()
+        self.__focused = True
         self._refresh_cur_dir()
+
+    def on_focus_lost(self):
+        super().on_focus_lost()
+        self.__focused = False
+
+    def on_timeout(self):
+        super().on_timeout()
+        if not self.__focused:
+            return
+
+        change_token = self.__get_dir_change_token()
+        if change_token != self.__dir_change_token:
+            self._refresh_cur_dir()
 
     def get_item_color(self, item: _File) -> str:
         # Follow the familiar GNU ls/dircolors palette for the most common types.
@@ -602,7 +623,15 @@ class FileMenu(Menu[_File]):
 
     def _refresh_cur_dir(self, clear_input: bool = False):
         self.goto_directory(self.get_cur_dir(), clear_input=clear_input)
+        self.__dir_change_token = self.__get_dir_change_token()
         self.set_multi_select(False)
+
+    def __get_dir_change_token(self) -> Optional[tuple[int, int]]:
+        try:
+            stat = os.stat(self.get_cur_dir())
+            return (stat.st_mtime_ns, stat.st_ctime_ns)
+        except OSError:
+            return None
 
     def _add_path_to_history(self, directory: str):
         MAX_PATH_IN_HISTORY = 20

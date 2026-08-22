@@ -2,6 +2,9 @@ import os
 from typing import Optional
 
 
+LINE_BREAK_MARKER = "↵"
+
+
 def truncate_text(
     text: str,
     max_chars: int = 240,
@@ -13,7 +16,10 @@ def truncate_text(
     if max_lines is not None and n_lines > max_lines:
         text = "\n".join(lines[:max_lines])
 
-    text = " ".join(text.split())
+    # Keep collapsed line breaks distinguishable from ordinary whitespace.
+    text = LINE_BREAK_MARKER.join(
+        " ".join(line.split()) for line in text.splitlines()
+    )
 
     if len(text) > max_chars or (max_lines and n_lines > max_lines):
         prefix = f"({n_lines}) " if include_line_count else ""

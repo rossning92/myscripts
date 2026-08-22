@@ -1,6 +1,6 @@
 {
   "dynamicTitle": true,
+  "globalHotkey": "win+alt+k",
   "singleInstance": false,
-  "termux.proot": true,
-  "title": "Codex (new)"
+  "tmuxHotkey": "k"
 }

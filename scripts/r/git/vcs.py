@@ -68,6 +68,14 @@ def get_amend_cmds(vcs: str, *, push: bool = False) -> List[List[str]]:
     return []
 
 
+def get_sync_cmds(vcs: str) -> List[List[str]]:
+    if vcs == "git":
+        return [["git", "pull", "--rebase"], ["git", "push"]]
+    if vcs == "hg":
+        return [["hg", "pull"], ["hg", "push"]]
+    return []
+
+
 def prepend_recent_commits(status: str, recent_commits: List[str]) -> str:
     # Prepend recent commits on top of the default status bar text.
     if not recent_commits:

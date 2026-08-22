@@ -78,10 +78,10 @@ class HgMenu(VcsDiffMenu):
         else:
             run_vcs("hg", "revert", "--no-backup", "--", filename)
 
-    def _commit_files(self, filenames, message, *, stage):
+    def _get_commit_cmds(self, filenames, message, *, stage):
         cmds = [["hg", "add", "--"] + filenames] if stage else []
         cmds += [["hg", "commit", "-m", message, "--"] + filenames]
-        self._run_shell_cmds(cmds)
+        return cmds
 
     def __build_diff_cmd(self, *extra_args):
         return build_hg_diff_cmd(*extra_args)

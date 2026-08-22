@@ -22,6 +22,7 @@ from git.vcs import (
     get_amend_cmds,
     get_git_recent_commits,
     get_hg_recent_commits,
+    get_sync_cmds,
     get_vcs_output,
     prepend_recent_commits,
 )
@@ -290,19 +291,11 @@ class RepoMenu(Menu[Repo]):
         menu.exec()
         self._refresh()
 
-    @staticmethod
-    def _sync_cmds(repo: Repo) -> List[List[str]]:
-        if repo.is_git:
-            return [["git", "pull", "--rebase"], ["git", "push"]]
-        elif repo.is_hg:
-            return [["hg", "pull"], ["hg", "push"]]
-        return []
-
     def _sync(self):
         repo = self.get_selected_item()
-        if repo is None:
+        if repo is None or not repo.vcs:
             return
-        self._run_cmds(*self._sync_cmds(repo))
+        self._run_cmds(*get_sync_cmds(repo.vcs))
 
     def _amend(self, push: bool = False):
         repo = self.get_selected_item()
@@ -356,7 +349,7 @@ class RepoMenu(Menu[Repo]):
         else:
             return
         if sync:
-            cmds += self._sync_cmds(repo)
+            cmds += get_sync_cmds(repo.vcs)
         self._run_cmds(*cmds)
 
     def _commit_and_sync(self):

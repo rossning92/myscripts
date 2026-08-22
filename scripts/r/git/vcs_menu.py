@@ -15,6 +15,7 @@ from git.vcs import (
     DEFAULT_COMMIT_MESSAGE,
     commit_message_or_default,
     get_amend_cmds,
+    get_sync_cmds,
     prepend_recent_commits,
 )
 
@@ -44,6 +45,9 @@ class VcsDiffMenu(Menu):
         self._init_extra_commands()
         self.add_command(self.__discard, hotkey="ctrl+d", name="discard", pinned=True)
         self.add_command(self.__commit, hotkey="alt+c", name="commit", pinned=True)
+        self.add_command(
+            self.__commit_and_sync, hotkey="alt+c", name="commit+sync"
+        )
         self.add_command(self.__amend, hotkey="alt+a", name="amend", pinned=True)
         self.add_command(self.__amend_and_push, hotkey="alt+a", name="amend+push")
         self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
@@ -73,10 +77,27 @@ class VcsDiffMenu(Menu):
     def _discard_file(self, item: str, filename: str) -> None:
         raise NotImplementedError
 
-    def _commit_files(
-        self, filenames: List[str], message: str, *, stage: bool
-    ) -> None:
+    def _get_commit_cmds(
+        self,
+        filenames: List[str],
+        message: str,
+        *,
+        stage: bool,
+    ) -> List[List[str]]:
         raise NotImplementedError
+
+    def _commit_files(
+        self,
+        filenames: List[str],
+        message: str,
+        *,
+        stage: bool,
+        sync: bool,
+    ) -> None:
+        cmds = self._get_commit_cmds(filenames, message, stage=stage)
+        if sync:
+            cmds += get_sync_cmds(self._vcs)
+        self._run_shell_cmds(cmds)
 
     def _resolve_commit_files(
         self, selected_filenames: List[str]
@@ -151,7 +172,7 @@ class VcsDiffMenu(Menu):
             lambda: start_script("ext/edit.py", args=[filename])
         )
 
-    def __commit(self) -> None:
+    def __commit(self, sync: bool = False) -> None:
         items = list(self.get_selected_items())
         if not items:
             return
@@ -168,8 +189,11 @@ class VcsDiffMenu(Menu):
         if message is None:
             return
         message = commit_message_or_default(message)
-        self._commit_files(filenames, message, stage=stage)
+        self._commit_files(filenames, message, stage=stage, sync=sync)
         self._after_action()
+
+    def __commit_and_sync(self) -> None:
+        self.__commit(sync=True)
 
     def _run_shell_cmds(self, cmds: List[List[str]]) -> None:
         shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in cmds)
