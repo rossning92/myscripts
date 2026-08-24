@@ -66,6 +66,7 @@ from utils.script.path import (
     get_variable_edit_history_file,
 )
 from utils.term import hide_terminal_from_taskbar, set_terminal_title
+from utils.textutil import truncate_text
 from utils.timeutil import time_diff_str
 from utils.tmux import has_tmux_session, is_in_tmux
 
@@ -327,7 +328,10 @@ class _MyScriptMenu(Menu[Script]):
 
     def __get_prompt(self) -> str:
         if self.__cmdline_args:
-            return f"{self.__base_prompt} ({shlex.join(self.__cmdline_args)})"
+            args_text = truncate_text(
+                shlex.join(self.__cmdline_args), include_line_count=False
+            )
+            return f"{self.__base_prompt} ({args_text})"
         return self.__base_prompt
 
     def _delete_file(self):
