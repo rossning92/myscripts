@@ -1,4 +1,4 @@
 {
   "args.selectFiles": true,
-  "packages": "imagemagick"
+  "packages.pip": "Pillow"
 }

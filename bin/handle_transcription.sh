@@ -8,8 +8,8 @@ fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 transcription="$*"
-codex_script="$script_dir/../scripts/r/codex.sh"
+agent_script="$script_dir/../scripts/r/ai/agent.py"
 
 exec bash "$script_dir/start_script" \
     --run-in-tmux \
-    "$codex_script" -- -- "$transcription"
+    "$agent_script" -- --prompt "$transcription"

@@ -28,6 +28,7 @@
     "ps *",
     "pwd *",
     "sleep *",
+    "todo_list *",
     "type *",
     "which *",
     "xdg-open *"

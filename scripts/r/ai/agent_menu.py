@@ -243,6 +243,10 @@ class AgentMenu(ChatMenu):
         self.__handle_response()
 
     def on_enter_pressed(self):
+        if self._is_agent_running():
+            super().on_enter_pressed()
+            return
+
         if not self.get_input() and not self._out_message:
             messages = self.get_messages()
             if messages and messages[-1]["role"] == "assistant":

@@ -272,8 +272,9 @@ class ChatMenu(Menu[Line]):
                 context = f.read()
         self.__context: Optional[str] = context
         self.__image_urls: List[str] = image_urls if image_urls else []
-        self.__is_generating = False
+        self.__is_running = False
         self.__spinner = Spinner()
+        self.__last_spinner_update = 0.0
         self.__last_copied_line: Optional[Line] = None
         self.__lines: List[Line] = []
         self.__prompt = prompt
@@ -485,7 +486,7 @@ class ChatMenu(Menu[Line]):
             self.__update_terminal_title()
 
             if message["role"] == "user":
-                self.__complete_chat()
+                self.send_message("")
 
     def __edit_settings(self):
         self.__settings_menu.exec()
@@ -788,9 +789,10 @@ class ChatMenu(Menu[Line]):
         text: str,
         tool_results: Optional[List[ToolResult]] = None,
     ) -> None:
-        if self.__is_generating:
+        if self.__is_running and tool_results is None:
             return
 
+        self.__is_running = True
         if text or tool_results:
             self.append_user_message(text, tool_results=tool_results)
 
@@ -916,20 +918,17 @@ class ChatMenu(Menu[Line]):
         self.process_events()
 
     def __complete_chat(self, status: Optional[str] = None):
-        if self.__is_generating:
-            return
-
         selected_model = get_model(self.get_settings()["model"])
         if (
             selected_model.provider == "llama_cpp"
             and not ensure_llama_cpp_server()
         ):
+            self.__is_running = False
             return
 
         self.on_generating()
         if status:
             self.set_message(status)
-        self.__is_generating = True
         self.__update_terminal_title(state="generating")
 
         self._out_message = out_message = Message(
@@ -985,20 +984,18 @@ class ChatMenu(Menu[Line]):
                     )
                 )
 
-        self.__chat_task = asyncio.run_coroutine_threadsafe(chat_task(), _loop)
-        while self.__is_generating or not events.empty():
+        chat_future = asyncio.run_coroutine_threadsafe(chat_task(), _loop)
+        self.__chat_task = chat_future
+        while not chat_future.done() or not events.empty():
             try:
                 events.get_nowait()()
             except Empty:
                 self.process_events(timeout_sec=0.1)
-                if self.__is_generating:
-                    self.__spinner.advance()
-                    self.update_screen()
-        self.__chat_task = None
+        if self.__chat_task is chat_future:
+            self.__chat_task = None
 
     def __on_chat_done(self, cancelled=False):
         assert self._out_message
-        self.__is_generating = False
         self.__update_terminal_title(state="done")
 
         if cancelled:
@@ -1029,6 +1026,8 @@ class ChatMenu(Menu[Line]):
 
             self.on_message(text)
 
+        self.__is_running = False
+
         if self.__message_queue:
             if cancelled:
                 self.__message_queue.clear()
@@ -1055,13 +1054,13 @@ class ChatMenu(Menu[Line]):
         self.update_screen()
 
     def __on_chat_exception(self, exception: Exception):
-        self.__is_generating = False
         self.__update_terminal_title(state="done")
 
         if self.get_settings()["retry"]:
             self.__retry_count += 1
             self.__complete_chat(status=f"retry {self.__retry_count}: {exception}")
         else:
+            self.__is_running = False
             menu = ExceptionMenu(exception=exception)
             menu.exec()
 
@@ -1185,7 +1184,7 @@ class ChatMenu(Menu[Line]):
         if not text:
             return
 
-        if self.__is_generating:
+        if self.__is_running:
             self.__message_queue.append(text)
             self.clear_input()
             self.set_message(f"message queued ({len(self.__message_queue)})")
@@ -1210,7 +1209,7 @@ class ChatMenu(Menu[Line]):
 
     def get_status_text(self) -> str:
         parts = []
-        if self.__is_generating:
+        if self.__is_running:
             parts.append(self.__spinner.frame)
         model = str(self.get_settings().get("model", "")).split("/")[-1]
         if model:
@@ -1218,6 +1217,23 @@ class ChatMenu(Menu[Line]):
         if self.__usage.total_tokens or self.__usage.input_tokens:
             parts.append(f"{self.__usage}")
         return " ".join(parts) + "\n" + super().get_status_text()
+
+    def _is_agent_running(self) -> bool:
+        return self.__is_running
+
+    def process_events(
+        self, timeout_sec: float = 0.0, raise_keyboard_interrupt=False
+    ) -> bool:
+        closed = super().process_events(
+            timeout_sec=timeout_sec,
+            raise_keyboard_interrupt=raise_keyboard_interrupt,
+        )
+        now = time.monotonic()
+        if self.__is_running and now - self.__last_spinner_update >= 0.1:
+            self.__spinner.advance()
+            self.__last_spinner_update = now
+            self.update_screen()
+        return closed
 
     def get_system_prompt(self) -> str:
         return self.__system_prompt
@@ -1227,7 +1243,7 @@ class ChatMenu(Menu[Line]):
             super().on_escape_pressed()
 
     def __cancel_chat_completion(self) -> bool:
-        if self.__is_generating:
+        if self.__is_running:
             if self.__chat_task and not self.__chat_task.done():
                 self.__chat_task.cancel()
             return True
