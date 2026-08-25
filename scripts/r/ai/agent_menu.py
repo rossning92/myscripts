@@ -10,9 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, TypedDict, cast
 import ai.chat_menu
 import ai.utils.tools.bash
 import ai.utils.tools.edit
-import ai.utils.tools.glob_tool
 import ai.utils.tools.grep
-import ai.utils.tools.list
 import ai.utils.tools.powershell
 import ai.utils.tools.read
 import ai.utils.tools.web_fetch
@@ -152,8 +150,6 @@ class AgentMenu(ChatMenu):
                     if sys.platform == "win32"
                     else ai.utils.tools.bash.bash
                 ),
-                ai.utils.tools.list.list,
-                ai.utils.tools.glob_tool.glob,
                 ai.utils.tools.grep.grep,
                 ai.utils.tools.web_fetch.web_fetch,
                 ai.utils.tools.web_search.web_search,

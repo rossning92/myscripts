@@ -1,22 +1,16 @@
-import { withActivePage, refToSelector } from "../browser-core.js";
+import { withActivePage } from "../browser-core.js";
+import { describeTarget, findTarget } from "./dom.js";
 
-export async function fill(ref, text) {
+export async function fill(target, text) {
   return withActivePage(async (page) => {
-    const selector = refToSelector(ref);
-
-    if (selector) {
-      await page.focus(selector);
-      // Clear the input
-      await page.evaluate((sel) => {
-        const el = document.querySelector(sel);
-        if (el) el.value = "";
-      }, selector);
-      await page.type(selector, text);
-    } else {
-      // If no ref, we just type at current focus.
-      // Clearing is hard without a selector.
+    const el = await findTarget(page, target);
+    if (!el) throw new Error(`Unable to find element with ${describeTarget(target)}`);
+    try {
+      await el.focus();
+      await el.evaluate((element) => { if ("value" in element) element.value = ""; });
       await page.keyboard.type(text);
+    } finally {
+      await el.dispose();
     }
-
   });
 }

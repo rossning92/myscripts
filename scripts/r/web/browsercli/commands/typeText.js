@@ -1,22 +1,15 @@
-import { withActivePage, refToSelector } from "../browser-core.js";
+import { withActivePage } from "../browser-core.js";
+import { describeTarget, findTarget } from "./dom.js";
 
-export async function typeText(text, ref) {
+export async function typeText(text, target) {
   return withActivePage(async (page) => {
-    if (ref) {
-      const selector = refToSelector(ref);
-      if (!selector) {
-        throw new Error(`Invalid ref: "${ref}"`);
-      }
-      const found = await page.evaluate((sel) => {
-        const el = document.querySelector(sel);
-        if (el) {
-          el.focus();
-          return true;
-        }
-        return false;
-      }, selector);
-      if (!found) {
-        throw new Error(`Unable to find element with ref "${ref}"`);
+    if (target.ref || target.role) {
+      const el = await findTarget(page, target);
+      if (!el) throw new Error(`Unable to find element with ${describeTarget(target)}`);
+      try {
+        await el.focus();
+      } finally {
+        await el.dispose();
       }
     }
     await page.keyboard.type(text);

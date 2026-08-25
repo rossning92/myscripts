@@ -207,16 +207,21 @@ def extract_google_search_results(html: str) -> str:
 
 def _fetch_search_html(url: str) -> str:
     while True:
-        result = subprocess.run(
-            [
-                "browsercli",
-                "get-html",
-                url,
-            ],
+        open_result = subprocess.run(
+            ["browsercli", "open", url],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
         )
+        if open_result.returncode == 0:
+            result = subprocess.run(
+                ["browsercli", "get-html"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+        else:
+            result = open_result
 
         if result.returncode == 0 and result.stdout:
             return result.stdout

@@ -1,16 +1,13 @@
-import { sleep, withActivePage, refToSelector } from "../browser-core.js";
-import { deepFind, deepFindByText, robustClick } from "./dom.js";
+import { sleep, withActivePage } from "../browser-core.js";
+import { describeTarget, findTarget, deepFindByText, robustClick } from "./dom.js";
 
 const OPTION_POLL_TRIES = 15;
 const OPTION_POLL_INTERVAL_MS = 150;
 
-export async function select(ref, value) {
+export async function select(target, value) {
   return withActivePage(async (page) => {
-    const selector = refToSelector(ref);
-    if (!selector) throw new Error(`Invalid ref: "${ref}"`);
-
-    const el = await deepFind(page, selector);
-    if (!el) throw new Error(`Unable to find element with ref "${ref}"`);
+    const el = await findTarget(page, target);
+    if (!el) throw new Error(`Unable to find element with ${describeTarget(target)}`);
 
     try {
       // Native <select>: set the value directly.
@@ -29,7 +26,7 @@ export async function select(ref, value) {
       }, value);
 
       if (native === "ok") return;
-      if (native === "nooption") throw new Error(`No option matching "${value}" in select "${ref}"`);
+      if (native === "nooption") throw new Error(`No option matching "${value}" in ${describeTarget(target)}`);
 
       // ARIA combobox (e.g. Salesforce Lightning): open it, then click the option.
       // Options render lazily in an overlay, so poll until one appears.
@@ -40,7 +37,7 @@ export async function select(ref, value) {
         await sleep(OPTION_POLL_INTERVAL_MS);
         option = await deepFindByText(page, '[role="option"]', value);
       }
-      if (!option) throw new Error(`Option "${value}" not found in combobox "${ref}"`);
+      if (!option) throw new Error(`Option "${value}" not found in ${describeTarget(target)}`);
 
       try {
         await robustClick(page, option, { verifyToggle: false });
@@ -52,7 +49,7 @@ export async function select(ref, value) {
         const norm = (s) => (s || "").replace(/\s+/g, " ").trim().toLowerCase();
         return norm(el.textContent).includes(norm(val));
       }, value);
-      if (!landed) throw new Error(`Selected "${value}" but combobox "${ref}" did not update`);
+      if (!landed) throw new Error(`Selected "${value}" but ${describeTarget(target)} did not update`);
     } finally {
       await el.dispose();
     }

@@ -77,6 +77,27 @@ async function sendCommand(command, args = {}) {
   return postCommand(command, args);
 }
 
+function addTargetOptions(command) {
+  return command
+    .option("--ref <ref>", "Element ref from snapshot (e.g. @e0)")
+    .option("--role <role>", "Accessibility role to match")
+    .option("--name <name>", "Accessible name to match");
+}
+
+function targetArgs(options, { optional = false } = {}) {
+  const { ref, role, name } = options;
+  if (ref && (role || name)) {
+    throw new Error("Use either --ref or --role with --name, not both");
+  }
+  if ((role && !name) || (!role && name)) {
+    throw new Error("--role and --name must be used together");
+  }
+  if (!optional && !ref && !role) {
+    throw new Error("Specify --ref, or both --role and --name");
+  }
+  return { ref, role, name };
+}
+
 program
   .name("browsercli")
   .description("CLI to control browser via Puppeteer")
@@ -130,28 +151,25 @@ program
 
 program
   .command("get-text")
-  .description("Get text from a page")
-  .argument("[url]", "URL to get text from")
-  .action(async (url) => {
-    const text = await sendCommand("get-text", { url });
+  .description("Get text from the active page")
+  .action(async () => {
+    const text = await sendCommand("get-text");
     console.log(text);
   });
 
 program
   .command("get-html")
-  .description("Get raw HTML content from a page")
-  .argument("[url]", "URL to get HTML from")
-  .action(async (url) => {
-    const html = await sendCommand("get-html", { url });
+  .description("Get raw HTML content from the active page")
+  .action(async () => {
+    const html = await sendCommand("get-html");
     console.log(html);
   });
 
 program
   .command("get-markdown")
-  .description("Get markdown content from a page")
-  .argument("[url]", "URL to get markdown from")
-  .action(async (url) => {
-    const markdown = await sendCommand("get-markdown", { url });
+  .description("Get markdown content from the active page")
+  .action(async () => {
+    const markdown = await sendCommand("get-markdown");
     console.log(markdown);
   });
 
@@ -172,35 +190,24 @@ program
     await sendCommand("scroll-bottom");
   });
 
-program
-  .command("click")
-  .description("Click on an element by its ref (e.g. @e0, @e1)")
-  .argument("<ref>", "Element ref from snapshot (e.g. @e0)")
-  .action(async (ref) => {
-    await sendCommand("click", { ref });
+addTargetOptions(program.command("click"))
+  .description("Click an element by ref or accessible role and name")
+  .action(async (options) => {
+    await sendCommand("click", targetArgs(options));
   });
 
-program
-  .command("type")
-  .description("Type text into the focused element or a specific element ref")
-  .usage("[ref] <text>")
-  .argument("[ref]", "Element ref to type into (e.g., @e1)")
-  .argument("[text]", "Text to type")
-  .action(async (ref, text) => {
-    if (text === undefined) {
-      await sendCommand("type", { text: ref });
-    } else {
-      await sendCommand("type", { text, ref });
-    }
+addTargetOptions(program.command("type"))
+  .description("Type text into the focused or specified element")
+  .argument("<text>", "Text to type")
+  .action(async (text, options) => {
+    await sendCommand("type", { text, ...targetArgs(options, { optional: true }) });
   });
 
-program
-  .command("fill")
-  .description("Clear and type text into a specific element ref")
-  .argument("<ref>", "Element ref to fill (e.g., @e1)")
+addTargetOptions(program.command("fill"))
+  .description("Clear and type text into an element")
   .argument("<text>", "Text to fill")
-  .action(async (ref, text) => {
-    await sendCommand("fill", { ref, text });
+  .action(async (text, options) => {
+    await sendCommand("fill", { text, ...targetArgs(options) });
   });
 
 program
@@ -211,29 +218,27 @@ program
     await sendCommand("press", { key });
   });
 
-program
-  .command("select")
+addTargetOptions(program.command("select"))
   .description("Select an option in a dropdown")
-  .argument("<ref>", "Element ref of the select element (e.g. @e0)")
   .argument("<val>", "Value to select")
-  .action(async (ref, val) => {
-    await sendCommand("select", { ref, value: val });
+  .action(async (val, options) => {
+    await sendCommand("select", { value: val, ...targetArgs(options) });
   });
 
-program
-  .command("upload")
+addTargetOptions(program.command("upload"))
   .description("Upload a file to a file input element")
-  .argument("<ref>", "Element ref of the file input (e.g. @e5)")
   .argument("<filePath>", "Path to the file to upload")
-  .action(async (ref, filePath) => {
-    await sendCommand("upload", { ref, filePath });
+  .action(async (filePath, options) => {
+    await sendCommand("upload", { filePath, ...targetArgs(options) });
   });
 
-program
-  .command("screenshot")
-  .description("Take a screenshot and save it to a temporary file")
-  .action(async () => {
-    const savedPath = await sendCommand("screenshot");
+addTargetOptions(program.command("screenshot"))
+  .description("Take a page or element screenshot and save it to a temporary file")
+  .action(async (options) => {
+    const savedPath = await sendCommand(
+      "screenshot",
+      targetArgs(options, { optional: true }),
+    );
     console.log(savedPath);
   });
 

@@ -34,9 +34,8 @@ export async function getPageHtml(page) {
   return page.evaluate(extractPageContent, "get-markdown");
 }
 
-export async function getMarkdown(url) {
+export async function getMarkdown() {
   return withActivePage(
     async (page) => htmlToMarkdown(await getPageHtml(page)),
-    { url },
   );
 }

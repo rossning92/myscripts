@@ -675,11 +675,13 @@ class ChatMenu(Menu[Line]):
         self, state: Literal["idle", "generating", "done"] = "done"
     ):
         status = {"idle": "", "generating": "⧗", "done": "✓"}[state]
-        title = self.__title + status
+        title = self.__title
+        if status:
+            title += " " + status
         if self.__messages:
             t = self.__messages[0].get("text", "")
             if t:
-                title += " - " + t.splitlines()[0][:100]
+                title += " " + t.splitlines()[0][:100]
         set_terminal_title(title)
 
     def __show_system_prompt(self):
@@ -938,55 +940,55 @@ class ChatMenu(Menu[Line]):
         )
         messages = self.get_messages(expand_context=True)
         events: Queue[Callable[[], None]] = Queue()
+        terminal_event_processed = False
 
         async def chat_task():
-            try:
-                chunk_index = 0
-                async for chunk in await complete_chat(
-                    messages=messages,
-                    model=self.get_settings()["model"],
-                    system_prompt=self.get_system_prompt(),
-                    tools=self.get_tools(),
-                    on_image=lambda image_url: events.put(
-                        lambda: self.on_image(image_url)
-                    ),
-                    on_tool_use_start=lambda tool_use: events.put(
-                        lambda: self.on_tool_use_start(tool_use)
-                    ),
-                    on_tool_use_args_delta=lambda text: events.put(
-                        lambda: self.on_tool_use_args_delta(text)
-                    ),
-                    on_tool_use=lambda tool_use: events.put(
-                        lambda: self.on_tool_use(tool_use)
-                    ),
-                    on_reasoning=lambda text: events.put(
-                        lambda: self.on_reasoning(text)
-                    ),
-                    out_message=out_message,
-                    usage=self.__usage,
-                ):
-                    events.put(
-                        lambda chunk_index=chunk_index, chunk=chunk: (
-                            self.__on_chat_chunk(chunk_index, chunk)
-                        )
-                    )
-                    chunk_index += 1
-
-                events.put(lambda: self.__on_chat_done())
-
-            except asyncio.CancelledError:
-                events.put(lambda: self.__on_chat_done(cancelled=True))
-
-            except Exception as exception:
+            chunk_index = 0
+            async for chunk in await complete_chat(
+                messages=messages,
+                model=self.get_settings()["model"],
+                system_prompt=self.get_system_prompt(),
+                tools=self.get_tools(),
+                on_image=lambda image_url: events.put(lambda: self.on_image(image_url)),
+                on_tool_use_start=lambda tool_use: events.put(
+                    lambda: self.on_tool_use_start(tool_use)
+                ),
+                on_tool_use_args_delta=lambda text: events.put(
+                    lambda: self.on_tool_use_args_delta(text)
+                ),
+                on_tool_use=lambda tool_use: events.put(
+                    lambda: self.on_tool_use(tool_use)
+                ),
+                on_reasoning=lambda text: events.put(lambda: self.on_reasoning(text)),
+                out_message=out_message,
+                usage=self.__usage,
+            ):
                 events.put(
-                    lambda exception=exception: self.__on_chat_exception(
-                        exception=exception,
+                    lambda chunk_index=chunk_index, chunk=chunk: (
+                        self.__on_chat_chunk(chunk_index, chunk)
                     )
                 )
+                chunk_index += 1
+
+        def on_chat_future_done(chat_future: Future[None]):
+            def process_terminal_event():
+                nonlocal terminal_event_processed
+                try:
+                    if chat_future.cancelled():
+                        self.__on_chat_done(cancelled=True)
+                    elif exception := chat_future.exception():
+                        self.__on_chat_exception(exception=exception)
+                    else:
+                        self.__on_chat_done()
+                finally:
+                    terminal_event_processed = True
+
+            events.put(process_terminal_event)
 
         chat_future = asyncio.run_coroutine_threadsafe(chat_task(), _loop)
+        chat_future.add_done_callback(on_chat_future_done)
         self.__chat_task = chat_future
-        while not chat_future.done() or not events.empty():
+        while not terminal_event_processed or not events.empty():
             try:
                 events.get_nowait()()
             except Empty:

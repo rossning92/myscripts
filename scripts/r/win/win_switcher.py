@@ -70,7 +70,12 @@ class WinSwitcherMenu(Menu[WindowItem]):
             key=lambda w: (
                 0
                 if w.title in self.__pinned
-                else 1 if w.get_status(self.script_status) == "done" else 2,
+                else (
+                    1
+                    if w.get_status(self.script_status) == "done"
+                    and w.title not in self.__visited_done
+                    else 2 if w.get_status(self.script_status) == "done" else 3
+                ),
             )
         )
 

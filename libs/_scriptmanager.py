@@ -42,7 +42,7 @@ def _linux_scripts_by_hotkey(scripts: List[Script]):
     return hotkeys
 
 
-def _linux_hotkey_command(scripts: List[Script], sway: bool = False) -> str:
+def _linux_hotkey_command(scripts: List[Script]) -> str:
     root = get_my_script_root()
     if len(scripts) > 1:
         scripts = sorted(
@@ -63,7 +63,6 @@ def _linux_hotkey_command(scripts: List[Script], sway: bool = False) -> str:
         return chooser
 
     script = scripts[0]
-    title = script.get_window_title()
     start = shlex.join(
         [
             sys.executable,
@@ -72,11 +71,7 @@ def _linux_hotkey_command(scripts: List[Script], sway: bool = False) -> str:
             script.script_path,
         ]
     )
-    if sway:
-        focus = shlex.join(["swaymsg", f'[title="{title}"] focus'])
-    else:
-        focus = f"wmctrl -a {shlex.quote(title)}"
-    return f"{focus} || {start}"
+    return start
 
 
 def add_keyboard_hooks(keyboard_hooks):
@@ -151,7 +146,7 @@ def register_global_hotkeys_sway(scripts: List[Script]):
                 f"Register global hotkey '{hotkey_chain_arr[0]}' for "
                 f"{len(matching_scripts)} script(s)"
             )
-            exec_cmd = _linux_hotkey_command(matching_scripts, sway=True)
+            exec_cmd = _linux_hotkey_command(matching_scripts)
             args = [
                 "sway",
                 "bindsym",

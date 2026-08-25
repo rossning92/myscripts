@@ -26,6 +26,7 @@ const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".svg": "image/svg+xml",
 };
 
 let activeBackend = "browser";
@@ -90,19 +91,19 @@ const commands = {
     setTimeout(() => process.exit(0), 100);
   },
 
-  async "get-text"({ url }) {
-    return await runOnActiveBackend("get-text", { url }, () => getText(url));
+  async "get-text"() {
+    return await runOnActiveBackend("get-text", {}, getText);
   },
 
-  async "get-html"({ url }) {
-    return await runOnActiveBackend("get-html", { url }, () => getHtml(url));
+  async "get-html"() {
+    return await runOnActiveBackend("get-html", {}, getHtml);
   },
 
-  async "get-markdown"({ url }) {
+  async "get-markdown"() {
     if (activeBackend === "extension") {
-      return htmlToMarkdown(await extensionBridge.send("get-markdown", { url }));
+      return htmlToMarkdown(await extensionBridge.send("get-markdown", {}));
     }
-    return await getMarkdown(url);
+    return await getMarkdown();
   },
 
   async snapshot() {
@@ -116,36 +117,36 @@ const commands = {
     return await runOnActiveBackend("scroll-bottom", {}, scrollToBottom);
   },
 
-  async click({ ref }) {
-    return await runOnActiveBackend("click", { ref }, () => click(ref));
+  async click(target) {
+    return await runOnActiveBackend("click", target, () => click(target));
   },
 
-  async type({ text, ref }) {
-    return await runOnActiveBackend("type", { text, ref }, () => typeText(text, ref));
+  async type({ text, ...target }) {
+    return await runOnActiveBackend("type", { text, ...target }, () => typeText(text, target));
   },
 
-  async fill({ ref, text }) {
-    return await runOnActiveBackend("fill", { ref, text }, () => fill(ref, text));
+  async fill({ text, ...target }) {
+    return await runOnActiveBackend("fill", { text, ...target }, () => fill(target, text));
   },
 
   async press({ key }) {
     return await runOnActiveBackend("press", { key }, () => pressKey(key));
   },
 
-  async select({ ref, value }) {
-    return await runOnActiveBackend("select", { ref, value }, () => select(ref, value));
+  async select({ value, ...target }) {
+    return await runOnActiveBackend("select", { value, ...target }, () => select(target, value));
   },
 
-  async upload({ ref, filePath }) {
-    return await runOnActiveBackend("upload", { ref, filePath }, () => upload(ref, filePath));
+  async upload({ filePath, ...target }) {
+    return await runOnActiveBackend("upload", { filePath, ...target }, () => upload(target, filePath));
   },
 
-  async screenshot() {
+  async screenshot(target = {}) {
     if (activeBackend === "extension") {
-      const { data } = await extensionBridge.send("screenshot", {});
+      const { data } = await extensionBridge.send("screenshot", target);
       return await saveScreenshotData(data);
     }
-    return await screenshot();
+    return await screenshot(target);
   },
 
   async inspect() {

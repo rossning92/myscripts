@@ -47,8 +47,8 @@ MODELS: List[Model] = [
     ),
     Model("openai", "gpt-4.1-mini"),
     Model("openai", "gpt-4.1"),
-    Model("openai", "gpt-5.2-chat-latest"),
     Model("openai", "gpt-5.6-sol"),
+    Model("openai", "gpt-5.6-terra"),
     Model("openai", "gpt-5.6-luna"),
     Model(
         "cliproxy",
@@ -151,7 +151,7 @@ MODELS: List[Model] = [
 
 MODELS_BY_ID: Dict[str, Model] = {model.id: model for model in MODELS}
 MODEL_IDS = list(MODELS_BY_ID)
-DEFAULT_MODEL = "openai:gpt-5.2-chat-latest"
+DEFAULT_MODEL = "openai:gpt-5.6-terra"
 
 
 def get_model(model_id: Optional[str]) -> Model:

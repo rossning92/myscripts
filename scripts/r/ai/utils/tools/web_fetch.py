@@ -32,25 +32,35 @@ def web_fetch(url: str) -> str:
     Fetch the content of a web page from the given URL.
     """
     while True:
-        result = subprocess.run(
+        open_result = subprocess.run(
             [
                 "run_script",
                 "r/web/browsercli/browsercli.js",
-                "get-markdown",
+                "open",
                 url,
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
         )
+        if open_result.returncode == 0:
+            result = subprocess.run(
+                [
+                    "run_script",
+                    "r/web/browsercli/browsercli.js",
+                    "get-markdown",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+        else:
+            result = open_result
 
-        returncode = result.returncode
-        stdout = result.stdout
+        if result.returncode == 0 and result.stdout:
+            return result.stdout
 
-        if returncode == 0 and stdout:
-            return stdout
-
-        error_message = stdout
+        error_message = result.stdout
         retry_menu = FetchRetryMenu(
             error_message=error_message,
             prompt=f"failed to fetch {url}",

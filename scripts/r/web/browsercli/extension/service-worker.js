@@ -105,27 +105,90 @@ async function withActiveDebuggee(callback) {
   }
 }
 
-async function pageCommand(command, args = {}) {
-  if (args.url) await open(args.url);
-  return withActiveDebuggee(async (target) => {
-    const expression = `(${function (command, args, pageContent) {
-      const findRef = (ref) => {
-        const wanted = String(ref || "").replace(/^@/, "");
-        const walk = (root) => {
-          const found = root.querySelector(`[data-agent-ref="${CSS.escape(wanted)}"]`);
-          if (found) return found;
-          for (const element of root.querySelectorAll("*")) {
-            if (element.shadowRoot) {
-              const nested = walk(element.shadowRoot);
-              if (nested) return nested;
-            }
-          }
-          return null;
-        };
-        return walk(document);
-      };
+function findElementByRef(ref) {
+  const wanted = String(ref).replace(/^@/, "");
+  const walk = (root) => {
+    const found = root.querySelector(
+      `[data-agent-ref="${CSS.escape(wanted)}"]`,
+    );
+    if (found) return found;
+    for (const element of root.querySelectorAll("*")) {
+      if (element.shadowRoot) {
+        const nested = walk(element.shadowRoot);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  };
+  return walk(document);
+}
+
+async function evaluateTarget(target, expression, description) {
+  const response = await sendDebuggeeCommand(target, "Runtime.evaluate", {
+    expression,
+  });
+  if (response.exceptionDetails) {
+    throw new Error(response.exceptionDetails.exception?.description ||
+      response.exceptionDetails.text || "Unable to resolve target element");
+  }
+  if (!response.result?.objectId || response.result.subtype === "null") {
+    throw new Error(`Unable to find element with ${description}`);
+  }
+  return response.result.objectId;
+}
+
+async function resolveAccessibilityTarget(target, { role, name }) {
+  await sendDebuggeeCommand(target, "Accessibility.enable");
+  const { root } = await sendDebuggeeCommand(target, "DOM.getDocument", {
+    depth: 0,
+  });
+  const { nodes = [] } = await sendDebuggeeCommand(
+    target,
+    "Accessibility.queryAXTree",
+    { nodeId: root.nodeId, accessibleName: name, role },
+  );
+  const node = nodes.find((item) =>
+    !item.ignored && item.backendDOMNodeId &&
+    item.role?.value === role && item.name?.value === name
+  );
+  if (!node) throw new Error(`Unable to find element with ${role} named "${name}"`);
+
+  const { object } = await sendDebuggeeCommand(target, "DOM.resolveNode", {
+    backendNodeId: node.backendDOMNodeId,
+  });
+  if (!object?.objectId) throw new Error("Unable to resolve accessibility node");
+  return object.objectId;
+}
+
+async function resolveTarget(target, args, { focused = false } = {}) {
+  if (args.role && args.name) {
+    return resolveAccessibilityTarget(target, args);
+  }
+  if (args.ref) {
+    return evaluateTarget(
+      target,
+      `(${findElementByRef.toString()})(${JSON.stringify(args.ref)})`,
+      `ref "${args.ref}"`,
+    );
+  }
+  if (focused) {
+    return evaluateTarget(target, "document.activeElement", "focused element");
+  }
+  throw new Error("No element target specified");
+}
+
+async function releaseTarget(target, objectId) {
+  if (!objectId) return;
+  await sendDebuggeeCommand(target, "Runtime.releaseObject", {
+    objectId,
+  }).catch(() => {});
+}
+
+async function runTargetAction(target, objectId, command, args) {
+  const response = await sendDebuggeeCommand(target, "Runtime.callFunctionOn", {
+    objectId,
+    functionDeclaration: function (command, args) {
       const input = (element, text, clear) => {
-        if (!element) throw new Error(`Unable to find element with ref "${args.ref}"`);
         element.focus();
         if (clear && "value" in element) element.value = "";
         if ("value" in element) element.value += text;
@@ -134,6 +197,55 @@ async function pageCommand(command, args = {}) {
         element.dispatchEvent(new Event("change", { bubbles: true }));
       };
 
+      if (command === "click") {
+        this.click();
+        return null;
+      }
+      if (command === "type") {
+        input(this, args.text, false);
+        return null;
+      }
+      if (command === "fill") {
+        input(this, args.text, true);
+        return null;
+      }
+      if (command === "select") {
+        const option = [...(this.options || [])].find((item) =>
+          item.value === args.value ||
+          item.text.trim().toLowerCase() === args.value.toLowerCase()
+        );
+        if (!option) throw new Error(`No option matching "${args.value}"`);
+        this.value = option.value;
+        this.dispatchEvent(new Event("input", { bubbles: true }));
+        this.dispatchEvent(new Event("change", { bubbles: true }));
+        return null;
+      }
+      throw new Error(`Unsupported element action: ${command}`);
+    }.toString(),
+    arguments: [{ value: command }, { value: args }],
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (response.exceptionDetails) {
+    throw new Error(response.exceptionDetails.exception?.description ||
+      response.exceptionDetails.text || "Page command failed");
+  }
+  return response.result?.value;
+}
+
+async function pageCommand(command, args = {}) {
+  return withActiveDebuggee(async (target) => {
+    if (["click", "type", "fill", "select"].includes(command)) {
+      const objectId = await resolveTarget(target, args, {
+        focused: command === "type",
+      });
+      try {
+        return await runTargetAction(target, objectId, command, args);
+      } finally {
+        await releaseTarget(target, objectId);
+      }
+    }
+    const expression = `(${function (command, args, pageContent) {
       if (["get-text", "get-html", "get-markdown"].includes(command)) {
         return pageContent(command);
       }
@@ -141,36 +253,11 @@ async function pageCommand(command, args = {}) {
         window.scrollTo(0, document.documentElement.scrollHeight);
         return null;
       }
-      if (command === "click") {
-        const element = findRef(args.ref);
-        if (!element) throw new Error(`Unable to find element with ref "${args.ref}"`);
-        element.click();
-        return null;
-      }
-      if (command === "type") {
-        input(args.ref ? findRef(args.ref) : document.activeElement, args.text, false);
-        return null;
-      }
-      if (command === "fill") {
-        input(findRef(args.ref), args.text, true);
-        return null;
-      }
       if (command === "press") {
         const key = args.key.split("+").pop();
         const target = document.activeElement || document.body;
         target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
         target.dispatchEvent(new KeyboardEvent("keyup", { key, bubbles: true }));
-        return null;
-      }
-      if (command === "select") {
-        const element = findRef(args.ref);
-        if (!element) throw new Error(`Unable to find element with ref "${args.ref}"`);
-        const option = [...(element.options || [])].find((item) =>
-          item.value === args.value || item.text.trim().toLowerCase() === args.value.toLowerCase());
-        if (!option) throw new Error(`No option matching "${args.value}"`);
-        element.value = option.value;
-        element.dispatchEvent(new Event("input", { bubbles: true }));
-        element.dispatchEvent(new Event("change", { bubbles: true }));
         return null;
       }
       throw new Error(`Unsupported extension command: ${command}`);
@@ -201,11 +288,44 @@ async function snapshot() {
   });
 }
 
-async function screenshot() {
+async function screenshot(args = {}) {
   return withActiveDebuggee(async (target) => {
+    let clip;
+    let objectId;
+    if (args.ref || (args.role && args.name)) {
+      objectId = await resolveTarget(target, args);
+      try {
+        const response = await sendDebuggeeCommand(target, "Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: function () {
+            this.scrollIntoView({ block: "center", inline: "center" });
+            const rect = this.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) {
+              throw new Error("Target element has no visible area");
+            }
+            return {
+              x: rect.left + window.scrollX,
+              y: rect.top + window.scrollY,
+              width: rect.width,
+              height: rect.height,
+            };
+          }.toString(),
+          returnByValue: true,
+        });
+        if (response.exceptionDetails) {
+          throw new Error(response.exceptionDetails.exception?.description ||
+            response.exceptionDetails.text || "Unable to measure target element");
+        }
+        clip = { ...response.result.value, scale: 1 };
+      } finally {
+        await releaseTarget(target, objectId);
+      }
+    }
+
     const { data } = await sendDebuggeeCommand(target, "Page.captureScreenshot", {
       format: "png",
       fromSurface: true,
+      ...(clip ? { clip, captureBeyondViewport: true } : {}),
     });
     return { data };
   });
@@ -247,7 +367,7 @@ async function run() {
         } else if (command.command === "snapshot") {
           result = await snapshot();
         } else if (command.command === "screenshot") {
-          result = await screenshot();
+          result = await screenshot(command.args);
         } else if ([
           "get-text", "get-html", "get-markdown", "scroll-bottom", "click",
           "type", "fill", "press", "select",

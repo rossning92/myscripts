@@ -1,4 +1,4 @@
-import { sleep } from "../browser-core.js";
+import { refToSelector, sleep } from "../browser-core.js";
 import { POST_CLICK_DELAY } from "../config.js";
 
 const SCROLL_SETTLE_MS = 500;
@@ -26,6 +26,25 @@ export async function deepFind(page, selector) {
     return null;
   }
   return el;
+}
+
+function escapeAriaValue(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+export function describeTarget({ ref, role, name }) {
+  return ref ? `ref "${ref}"` : `${role} named "${name}"`;
+}
+
+export async function findTarget(page, { ref, role, name }) {
+  if (ref) {
+    const selector = refToSelector(ref);
+    return selector ? deepFind(page, selector) : null;
+  }
+  if (!role || !name) return null;
+  return page.$(
+    `::-p-aria([name="${escapeAriaValue(name)}"][role="${escapeAriaValue(role)}"])`,
+  );
 }
 
 // Find the first *visible* element matching selector (through shadow roots) whose
