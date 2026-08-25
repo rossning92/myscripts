@@ -1,9 +1,21 @@
 import os
 from itertools import islice
+from typing import Any, Dict
 
 from utils.encode_image_base64 import encode_image_base64
 
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+
+
+def get_tool_use_preview(args: Dict[str, Any]) -> str:
+    file = args.get("file")
+    if not isinstance(file, str):
+        return str(args)
+
+    options = [
+        f"{name}={args[name]}" for name in ("offset", "limit") if name in args
+    ]
+    return f"{file} ({', '.join(options)})" if options else file
 
 
 def _is_image_file(file: str) -> bool:

@@ -245,10 +245,18 @@ def _main():
     )
     parser.add_argument("--system-prompt", type=str, help="extra system prompt")
     parser.add_argument("-p", "--prompt", type=str, help="initial user prompt")
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="print the response without showing the menu (requires --prompt)",
+    )
     parser.add_argument("-m", "--model", type=str)
     parser.add_argument("--allow", action="append", help="allow certain bash commands")
     parser.add_argument("--voice-input", action="store_true")
     args = parser.parse_args()
+
+    if args.headless and args.prompt is None:
+        parser.error("--headless requires --prompt")
 
     if args.model:
         SettingsMenu.default_model = args.model
@@ -291,6 +299,7 @@ def _main():
         context=args.context,
         extra_system_prompt=system_prompt,
         message=args.prompt,
+        headless=args.headless,
         voice_input=args.voice_input,
     )
     menu.exec()

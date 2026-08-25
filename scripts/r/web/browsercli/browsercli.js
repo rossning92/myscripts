@@ -105,8 +105,8 @@ program
 
 program
   .command("open")
-  .description("Open a URL or connect to an existing browser")
-  .argument("[url]", "URL to open")
+  .description("Open a URL")
+  .argument("<url>", "URL to open")
   .option("--headed", "Open browser in headed mode")
   .option(
     "--extension",

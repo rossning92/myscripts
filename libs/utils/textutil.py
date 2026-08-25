@@ -22,36 +22,38 @@ def truncate_text(
     )
 
     if len(text) > max_chars or (max_lines and n_lines > max_lines):
-        prefix = f"({n_lines}) " if include_line_count else ""
-        return f"{prefix}{text[:max_chars]}.."
+        suffix = f" ({n_lines})" if include_line_count else ""
+        return f"{text[:max_chars]}..{suffix}"
     else:
         return text
 
 
 def truncate_output(
     text: str,
-    max_lines: int = 2000,
     max_bytes: int = 51200,  # 50 KB
 ) -> str:
-    lines = text.splitlines()
-    if len(lines) <= max_lines and len(text.encode("utf-8")) <= max_bytes:
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
         return text
 
-    # Truncate to max_lines
-    truncated_lines = lines[:max_lines]
-    preview = "\n".join(truncated_lines)
+    marker = (
+        "\n... output truncated "
+        f"(original: {len(encoded)} bytes); "
+        "showing beginning and end ...\n"
+    )
 
-    # Further truncate if still exceeds max_bytes
-    preview_bytes = preview.encode("utf-8")
-    if len(preview_bytes) > max_bytes:
-        preview = (
-            preview_bytes[:max_bytes].decode("utf-8", errors="ignore")
-            + "\n... [preview truncated]"
-        )
-
-    num_truncated = len(lines) - len(preview.splitlines())
-
-    return f"{preview}\n... {num_truncated} lines truncated ..."
+    # Preserve both ends so final errors and summaries are not discarded.
+    marker_bytes = marker.encode("utf-8")
+    available = max(0, max_bytes - len(marker_bytes))
+    head_bytes = (available + 1) // 2
+    tail_bytes = available // 2
+    head = encoded[:head_bytes].decode("utf-8", errors="ignore")
+    tail = (
+        encoded[-tail_bytes:].decode("utf-8", errors="ignore")
+        if tail_bytes
+        else ""
+    )
+    return head + marker + tail
 
 
 def is_text_file(filepath: str, encoding="utf-8", buffer_size=4096, threshold=0.9):

@@ -11,7 +11,6 @@ vim.opt.shortmess:append("IA")    -- Disable intro message and swapfile warning
 vim.opt.clipboard = "unnamedplus" -- Use system clipboard
 vim.opt.termguicolors = true
 vim.opt.mouse = ""                -- Disable mouse
-vim.opt.messagesopt = "wait:1000,history:500"
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 vim.opt.incsearch = true

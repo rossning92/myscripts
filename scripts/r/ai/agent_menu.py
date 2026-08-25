@@ -34,9 +34,19 @@ from utils.jsonutil import load_json
 from utils.menu.confirmmenu import ConfirmMenu
 from utils.menu.filemenu import FileMenu
 from utils.menu.menu import PROCESS_EVENT_INTERVAL_SEC
+from utils.textutil import truncate_output
 
 MODULE_NAME = Path(__file__).stem
 DATA_DIR = os.path.join(".config", MODULE_NAME)
+TOOL_OUTPUT_MAX_BYTES = 50 * 1024
+
+
+def _limit_tool_output(content: str) -> str:
+    """Bound text inserted into model-visible history for one tool result."""
+    return truncate_output(
+        content,
+        max_bytes=TOOL_OUTPUT_MAX_BYTES,
+    )
 
 
 def _get_prompt(
@@ -323,7 +333,7 @@ class AgentMenu(ChatMenu):
                     ret_str = str(ret)
                     tool_result = ToolResult(
                         tool_use_id=tool_use["tool_use_id"],
-                        content=ret_str,
+                        content=_limit_tool_output(ret_str),
                     )
                     if ret_str.startswith("data:image/"):
                         tool_result["image_urls"] = [ret_str]
@@ -342,7 +352,7 @@ class AgentMenu(ChatMenu):
                 tool_results.append(
                     ToolResult(
                         tool_use_id=tool_use["tool_use_id"],
-                        content=str(ex),
+                        content=_limit_tool_output(str(ex)),
                     )
                 )
             except KeyboardInterrupt:

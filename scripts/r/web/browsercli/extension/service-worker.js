@@ -5,9 +5,13 @@ const BRIDGE_URL = "http://127.0.0.1:21224/extension";
 const RECONNECT_ALARM = "browsercli-reconnect";
 const NAVIGATION_TIMEOUT_MS = 30000;
 const POST_NAVIGATION_DELAY_MS = 3000;
+const ELEMENT_WAIT_TIMEOUT_MS = 10000;
+const ELEMENT_WAIT_INTERVAL_MS = 100;
 let running = false;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+class TargetNotFoundError extends Error {}
 
 async function showConnected(connected) {
   await chrome.action.setBadgeText({ text: connected ? "ON" : "" });
@@ -132,7 +136,7 @@ async function evaluateTarget(target, expression, description) {
       response.exceptionDetails.text || "Unable to resolve target element");
   }
   if (!response.result?.objectId || response.result.subtype === "null") {
-    throw new Error(`Unable to find element with ${description}`);
+    throw new TargetNotFoundError(`Unable to find element with ${description}`);
   }
   return response.result.objectId;
 }
@@ -151,16 +155,22 @@ async function resolveAccessibilityTarget(target, { role, name }) {
     !item.ignored && item.backendDOMNodeId &&
     item.role?.value === role && item.name?.value === name
   );
-  if (!node) throw new Error(`Unable to find element with ${role} named "${name}"`);
+  if (!node) {
+    throw new TargetNotFoundError(
+      `Unable to find element with ${role} named "${name}"`,
+    );
+  }
 
   const { object } = await sendDebuggeeCommand(target, "DOM.resolveNode", {
     backendNodeId: node.backendDOMNodeId,
   });
-  if (!object?.objectId) throw new Error("Unable to resolve accessibility node");
+  if (!object?.objectId) {
+    throw new TargetNotFoundError("Unable to resolve accessibility node");
+  }
   return object.objectId;
 }
 
-async function resolveTarget(target, args, { focused = false } = {}) {
+async function resolveTargetOnce(target, args, { focused = false } = {}) {
   if (args.role && args.name) {
     return resolveAccessibilityTarget(target, args);
   }
@@ -175,6 +185,26 @@ async function resolveTarget(target, args, { focused = false } = {}) {
     return evaluateTarget(target, "document.activeElement", "focused element");
   }
   throw new Error("No element target specified");
+}
+
+async function resolveTarget(target, args, { focused = false } = {}) {
+  // An untargeted `type` intentionally uses the currently focused element and
+  // should not wait. Explicit targets may be rendered asynchronously.
+  if (focused && !args.ref && !(args.role && args.name)) {
+    return resolveTargetOnce(target, args, { focused });
+  }
+
+  const deadline = Date.now() + ELEMENT_WAIT_TIMEOUT_MS;
+  while (true) {
+    try {
+      return await resolveTargetOnce(target, args, { focused });
+    } catch (error) {
+      if (!(error instanceof TargetNotFoundError)) throw error;
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) throw error;
+      await sleep(Math.min(ELEMENT_WAIT_INTERVAL_MS, remainingMs));
+    }
+  }
 }
 
 async function releaseTarget(target, objectId) {

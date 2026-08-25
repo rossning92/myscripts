@@ -1,5 +1,9 @@
 import { refToSelector, sleep } from "../browser-core.js";
-import { POST_CLICK_DELAY } from "../config.js";
+import {
+  ELEMENT_WAIT_INTERVAL_MS,
+  ELEMENT_WAIT_TIMEOUT_MS,
+  POST_CLICK_DELAY,
+} from "../config.js";
 
 const SCROLL_SETTLE_MS = 500;
 
@@ -36,7 +40,7 @@ export function describeTarget({ ref, role, name }) {
   return ref ? `ref "${ref}"` : `${role} named "${name}"`;
 }
 
-export async function findTarget(page, { ref, role, name }) {
+async function findTargetOnce(page, { ref, role, name }) {
   if (ref) {
     const selector = refToSelector(ref);
     return selector ? deepFind(page, selector) : null;
@@ -45,6 +49,20 @@ export async function findTarget(page, { ref, role, name }) {
   return page.$(
     `::-p-aria([name="${escapeAriaValue(name)}"][role="${escapeAriaValue(role)}"])`,
   );
+}
+
+// Dynamic interfaces often render the target shortly after the command that
+// reveals it. Retry target lookup for a bounded period instead of requiring
+// callers to insert arbitrary sleeps between commands.
+export async function findTarget(page, target) {
+  const deadline = Date.now() + ELEMENT_WAIT_TIMEOUT_MS;
+  while (true) {
+    const element = await findTargetOnce(page, target);
+    if (element) return element;
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) return null;
+    await sleep(Math.min(ELEMENT_WAIT_INTERVAL_MS, remainingMs));
+  }
 }
 
 // Find the first *visible* element matching selector (through shadow roots) whose

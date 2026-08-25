@@ -261,11 +261,13 @@ class ChatMenu(Menu[Line]):
         settings_menu_class=SettingsMenu,
         settings_file: str = "settings.json",
         cancellable: bool = False,
+        headless: bool = False,
         title: str = "chat_menu",
         **kwargs,
     ) -> None:
         self.__title = title
         self.__copy = copy
+        self.__headless = headless
         self.__first_message = message
         if context and is_text_file(context):
             with open(context, "r", encoding="utf-8") as f:
@@ -353,6 +355,16 @@ class ChatMenu(Menu[Line]):
 
         self.__update_terminal_title(state="idle")
         self.__update_prompt()
+
+    def exec(self) -> int:
+        if not self.__headless:
+            return super().exec()
+        if self.__first_message is None:
+            raise ValueError("headless mode requires a prompt")
+        self.send_message(self.__first_message)
+        if self.__messages and self.__messages[-1]["role"] == "assistant":
+            print(self.__messages[-1]["text"])
+        return -1
 
     def __add_file(self):
         file = self.__add_file_menu.select_file()
@@ -674,6 +686,8 @@ class ChatMenu(Menu[Line]):
     def __update_terminal_title(
         self, state: Literal["idle", "generating", "done"] = "done"
     ):
+        if self.__headless:
+            return
         status = {"idle": "", "generating": "⧗", "done": "✓"}[state]
         title = self.__title
         if status:
@@ -1063,6 +1077,8 @@ class ChatMenu(Menu[Line]):
             self.__complete_chat(status=f"retry {self.__retry_count}: {exception}")
         else:
             self.__is_running = False
+            if self.__headless:
+                raise exception
             menu = ExceptionMenu(exception=exception)
             menu.exec()
 
@@ -1226,6 +1242,10 @@ class ChatMenu(Menu[Line]):
     def process_events(
         self, timeout_sec: float = 0.0, raise_keyboard_interrupt=False
     ) -> bool:
+        if self.__headless:
+            if timeout_sec > 0:
+                time.sleep(timeout_sec)
+            return self.is_closed()
         closed = super().process_events(
             timeout_sec=timeout_sec,
             raise_keyboard_interrupt=raise_keyboard_interrupt,
