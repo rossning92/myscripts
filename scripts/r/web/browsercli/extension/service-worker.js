@@ -1,34 +1,56 @@
-import { extractPageContent } from "./page-content.js";
-import { collectSnapshot } from "./snapshot-cdp.js";
+import { evaluatePageContent } from "./shared/evaluate-page-content.js";
+import { collectSnapshot } from "./shared/snapshot-cdp.js";
+import {
+  click,
+  pressKey,
+  scrollToBottom,
+  select,
+  typeText,
+} from "./shared/actions.js";
+import { captureScreenshot } from "./shared/screenshot.js";
+import { upload } from "./shared/upload.js";
+import { normalizeUrl } from "./shared/navigation.js";
 
 const BRIDGE_URL = "http://127.0.0.1:21224/extension";
 const RECONNECT_ALARM = "browsercli-reconnect";
+const SOURCE_VERSION_KEY = "browsercliSourceVersion";
 const NAVIGATION_TIMEOUT_MS = 30000;
-const POST_NAVIGATION_DELAY_MS = 3000;
-const ELEMENT_WAIT_TIMEOUT_MS = 10000;
-const ELEMENT_WAIT_INTERVAL_MS = 100;
 let running = false;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-class TargetNotFoundError extends Error {}
+let sourceVersion;
 
 async function showConnected(connected) {
   await chrome.action.setBadgeText({ text: connected ? "ON" : "" });
   await chrome.action.setBadgeBackgroundColor({ color: "#16803c" });
 }
 
-function normalizeUrl(url) {
-  if (!url) return null;
-  if (/^[a-z][a-z\d+.-]*:/i.test(url)) return url;
-  return `http://${url}`;
+async function getInstalledSourceVersion() {
+  if (sourceVersion) return sourceVersion;
+  const stored = await chrome.storage.local.get(SOURCE_VERSION_KEY);
+  sourceVersion = stored[SOURCE_VERSION_KEY];
+  return sourceVersion;
 }
 
-function waitForTabNavigation(
-  tabId,
-  startNavigation,
-  finishWhenStarted = false
-) {
+async function updateSourceVersion(nextSourceVersion) {
+  sourceVersion = nextSourceVersion;
+  await chrome.storage.local.set({ [SOURCE_VERSION_KEY]: nextSourceVersion });
+}
+
+async function ensureLatestSource() {
+  const response = await fetch(`${BRIDGE_URL}/source-version`);
+  if (!response.ok) throw new Error(`Bridge returned HTTP ${response.status}`);
+  const { sourceVersion: latestSourceVersion } = await response.json();
+  const installedSourceVersion = await getInstalledSourceVersion();
+  if (!installedSourceVersion) {
+    await updateSourceVersion(latestSourceVersion);
+  } else if (installedSourceVersion !== latestSourceVersion) {
+    await updateSourceVersion(latestSourceVersion);
+    chrome.runtime.reload();
+    return false;
+  }
+  return true;
+}
+
+function navigateAndWaitForLoad(tabId, url) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const cleanup = () => {
@@ -47,53 +69,27 @@ function waitForTabNavigation(
       if (updatedTabId === tabId && changeInfo.status === "complete") finish();
     };
     const onRemoved = (removedTabId) => {
-      if (removedTabId === tabId) finish(new Error("Tab closed during navigation"));
+      if (removedTabId === tabId) {
+        finish(new Error("Tab closed during navigation"));
+      }
     };
-    const timer = setTimeout(() => {
-      finish(new Error("Navigation timed out"));
-    }, NAVIGATION_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => finish(new Error("Navigation timed out")),
+      NAVIGATION_TIMEOUT_MS,
+    );
 
     chrome.tabs.onUpdated.addListener(onUpdated);
     chrome.tabs.onRemoved.addListener(onRemoved);
-    let started;
-    try {
-      started = startNavigation();
-    } catch (error) {
-      finish(error);
-      return;
-    }
-    Promise.resolve(started)
-      .then((completed) => {
-        if (finishWhenStarted && completed) finish();
-      })
-      .catch(finish);
+    chrome.tabs.update(tabId, { url }).catch(finish);
   });
 }
 
 async function open(url) {
   if (!url) return;
   const normalizedUrl = normalizeUrl(url);
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (activeTab?.id) {
-    await waitForTabNavigation(activeTab.id, () =>
-      chrome.tabs.update(activeTab.id, { url: normalizedUrl })
-    );
-  } else {
-    const tab = await chrome.tabs.create({ url: normalizedUrl });
-    if (tab.id && tab.status !== "complete") {
-      await waitForTabNavigation(
-        tab.id,
-        async () => {
-          // The new tab may have completed between tabs.create() and listener
-          // registration, so inspect it again after the listeners are installed.
-          const currentTab = await chrome.tabs.get(tab.id);
-          return currentTab.status === "complete";
-        },
-        true
-      );
-    }
-  }
-  await sleep(POST_NAVIGATION_DELAY_MS);
+  let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) tab = await chrome.tabs.create({ url: "about:blank" });
+  await navigateAndWaitForLoad(tab.id, normalizedUrl);
 }
 
 async function withActiveDebuggee(callback) {
@@ -109,199 +105,22 @@ async function withActiveDebuggee(callback) {
   }
 }
 
-function findElementByRef(ref) {
-  const wanted = String(ref).replace(/^@/, "");
-  const walk = (root) => {
-    const found = root.querySelector(
-      `[data-agent-ref="${CSS.escape(wanted)}"]`,
-    );
-    if (found) return found;
-    for (const element of root.querySelectorAll("*")) {
-      if (element.shadowRoot) {
-        const nested = walk(element.shadowRoot);
-        if (nested) return nested;
-      }
-    }
-    return null;
-  };
-  return walk(document);
-}
-
-async function evaluateTarget(target, expression, description) {
-  const response = await sendDebuggeeCommand(target, "Runtime.evaluate", {
-    expression,
-  });
-  if (response.exceptionDetails) {
-    throw new Error(response.exceptionDetails.exception?.description ||
-      response.exceptionDetails.text || "Unable to resolve target element");
-  }
-  if (!response.result?.objectId || response.result.subtype === "null") {
-    throw new TargetNotFoundError(`Unable to find element with ${description}`);
-  }
-  return response.result.objectId;
-}
-
-async function resolveAccessibilityTarget(target, { role, name }) {
-  await sendDebuggeeCommand(target, "Accessibility.enable");
-  const { root } = await sendDebuggeeCommand(target, "DOM.getDocument", {
-    depth: 0,
-  });
-  const { nodes = [] } = await sendDebuggeeCommand(
-    target,
-    "Accessibility.queryAXTree",
-    { nodeId: root.nodeId, accessibleName: name, role },
-  );
-  const node = nodes.find((item) =>
-    !item.ignored && item.backendDOMNodeId &&
-    item.role?.value === role && item.name?.value === name
-  );
-  if (!node) {
-    throw new TargetNotFoundError(
-      `Unable to find element with ${role} named "${name}"`,
-    );
-  }
-
-  const { object } = await sendDebuggeeCommand(target, "DOM.resolveNode", {
-    backendNodeId: node.backendDOMNodeId,
-  });
-  if (!object?.objectId) {
-    throw new TargetNotFoundError("Unable to resolve accessibility node");
-  }
-  return object.objectId;
-}
-
-async function resolveTargetOnce(target, args, { focused = false } = {}) {
-  if (args.role && args.name) {
-    return resolveAccessibilityTarget(target, args);
-  }
-  if (args.ref) {
-    return evaluateTarget(
-      target,
-      `(${findElementByRef.toString()})(${JSON.stringify(args.ref)})`,
-      `ref "${args.ref}"`,
-    );
-  }
-  if (focused) {
-    return evaluateTarget(target, "document.activeElement", "focused element");
-  }
-  throw new Error("No element target specified");
-}
-
-async function resolveTarget(target, args, { focused = false } = {}) {
-  // An untargeted `type` intentionally uses the currently focused element and
-  // should not wait. Explicit targets may be rendered asynchronously.
-  if (focused && !args.ref && !(args.role && args.name)) {
-    return resolveTargetOnce(target, args, { focused });
-  }
-
-  const deadline = Date.now() + ELEMENT_WAIT_TIMEOUT_MS;
-  while (true) {
-    try {
-      return await resolveTargetOnce(target, args, { focused });
-    } catch (error) {
-      if (!(error instanceof TargetNotFoundError)) throw error;
-      const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0) throw error;
-      await sleep(Math.min(ELEMENT_WAIT_INTERVAL_MS, remainingMs));
-    }
-  }
-}
-
-async function releaseTarget(target, objectId) {
-  if (!objectId) return;
-  await sendDebuggeeCommand(target, "Runtime.releaseObject", {
-    objectId,
-  }).catch(() => {});
-}
-
-async function runTargetAction(target, objectId, command, args) {
-  const response = await sendDebuggeeCommand(target, "Runtime.callFunctionOn", {
-    objectId,
-    functionDeclaration: function (command, args) {
-      const input = (element, text, clear) => {
-        element.focus();
-        if (clear && "value" in element) element.value = "";
-        if ("value" in element) element.value += text;
-        else document.execCommand("insertText", false, text);
-        element.dispatchEvent(new InputEvent("input", { bubbles: true, data: text }));
-        element.dispatchEvent(new Event("change", { bubbles: true }));
-      };
-
-      if (command === "click") {
-        this.click();
-        return null;
-      }
-      if (command === "type") {
-        input(this, args.text, false);
-        return null;
-      }
-      if (command === "fill") {
-        input(this, args.text, true);
-        return null;
-      }
-      if (command === "select") {
-        const option = [...(this.options || [])].find((item) =>
-          item.value === args.value ||
-          item.text.trim().toLowerCase() === args.value.toLowerCase()
-        );
-        if (!option) throw new Error(`No option matching "${args.value}"`);
-        this.value = option.value;
-        this.dispatchEvent(new Event("input", { bubbles: true }));
-        this.dispatchEvent(new Event("change", { bubbles: true }));
-        return null;
-      }
-      throw new Error(`Unsupported element action: ${command}`);
-    }.toString(),
-    arguments: [{ value: command }, { value: args }],
-    awaitPromise: true,
-    returnByValue: true,
-  });
-  if (response.exceptionDetails) {
-    throw new Error(response.exceptionDetails.exception?.description ||
-      response.exceptionDetails.text || "Page command failed");
-  }
-  return response.result?.value;
-}
-
 async function pageCommand(command, args = {}) {
   return withActiveDebuggee(async (target) => {
-    if (["click", "type", "fill", "select"].includes(command)) {
-      const objectId = await resolveTarget(target, args, {
-        focused: command === "type",
-      });
-      try {
-        return await runTargetAction(target, objectId, command, args);
-      } finally {
-        await releaseTarget(target, objectId);
-      }
+    const send = (method, params) => sendDebuggeeCommand(target, method, params);
+    if (["get-text", "get-html", "get-markdown"].includes(command)) {
+      return evaluatePageContent(send, command);
     }
-    const expression = `(${function (command, args, pageContent) {
-      if (["get-text", "get-html", "get-markdown"].includes(command)) {
-        return pageContent(command);
-      }
-      if (command === "scroll-bottom") {
-        window.scrollTo(0, document.documentElement.scrollHeight);
-        return null;
-      }
-      if (command === "press") {
-        const key = args.key.split("+").pop();
-        const target = document.activeElement || document.body;
-        target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
-        target.dispatchEvent(new KeyboardEvent("keyup", { key, bubbles: true }));
-        return null;
-      }
-      throw new Error(`Unsupported extension command: ${command}`);
-    }})(${JSON.stringify(command)}, ${JSON.stringify(args)}, ${extractPageContent.toString()})`;
-    const response = await sendDebuggeeCommand(target, "Runtime.evaluate", {
-      expression,
-      awaitPromise: true,
-      returnByValue: true,
-    });
-    if (response.exceptionDetails) {
-      throw new Error(response.exceptionDetails.exception?.description ||
-        response.exceptionDetails.text || "Page command failed");
+    if (command === "click") return click(send, args);
+    if (command === "type") return typeText(send, args.text, args);
+    if (command === "fill") {
+      return typeText(send, args.text, args, { clear: true });
     }
-    return response.result?.value;
+    if (command === "press") return pressKey(send, args.key);
+    if (command === "select") return select(send, args, args.value);
+    if (command === "scroll-bottom") return scrollToBottom(send);
+    if (command === "upload") return upload(send, args, args.filePath);
+    throw new Error(`Unsupported extension command: ${command}`);
   });
 }
 
@@ -320,44 +139,10 @@ async function snapshot() {
 
 async function screenshot(args = {}) {
   return withActiveDebuggee(async (target) => {
-    let clip;
-    let objectId;
-    if (args.ref || (args.role && args.name)) {
-      objectId = await resolveTarget(target, args);
-      try {
-        const response = await sendDebuggeeCommand(target, "Runtime.callFunctionOn", {
-          objectId,
-          functionDeclaration: function () {
-            this.scrollIntoView({ block: "center", inline: "center" });
-            const rect = this.getBoundingClientRect();
-            if (rect.width <= 0 || rect.height <= 0) {
-              throw new Error("Target element has no visible area");
-            }
-            return {
-              x: rect.left + window.scrollX,
-              y: rect.top + window.scrollY,
-              width: rect.width,
-              height: rect.height,
-            };
-          }.toString(),
-          returnByValue: true,
-        });
-        if (response.exceptionDetails) {
-          throw new Error(response.exceptionDetails.exception?.description ||
-            response.exceptionDetails.text || "Unable to measure target element");
-        }
-        clip = { ...response.result.value, scale: 1 };
-      } finally {
-        await releaseTarget(target, objectId);
-      }
-    }
-
-    const { data } = await sendDebuggeeCommand(target, "Page.captureScreenshot", {
-      format: "png",
-      fromSurface: true,
-      ...(clip ? { clip, captureBeyondViewport: true } : {}),
-    });
-    return { data };
+    return captureScreenshot(
+      (method, params) => sendDebuggeeCommand(target, method, params),
+      args,
+    );
   });
 }
 
@@ -376,7 +161,10 @@ async function run() {
     while (true) {
       let command;
       try {
-        const response = await fetch(`${BRIDGE_URL}/poll`);
+        if (!(await ensureLatestSource())) return;
+        const response = await fetch(
+          `${BRIDGE_URL}/poll?sourceVersion=${encodeURIComponent(sourceVersion)}`
+        );
         if (!response.ok) throw new Error(`Bridge returned HTTP ${response.status}`);
         await showConnected(true);
         command = await response.json();
@@ -387,6 +175,11 @@ async function run() {
       }
 
       if (!command) continue;
+      if (command.reload) {
+        await updateSourceVersion(command.sourceVersion);
+        chrome.runtime.reload();
+        return;
+      }
       try {
         let result;
         if (command.command === "open") {
@@ -400,7 +193,7 @@ async function run() {
           result = await screenshot(command.args);
         } else if ([
           "get-text", "get-html", "get-markdown", "scroll-bottom", "click",
-          "type", "fill", "press", "select",
+          "type", "fill", "press", "select", "upload",
         ].includes(command.command)) {
           result = await pageCommand(command.command, command.args);
         } else {

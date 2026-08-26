@@ -1,4 +1,5 @@
 {
   "hotkey": "ctrl+o",
-  "template": false
+  "template": false,
+  "title": "filemgr"
 }

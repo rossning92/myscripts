@@ -3,7 +3,7 @@
   "name": "browsercli bridge",
   "version": "0.1.1",
   "description": "Lets browsercli control this Chrome profile.",
-  "permissions": ["tabs", "alarms", "debugger"],
+  "permissions": ["tabs", "alarms", "debugger", "storage"],
   "host_permissions": ["http://127.0.0.1:21224/*"],
   "background": {
     "service_worker": "service-worker.js",

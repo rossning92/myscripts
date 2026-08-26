@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
-import { getBrowser } from "../browser-core.js";
-import { DAEMON_PORT } from "../config.js";
+import { getBrowser } from "./browser-core.js";
+import { DAEMON_PORT } from "./config.js";
 
 export async function inspect() {
   await getBrowser();

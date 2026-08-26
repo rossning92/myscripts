@@ -1,5 +1,5 @@
-// This function is self-contained so Puppeteer can serialize it and the
-// extension can inject its source through Runtime.evaluate.
+// This function is self-contained so CDP and the extension can inject its
+// source through Runtime.evaluate.
 export function extractPageContent(command) {
   const content = document.getElementById("content");
 

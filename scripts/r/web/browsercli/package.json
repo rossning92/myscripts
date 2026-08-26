@@ -7,13 +7,11 @@
   "type": "module",
   "main": "browsercli.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "commander": "^14.0.3",
-    "puppeteer-core": "^24.35.0",
-    "puppeteer-extra": "^3.3.6",
-    "rebrowser-puppeteer-core": "^24.8.1",
-    "turndown": "^7.2.1"
+    "turndown": "^7.2.1",
+    "ws": "^8.21.3"
   }
 }

@@ -65,8 +65,7 @@ async function ensureDaemon() {
   const child = spawn("node", [path.join(__dirname, "daemon.js")], {
     detached: true,
     stdio: "ignore",
-    // Enable the rebrowser Runtime.enable leak fix (anti-bot evasion).
-    env: { ...process.env, REBROWSER_PATCHES_RUNTIME_FIX_MODE: "addBinding" },
+    env: process.env,
   });
   child.unref();
   await waitForDaemon(true, { retries: 30, delay: 200 });
@@ -100,7 +99,7 @@ function targetArgs(options, { optional = false } = {}) {
 
 program
   .name("browsercli")
-  .description("CLI to control browser via Puppeteer")
+  .description("CLI to control a browser via CDP")
   .version("1.0.0");
 
 program

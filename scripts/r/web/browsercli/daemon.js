@@ -4,24 +4,26 @@ import { stat } from "fs/promises";
 import { extname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
 import { getBrowser, getOrOpenPage, getStatus } from "./browser-core.js";
+import { withActivePageCdp } from "./browser-cdp.js";
 import { DAEMON_PORT, DEBUG_PORT } from "./config.js";
-import { close } from "./commands/close.js";
-import { getText } from "./commands/getText.js";
-import { getHtml } from "./commands/getHtml.js";
-import { getMarkdown, htmlToMarkdown } from "./commands/getMarkdown.js";
-import { snapshot } from "./commands/snapshot.js";
-import { scrollToBottom } from "./commands/scrollToBottom.js";
-import { click } from "./commands/click.js";
-import { typeText } from "./commands/typeText.js";
-import { fill } from "./commands/fill.js";
-import { pressKey } from "./commands/pressKey.js";
-import { select } from "./commands/select.js";
-import { upload } from "./commands/upload.js";
-import { saveScreenshotData, screenshot } from "./commands/screenshot.js";
-import { inspect } from "./commands/inspect.js";
+import {
+  click as clickCdp,
+  pressKey as pressKeyCdp,
+  scrollToBottom as scrollToBottomCdp,
+  select as selectCdp,
+  typeText as typeTextCdp,
+} from "./extension/shared/actions.js";
+import { evaluatePageContent } from "./extension/shared/evaluate-page-content.js";
+import { upload as uploadCdp } from "./extension/shared/upload.js";
+import { getMarkdownHtml, htmlToMarkdown } from "./get-markdown.js";
+import { snapshot } from "./snapshot.js";
+import { saveScreenshotData, screenshot } from "./screenshot.js";
+import { inspect } from "./inspect.js";
 import { extensionBridge } from "./extension-bridge.js";
+import { getExtensionSourceVersion } from "./extension-source.js";
 
 const publicDir = resolve(fileURLToPath(new URL("public/", import.meta.url)));
+const extensionDir = resolve(fileURLToPath(new URL("extension/", import.meta.url)));
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -87,58 +89,77 @@ const commands = {
   },
 
   async "close-browser"() {
-    await close();
+    const browser = await getBrowser();
+    await browser.close();
     setTimeout(() => process.exit(0), 100);
   },
 
   async "get-text"() {
-    return await runOnActiveBackend("get-text", {}, getText);
+    return await runOnActiveBackend("get-text", {}, () =>
+      withActivePageCdp((send) => evaluatePageContent(send, "get-text")),
+    );
   },
 
   async "get-html"() {
-    return await runOnActiveBackend("get-html", {}, getHtml);
+    return await runOnActiveBackend("get-html", {}, () =>
+      withActivePageCdp((send) => evaluatePageContent(send, "get-html")),
+    );
   },
 
   async "get-markdown"() {
-    if (activeBackend === "extension") {
-      return htmlToMarkdown(await extensionBridge.send("get-markdown", {}));
-    }
-    return await getMarkdown();
+    const html = await runOnActiveBackend("get-markdown", {}, getMarkdownHtml);
+    return htmlToMarkdown(html);
   },
 
   async snapshot() {
-    if (activeBackend === "extension") {
-      return await extensionBridge.send("snapshot", {});
-    }
-    return await snapshot();
+    return await runOnActiveBackend("snapshot", {}, snapshot);
   },
 
   async "scroll-bottom"() {
-    return await runOnActiveBackend("scroll-bottom", {}, scrollToBottom);
+    return await runOnActiveBackend("scroll-bottom", {}, () =>
+      withActivePageCdp(scrollToBottomCdp),
+    );
   },
 
   async click(target) {
-    return await runOnActiveBackend("click", target, () => click(target));
+    return await runOnActiveBackend("click", target, () =>
+      withActivePageCdp((send) => clickCdp(send, target)),
+    );
   },
 
   async type({ text, ...target }) {
-    return await runOnActiveBackend("type", { text, ...target }, () => typeText(text, target));
+    return await runOnActiveBackend("type", { text, ...target }, () =>
+      withActivePageCdp((send) => typeTextCdp(send, text, target)),
+    );
   },
 
   async fill({ text, ...target }) {
-    return await runOnActiveBackend("fill", { text, ...target }, () => fill(target, text));
+    return await runOnActiveBackend("fill", { text, ...target }, () =>
+      withActivePageCdp((send) =>
+        typeTextCdp(send, text, target, { clear: true }),
+      ),
+    );
   },
 
   async press({ key }) {
-    return await runOnActiveBackend("press", { key }, () => pressKey(key));
+    return await runOnActiveBackend("press", { key }, () =>
+      withActivePageCdp((send) => pressKeyCdp(send, key)),
+    );
   },
 
   async select({ value, ...target }) {
-    return await runOnActiveBackend("select", { value, ...target }, () => select(target, value));
+    return await runOnActiveBackend("select", { value, ...target }, () =>
+      withActivePageCdp((send) => selectCdp(send, target, value)),
+    );
   },
 
   async upload({ filePath, ...target }) {
-    return await runOnActiveBackend("upload", { filePath, ...target }, () => upload(target, filePath));
+    const absolutePath = resolve(filePath);
+    return await runOnActiveBackend(
+      "upload",
+      { filePath: absolutePath, ...target },
+      () => withActivePageCdp((send) => uploadCdp(send, target, absolutePath)),
+    );
   },
 
   async screenshot(target = {}) {
@@ -150,7 +171,10 @@ const commands = {
   },
 
   async inspect() {
-    return await runOnActiveBackend("inspect", {}, inspect);
+    if (activeBackend === "extension") {
+      throw new Error("inspect is only available for the managed browser backend");
+    }
+    return await inspect();
   },
 };
 
@@ -165,7 +189,8 @@ function readBody(req) {
 const startTime = Date.now();
 
 const server = createServer(async (req, res) => {
-  const { pathname } = new URL(req.url, "http://localhost");
+  const requestUrl = new URL(req.url, "http://localhost");
+  const { pathname } = requestUrl;
 
   // Only extension service workers may consume or complete bridge commands.
   if (pathname.startsWith("/extension/")) {
@@ -185,8 +210,26 @@ const server = createServer(async (req, res) => {
 
   if (pathname === "/extension/poll" && req.method === "GET") {
     res.setHeader("Content-Type", "application/json");
+    const requestedSourceVersion = requestUrl.searchParams.get("sourceVersion");
+    let sourceVersion = await getExtensionSourceVersion(extensionDir);
+    if (requestedSourceVersion !== sourceVersion) {
+      res.end(JSON.stringify({ reload: true, sourceVersion }));
+      return;
+    }
     const command = await extensionBridge.poll();
+    sourceVersion = await getExtensionSourceVersion(extensionDir);
+    if (requestedSourceVersion !== sourceVersion) {
+      extensionBridge.requeue(command);
+      res.end(JSON.stringify({ reload: true, sourceVersion }));
+      return;
+    }
     res.end(JSON.stringify(command));
+    return;
+  }
+
+  if (pathname === "/extension/source-version" && req.method === "GET") {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ sourceVersion: await getExtensionSourceVersion(extensionDir) }));
     return;
   }
 

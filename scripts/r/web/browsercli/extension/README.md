@@ -19,3 +19,7 @@ icon to reconnect immediately.
 
 Snapshot uses Chrome's debugger API while collecting the accessibility tree, so
 Chrome briefly displays its standard debugging notification.
+
+When developing browsercli, reload the unpacked extension once after installing
+this version. After that, it detects changes to its source files through the
+local daemon and reloads itself before accepting another command.

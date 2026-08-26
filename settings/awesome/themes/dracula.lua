@@ -14,22 +14,22 @@ theme.font         = "Mono 10"
 theme.bg_normal            = "#282a36"
 theme.bg_focus             = "#44475a"
 theme.bg_urgent            = "#ff5555"
-theme.bg_minimize          = "#000000"
+theme.bg_minimize          = "#44475a"
 theme.bg_systray           = theme.bg_normal
 
 theme.fg_normal            = "#f8f8f2"
-theme.fg_focus             = "#ffffff"
-theme.fg_urgent            = "#f8f8f2"
+theme.fg_focus             = "#f8f8f2"
+theme.fg_urgent            = "#282a36"
 
 theme.useless_gap          = dpi(0)
-theme.border_width         = dpi(2)
+theme.border_width         = dpi(1)
 theme.border_normal        = theme.bg_normal
-theme.border_focus         = "#44475a"
+theme.border_focus         = "#bd93f9"
 theme.border_marked        = "#ff79c6"
 
 -- Extras
 theme.titlebar_bg_focus    = theme.bg_normal
-theme.hotkeys_modifiers_fg = "#adadad"
+theme.hotkeys_modifiers_fg = "#bd93f9"
 
 
 -- Generate taglist squares:

@@ -35,7 +35,7 @@ local function worker()
 
         if level then
             local icon_name = status == "Charging" and "battery-charging" or "battery"
-            icon:set_image(status_widget.icon_path(icon_name))
+            icon:set_image(status_widget.icon(icon_name))
             text:set_text(level .. "%")
         end
     end

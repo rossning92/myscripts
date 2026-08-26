@@ -62,6 +62,14 @@ class ExtensionBridge {
     });
   }
 
+  requeue(item) {
+    if (!item) return;
+    if (this.queuedCommand) {
+      throw new Error("Cannot requeue an extension command while another is queued");
+    }
+    this.queuedCommand = item;
+  }
+
   resolve({ id, result, error }) {
     const pending = this.pendingResults.get(id);
     if (!pending) return;

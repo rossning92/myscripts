@@ -1,7 +1,6 @@
 import { spawn } from "child_process";
 import fs from "fs";
-import puppeteerExtra from "puppeteer-extra";
-import puppeteerCore from "rebrowser-puppeteer-core";
+import path from "path";
 import {
   BROWSER_URL,
   DEBUG_PORT,
@@ -9,23 +8,41 @@ import {
   WINDOW_HEIGHT,
   WINDOW_WIDTH,
 } from "./config.js";
-
-const puppeteer = puppeteerExtra.addExtra(puppeteerCore);
+import { normalizeUrl } from "./extension/shared/navigation.js";
+import { CdpBrowser } from "./cdp-browser.js";
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const getExecutablePath = () => {
   const defaults = {
-    win32: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    darwin: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    linux: "/usr/bin/google-chrome-stable",
-    android: "/data/data/com.termux/files/usr/bin/chromium-browser",
+    win32: [
+      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    ],
+    darwin: ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
+    linux: [
+      "/usr/bin/google-chrome-stable",
+      "/usr/bin/google-chrome",
+      "/usr/bin/chromium",
+      "/usr/bin/chromium-browser",
+    ],
+    android: ["/data/data/com.termux/files/usr/bin/chromium-browser"],
   };
-  const defaultPath = defaults[process.platform];
-  if (defaultPath && fs.existsSync(defaultPath)) {
-    return defaultPath;
+  for (const candidate of defaults[process.platform] || []) {
+    if (fs.existsSync(candidate)) return candidate;
   }
-  return puppeteer.executablePath();
+
+  const executableNames =
+    process.platform === "win32"
+      ? ["chrome.exe", "msedge.exe", "chromium.exe"]
+      : ["google-chrome-stable", "google-chrome", "chromium", "chromium-browser"];
+  for (const directory of (process.env.PATH || "").split(path.delimiter)) {
+    for (const name of executableNames) {
+      const candidate = path.join(directory, name);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  throw new Error("Unable to find Chrome or Chromium. Add it to PATH.");
 };
 
 async function launchDetachedChrome(headed = false) {
@@ -108,14 +125,13 @@ export async function getOrOpenPage(browser, url) {
       new Promise((resolve) => setTimeout(resolve, 2000)),
     ]);
 
-    if (!/^https?:\/\//i.test(url)) url = `http://${url}`;
-    const response = await page.goto(url, { waitUntil: "domcontentloaded" });
+    url = normalizeUrl(url);
+    const response = await page.goto(url, { waitUntil: "load" });
     if (response && !response.ok() && response.status() !== 304) {
       throw new Error(
         `Failed to load page: ${response.status()} ${response.statusText()}`
       );
     }
-    await sleep(3000);
   } else {
     page = await getActivePage(browser);
   }
@@ -136,18 +152,13 @@ export async function launchOrConnectBrowser({
   headed = false,
   browserURL = BROWSER_URL,
 } = {}) {
-  const defaultViewport = {
-    width: WINDOW_WIDTH,
-    height: WINDOW_HEIGHT,
-    deviceScaleFactor: 1,
-  };
   let browser;
 
   // Reuse whatever browser is already on the debug port, regardless of the
   // headed flag. To switch an existing session between headed and headless,
   // run close-browser first, then open again.
   try {
-    browser = await puppeteer.connect({ browserURL, defaultViewport });
+    browser = await CdpBrowser.connect(browserURL);
   } catch (err) {
     console.log("Unable to connect, launching a new browser instance...");
 
@@ -159,7 +170,7 @@ export async function launchOrConnectBrowser({
     let connected = false;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        browser = await puppeteer.connect({ browserURL, defaultViewport });
+        browser = await CdpBrowser.connect(browserURL);
         connected = true;
         break;
       } catch (err) {
@@ -171,29 +182,6 @@ export async function launchOrConnectBrowser({
     }
     if (!connected) throw new Error("Failed to connect to browser");
   }
-
-  const handleDialog = async (dialog) => {
-    console.log(
-      `Automatically accepting dialog: [${dialog.type()}] ${dialog.message()}`
-    );
-    await dialog.accept().catch(() => {});
-  };
-
-  // Attach to existing pages
-  const existingPages = await browser.pages();
-  for (const page of existingPages) {
-    page.on("dialog", handleDialog);
-  }
-
-  // Attach to future pages
-  browser.on("targetcreated", async (target) => {
-    if (target.type() === "page") {
-      const page = await target.page();
-      if (page) {
-        page.on("dialog", handleDialog);
-      }
-    }
-  });
 
   return browser;
 }
