@@ -57,6 +57,23 @@ append_line_dedup "$HOME/.bashrc" 'alias v=nvim'
 pac_install $(pacman -Ssq 'noto-fonts-*')
 pac_install ttf-jetbrains-mono
 
+# Make JetBrains Mono the default for applications that request the generic
+# monospace family.
+mkdir -p "$HOME/.config/fontconfig/conf.d"
+cat >"$HOME/.config/fontconfig/conf.d/50-monospace.conf" <<'EOF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <alias>
+    <family>monospace</family>
+    <prefer>
+      <family>JetBrains Mono</family>
+    </prefer>
+  </alias>
+</fontconfig>
+EOF
+fc-cache -f
+
 {{ include('r/linux/arch/install_yay.sh') }}
 
 # Configure HiDPI display

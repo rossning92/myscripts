@@ -35,7 +35,6 @@ _WINDOW_STATUS_SYMBOLS: Dict[WindowStatus, str] = {
     "running": "⧗⠂⠐",
 }
 
-
 class WindowItem:
     def __init__(self, id, title):
         self.id = id
@@ -60,10 +59,37 @@ class WindowItem:
 
 
 def _get_windows_linux() -> List[WindowItem]:
+    bad_window_error = "BadWindow (invalid Window parameter)"
+    max_attempts = 3
+    retry_delay_seconds = 0.05
+
     try:
-        output = subprocess.check_output(
-            ["wmctrl", "-l"], text=True, stderr=subprocess.DEVNULL
-        )
+        for attempt in range(1, max_attempts + 1):
+            proc = subprocess.run(
+                ["wmctrl", "-l"],
+                text=True,
+                capture_output=True,
+            )
+
+            if proc.returncode == 0:
+                break
+
+            is_transient_bad_window = bad_window_error in proc.stderr
+            if is_transient_bad_window and attempt < max_attempts:
+                time.sleep(retry_delay_seconds)
+                continue
+
+            logging.warning(
+                "wmctrl -l failed after %d attempt(s): returncode=%d "
+                "stdout=%r stderr=%r",
+                attempt,
+                proc.returncode,
+                proc.stdout,
+                proc.stderr,
+            )
+            return []
+
+        output = proc.stdout
         windows = []
         for line in output.strip().splitlines():
             # Format: 0x03400003  0 ross-pc title
@@ -76,6 +102,7 @@ def _get_windows_linux() -> List[WindowItem]:
                 windows.append(WindowItem(id=window_id, title=title))
         return windows
     except Exception:
+        logging.exception("wmctrl -l raised an exception")
         return []
 
 

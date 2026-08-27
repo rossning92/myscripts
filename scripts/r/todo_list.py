@@ -45,7 +45,7 @@ def get_relative_time_str(ts: float) -> str:
 
 
 def get_pretty_ts(ts):
-    date_str = format_timestamp(ts, show_hhmm=True)
+    date_str = format_timestamp(ts, show_hhmm=False)
     time_diff_str = get_relative_time_str(ts)
     return f"{time_diff_str:>7} {date_str}"
 
@@ -64,7 +64,7 @@ class _EditTodoItemMenu(DictEditMenu):
 
     def get_value_str(self, name: str, val: Any) -> str:
         if name in ("due_ts",):
-            return format_timestamp(val)
+            return format_timestamp(val, show_hhmm=False)
         else:
             return super().get_value_str(name, val)
 
@@ -78,6 +78,7 @@ class TodoMenu(ListEditMenu[TodoItem]):
             prompt="todo",
             json_file=data_file,
             backup_json=True,
+            line_number=False,
             timeout_sec=1.0,
         )
 
@@ -357,7 +358,7 @@ def _edit_todo(
 
 def _get_todo_str(item: TodoItem) -> str:
     ts = item.get("due_ts")
-    due_str = format_timestamp(ts, show_year=True, show_hhmm=True) if ts else "None"
+    due_str = format_timestamp(ts, show_year=True, show_hhmm=False) if ts else "None"
 
     desc = item.get("description", "")
     if "\n" in desc:

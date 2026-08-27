@@ -140,8 +140,8 @@ class EditVariableMenu(DictEditMenu):
             dict_history=self.variable_edit_history,
         )
 
-        self.add_command(self.__clear_value, hotkey="delete")
-        self.add_command(self.__clear_value, hotkey="ctrl+k")
+        self.add_command(self.__clear_value, hotkey="delete", override=True)
+        self.add_command(self.__clear_value, hotkey="ctrl+k", override=True)
         self.add_command(self.__select_directory, hotkey="alt+d")
         self.add_command(self.__select_file, hotkey="alt+f")
 

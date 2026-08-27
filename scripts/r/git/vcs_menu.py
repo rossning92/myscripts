@@ -42,6 +42,12 @@ class VcsDiffMenu(Menu):
             pinned=True,
             override=True,
         )
+        self.add_command(
+            self.__open_in_file_manager,
+            hotkey="ctrl+o",
+            name="open in file manager",
+            pinned=True,
+        )
         self._init_extra_commands()
         self.add_command(self.__discard, hotkey="ctrl+d", name="discard", pinned=True)
         self.add_command(self.__commit, hotkey="alt+c", name="commit", pinned=True)
@@ -171,6 +177,13 @@ class VcsDiffMenu(Menu):
         self.run_raw(
             lambda: start_script("ext/edit.py", args=[filename])
         )
+
+    def __open_in_file_manager(self) -> None:
+        item = self.get_selected_item()
+        if item is None:
+            return
+        filename = os.path.abspath(self._get_filename(item))
+        start_script("ext/filemgr.py", args=[filename])
 
     def __commit(self, sync: bool = False) -> None:
         items = list(self.get_selected_items())
