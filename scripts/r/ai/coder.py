@@ -215,6 +215,11 @@ class CoderMenu(AgentMenu):
                 return "red"
         return super().get_item_color(item)
 
+    def item_wrap(self, item: Line) -> bool:
+        if item.type == "diff":
+            return False
+        return super().item_wrap(item)
+
 
 def _find_git_root(path) -> Optional[str]:
     current = Path(path)

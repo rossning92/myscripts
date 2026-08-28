@@ -5,7 +5,7 @@
 @media (hover: none) and (pointer: coarse) {
   #virtualKeys {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     flex: 0 0 auto;
     background: var(--chrome-toolbar);
     border-top: 1px solid rgba(232, 234, 237, 0.12);
@@ -24,6 +24,18 @@
     touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
+  }
+
+  #virtualKeys button svg {
+    display: block;
+    width: 19px;
+    height: 19px;
+    margin: auto;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   #virtualKeys button:active {

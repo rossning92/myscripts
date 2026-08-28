@@ -206,12 +206,24 @@
       <button type="button" data-key="End" data-code="End" data-key-code="35">End</button>
       <button type="button" data-key="PageUp" data-code="PageUp" data-key-code="33">PgUp</button>
       <button type="button" data-key="Backspace" data-code="Backspace" data-key-code="8" aria-label="Backspace">&#9003;</button>
+      <button type="button" id="zoomInBtn" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6" />
+        </svg>
+      </button>
       <button type="button" data-key="Tab" data-code="Tab" data-key-code="9">Tab</button>
       <button type="button" data-key="ArrowLeft" data-code="ArrowLeft" data-key-code="37" aria-label="Arrow left">&#8592;</button>
       <button type="button" data-key="ArrowDown" data-code="ArrowDown" data-key-code="40" aria-label="Arrow down">&#8595;</button>
       <button type="button" data-key="ArrowRight" data-code="ArrowRight" data-key-code="39" aria-label="Arrow right">&#8594;</button>
       <button type="button" data-key="PageDown" data-code="PageDown" data-key-code="34">PgDn</button>
       <button type="button" data-key="Enter" data-code="Enter" data-key-code="13">Enter</button>
+      <button type="button" id="zoomOutBtn" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="M15.5 15.5L21 21M7.5 10.5h6" />
+        </svg>
+      </button>
     </div>
     <input
       id="hiddenInput"
@@ -228,7 +240,7 @@
 
       const canvas = document.getElementById("screen");
       const ctx = canvas.getContext("2d");
-      setupScreencastZoom(document.getElementById("stage"), canvas);
+      const zoom = setupScreencastZoom(document.getElementById("stage"), canvas);
 
       let id = 1;
       let pageWidth = 1,
@@ -258,7 +270,11 @@
       const virtualKeys = document.getElementById("virtualKeys");
       const pipBtn = document.getElementById("pipBtn");
       const stage = document.getElementById("stage");
+      const zoomOutBtn = document.getElementById("zoomOutBtn");
+      const zoomInBtn = document.getElementById("zoomInBtn");
       setupVirtualKeys(virtualKeys, send);
+      zoomOutBtn.addEventListener("click", zoom.zoomOut);
+      zoomInBtn.addEventListener("click", zoom.zoomIn);
       const pictureInPicture = setupPictureInPicture({
         button: pipBtn,
         elements: [stage, hiddenInput],

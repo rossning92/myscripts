@@ -73,6 +73,18 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
     canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
   }
 
+  function zoomTo(nextScale) {
+    const stageRect = stage.getBoundingClientRect();
+    const centerX = stageRect.width / 2;
+    const centerY = stageRect.height / 2;
+    const contentX = (centerX - canvas.offsetLeft - panX) / scale;
+    const contentY = (centerY - canvas.offsetTop - panY) / scale;
+    scale = Math.min(maxScale, Math.max(1, nextScale));
+    panX = centerX - canvas.offsetLeft - contentX * scale;
+    panY = centerY - canvas.offsetTop - contentY * scale;
+    render();
+  }
+
   stage.addEventListener(
     "touchstart",
     (event) => {
@@ -169,4 +181,9 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
   if ("ResizeObserver" in window) {
     new ResizeObserver(render).observe(stage);
   }
+
+  return {
+    zoomIn: () => zoomTo(scale * 1.25),
+    zoomOut: () => zoomTo(scale / 1.25),
+  };
 }
