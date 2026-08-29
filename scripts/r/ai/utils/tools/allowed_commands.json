@@ -22,6 +22,7 @@
     "help *",
     "ls *",
     "mkdir *",
+    "nl *",
     "ocrmypdf *",
     "pdftotext *",
     "ping *",
