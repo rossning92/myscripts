@@ -4,7 +4,7 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from _script import start_script
 from utils.jsonutil import load_json
@@ -121,26 +121,54 @@ class Repo:
 
     @property
     def display_path(self) -> str:
+        repos_dir = os.path.join(get_my_script_root(), "repos")
+        try:
+            relative_path = os.path.relpath(self.path, repos_dir)
+        except ValueError:
+            relative_path = None
+        if relative_path == ".":
+            return "repos"
+        if relative_path and relative_path != os.pardir:
+            if not relative_path.startswith(os.pardir + os.sep):
+                return os.path.join("repos", relative_path)
         return self.path.replace(os.path.expanduser("~"), "~", 1)
 
     @property
     def vcs_info(self) -> str:
         if not self.vcs:
             return ""
-        parts = [f"{self.vcs}:{self.branch}"]
-        if (
+        return f"{self.vcs}:{self.branch}"
+
+    @property
+    def has_missing_upstream(self) -> bool:
+        return (
             self.is_git
             and not self.upstream
             and self.branch not in (None, "?", "(detached)")
-        ):
-            parts.append("(no upstream)")
+        )
+
+    @property
+    def status_tokens(self) -> List[Tuple[str, str]]:
+        tokens = []
         if self.dirty:
-            parts.append("*")
+            tokens.append(("*", "33"))
         if self.ahead:
-            parts.append(f"↑{self.ahead}")
+            tokens.append((f"↑{self.ahead}", "36"))
         if self.behind:
-            parts.append(f"↓{self.behind}")
-        return " ".join(parts)
+            tokens.append((f"↓{self.behind}", "31"))
+        if self.has_missing_upstream:
+            tokens.append(("!", "35"))
+        return tokens
+
+    @property
+    def status_text(self) -> str:
+        return " ".join(text for text, _ in self.status_tokens)
+
+    @property
+    def colored_status_text(self) -> str:
+        return " ".join(
+            f"\x1b[{color}m{text}\x1b[0m" for text, color in self.status_tokens
+        )
 
     def __str__(self) -> str:
         return self.display_path
@@ -229,9 +257,15 @@ class RepoMenu(Menu[Repo]):
     def get_item_text(self, item: Repo) -> str:
         vcs_info = item.vcs_info
         if vcs_info:
-            width = self._max_path_width()
-            return f"{item.display_path:<{width}}  {vcs_info}"
-        return item.display_path
+            status_width = self._max_status_width()
+            path_width = self._max_path_width()
+            status_padding = " " * (status_width - len(item.status_text))
+            status = f"{item.colored_status_text}{status_padding}"
+            return f"{status}  {item.display_path:<{path_width}}  {vcs_info}"
+        return f"{' ' * (self._max_status_width() + 2)}{item.display_path}"
+
+    def _max_status_width(self) -> int:
+        return max((len(item.status_text) for item in self.items), default=0)
 
     def _max_path_width(self) -> int:
         return max(len(item.display_path) for item in self.items)
@@ -239,10 +273,6 @@ class RepoMenu(Menu[Repo]):
     def get_item_color(self, item: Repo) -> str:
         if not item.vcs:
             return "brightblack"
-        if item.dirty or item.ahead:
-            return "yellow"
-        if item.behind:
-            return "red"
         return super().get_item_color(item)
 
     def on_item_selected(self, item: Repo):

@@ -77,8 +77,7 @@ def get_sync_cmds(vcs: str) -> List[List[str]]:
 
 
 def prepend_recent_commits(status: str, recent_commits: List[str]) -> str:
-    # Prepend recent commits on top of the default status bar text.
     if not recent_commits:
         return status
-    log = "\n".join(f"• {c}" for c in recent_commits)
+    log = "\n".join(recent_commits)
     return f"{log}\n{status}"
