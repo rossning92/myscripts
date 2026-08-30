@@ -10,6 +10,7 @@ import {
 } from "./config.js";
 import { normalizeUrl } from "./extension/shared/navigation.js";
 import { CdpBrowser } from "./cdp-browser.js";
+import { getViewport } from "./viewport.js";
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -125,6 +126,7 @@ export async function getOrOpenPage(browser, url) {
       new Promise((resolve) => setTimeout(resolve, 2000)),
     ]);
 
+    await page.setViewport({ ...getViewport(), deviceScaleFactor: 1 });
     url = normalizeUrl(url);
     const response = await page.goto(url, { waitUntil: "load" });
     if (response && !response.ok() && response.status() !== 304) {
@@ -134,15 +136,9 @@ export async function getOrOpenPage(browser, url) {
     }
   } else {
     page = await getActivePage(browser);
-  }
-
-  if (page) {
-    const defaultViewport = {
-      width: WINDOW_WIDTH,
-      height: WINDOW_HEIGHT,
-      deviceScaleFactor: 1,
-    };
-    await page.setViewport(defaultViewport);
+    if (page) {
+      await page.setViewport({ ...getViewport(), deviceScaleFactor: 1 });
+    }
   }
 
   return page;

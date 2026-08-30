@@ -3,7 +3,12 @@ import { createReadStream } from "fs";
 import { stat } from "fs/promises";
 import { extname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
-import { getBrowser, getOrOpenPage, getStatus } from "./browser-core.js";
+import {
+  getBrowser,
+  getOrOpenPage,
+  getStatus,
+  withActivePage,
+} from "./browser-core.js";
 import { withActivePageCdp } from "./browser-cdp.js";
 import { DAEMON_PORT, DEBUG_PORT } from "./config.js";
 import {
@@ -21,6 +26,8 @@ import { saveScreenshotData, screenshot } from "./screenshot.js";
 import { inspect } from "./inspect.js";
 import { extensionBridge } from "./extension-bridge.js";
 import { getExtensionSourceVersion } from "./extension-source.js";
+import { getViewport, parseViewport, setViewport } from "./viewport.js";
+import { goBack, goForward, reload } from "./extension/shared/navigation.js";
 
 const publicDir = resolve(fileURLToPath(new URL("public/", import.meta.url)));
 const extensionDir = resolve(fileURLToPath(new URL("extension/", import.meta.url)));
@@ -75,6 +82,20 @@ const commands = {
     return getStatus();
   },
 
+  async "set-viewport"({ viewport }) {
+    if (activeBackend === "extension") {
+      throw new Error(
+        "Viewport emulation is only available for the managed browser backend",
+      );
+    }
+    const dimensions = parseViewport(viewport);
+    await withActivePage((page) =>
+      page.setViewport({ ...dimensions, deviceScaleFactor: 1 }),
+    );
+    setViewport(dimensions);
+    return dimensions;
+  },
+
   async connect({ backend, headed }) {
     if (backend !== "browser" && backend !== "extension") {
       throw new Error('Backend must be "browser" or "extension"');
@@ -118,6 +139,24 @@ const commands = {
   async "scroll-bottom"() {
     return await runOnActiveBackend("scroll-bottom", {}, () =>
       withActivePageCdp(scrollToBottomCdp),
+    );
+  },
+
+  async back() {
+    return await runOnActiveBackend("back", {}, () =>
+      withActivePageCdp(goBack),
+    );
+  },
+
+  async forward() {
+    return await runOnActiveBackend("forward", {}, () =>
+      withActivePageCdp(goForward),
+    );
+  },
+
+  async reload() {
+    return await runOnActiveBackend("reload", {}, () =>
+      withActivePageCdp(reload),
     );
   },
 
@@ -254,8 +293,13 @@ const server = createServer(async (req, res) => {
       const r = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json`);
       const targets = await r.json();
       const page = targets.find((t) => t.type === "page");
+      let ws = null;
+      if (page) {
+        ws = new URL(page.webSocketDebuggerUrl);
+        ws.hostname = new URL(`http://${req.headers.host}`).hostname;
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ws: page ? page.webSocketDebuggerUrl : null }));
+      res.end(JSON.stringify({ ws: ws ? ws.href : null }));
     } catch (e) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "browser not available" }));
@@ -280,6 +324,11 @@ const server = createServer(async (req, res) => {
 
   if (pathname === "/health") {
     res.end(JSON.stringify({ status: "ok", startTime }));
+    return;
+  }
+
+  if (pathname === "/viewport" && req.method === "GET") {
+    res.end(JSON.stringify(getViewport()));
     return;
   }
 

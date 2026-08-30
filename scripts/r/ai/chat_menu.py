@@ -333,7 +333,7 @@ class ChatMenu(Menu[Line]):
         self.add_command(self.__load_prompt, hotkey="tab")
         self.add_command(self.__save_prompt)
         self.add_command(self.__save_chat_as)
-        self.add_command(self.__show_more, hotkey="tab")
+        self.add_command(self.__open_selected_item)
         self.add_command(self.__take_photo)
         self.add_command(self.__show_system_prompt)
         self.add_command(self.__open_data_dir, hotkey="alt+d")
@@ -602,7 +602,7 @@ class ChatMenu(Menu[Line]):
 
         self.set_input(self.get_input() + rendered_message)
 
-    def __show_more(self) -> bool:
+    def __open_selected_item(self) -> bool:
         selected = self.get_selected_item()
         if selected:
             if selected.reasoning:
@@ -794,11 +794,6 @@ class ChatMenu(Menu[Line]):
             self.send_message(self.__first_message)
         elif self.__prompt_file:
             self.__load_prompt(self.__prompt_file)
-
-    def on_tab_pressed(self) -> bool:
-        if not self.__show_more():
-            self.__load_prompt()
-        return True
 
     def send_message(
         self,
@@ -1200,6 +1195,7 @@ class ChatMenu(Menu[Line]):
     def on_enter_pressed(self):
         text = self.get_input()
         if not text:
+            self.__open_selected_item()
             return
 
         if self.__is_running:

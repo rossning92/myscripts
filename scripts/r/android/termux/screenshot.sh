@@ -2,13 +2,11 @@
 set -euo pipefail
 
 output="/storage/emulated/0/Pictures/Screenshots/selected_app_$(date +%Y%m%d_%H%M%S).png"
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 if command -v termux-toast >/dev/null 2>&1; then
-    termux-toast "Choose an app from Recents" || true
+    termux-toast "Select app to take screenshot" || true
 fi
 
-run_script "$script_dir/../rish.sh" -c '
+if rish -c '
 out=$1
 timeout=$2
 mkdir -p "$(dirname "$out")"
@@ -19,16 +17,14 @@ current_component() {
     printf "%s\n" "$3" | cut -d "}" -f 1
 }
 
-home_package=$(cmd package resolve-activity --brief \
-    -a android.intent.action.MAIN \
-    -c android.intent.category.HOME 2>/dev/null | tail -n 1 | cut -d/ -f1)
+home_package=$(cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null | tail -n 1 | cut -d/ -f1)
 
 deadline=$(($(date +%s) + timeout))
 input keyevent KEYCODE_APP_SWITCH
 recents_component=
 
 while [ "$(date +%s)" -lt "$deadline" ]; do
-    if dumpsys activity activities | grep -q "topDisplayFocusedRootTask=.*type=recents"; then
+    if dumpsys activity activities 2>/dev/null | grep "topDisplayFocusedRootTask=.*type=recents" >/dev/null; then
         recents_component=$(current_component)
         break
     fi
@@ -40,7 +36,15 @@ if [ -z "$recents_component" ]; then
     exit 1
 fi
 
-trap "input keyevent --doubletap KEYCODE_APP_SWITCH" EXIT
+timed_out=0
+return_to_termux() {
+    if [ "$timed_out" -eq 1 ]; then
+        am start -n com.termux/.app.TermuxActivity >/dev/null 2>&1
+    else
+        input keyevent --doubletap KEYCODE_APP_SWITCH
+    fi
+}
+trap return_to_termux EXIT
 
 selected_component=
 stable_count=0
@@ -67,8 +71,9 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 done
 
 if [ "$stable_count" -lt 2 ]; then
+    timed_out=1
     echo "Timed out waiting for an app to be selected" >&2
-    exit 1
+    exit 2
 fi
 
 sleep 1
@@ -77,6 +82,12 @@ if [ ! -s "$out" ]; then
     echo "Failed to create screenshot: $out" >&2
     exit 1
 fi
-' sh "$output" 15
-
-printf '%s\n' "$output"
+' sh "$output" 15; then
+    printf '%s\n' "$output"
+else
+    status=$?
+    if [ "$status" -eq 2 ] && command -v termux-toast >/dev/null 2>&1; then
+        termux-toast "Timed out waiting for app selection" || true
+    fi
+    exit "$status"
+fi

@@ -197,9 +197,7 @@ class _CommandConfirmation:
 
 
 def _get_save_pattern(args: list[str]) -> str:
-    if len(args) == 1:
-        return args[0]
-    return f"{args[0]} *"
+    return " ".join(args)
 
 
 def _get_command_confirmation(
@@ -279,7 +277,7 @@ class ConfirmCommandMenu(Menu[str]):
             self.add_command(
                 self.__save_and_confirm,
                 hotkey="s",
-                name=f"save `{self.save_pattern}`",
+                name="save",
                 pinned=True,
             )
 

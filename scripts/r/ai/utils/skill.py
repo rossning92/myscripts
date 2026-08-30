@@ -38,18 +38,17 @@ def _find_skills_roots() -> List[Path]:
 
 
 def _find_skill_files() -> List[tuple[str, Path]]:
-    skill_files: List[tuple[str, Path]] = []
+    skill_files: Dict[str, Path] = {}
 
     for skills_root in _find_skills_roots():
         if skills_root.is_dir():
-            # Glob .agents/skills/*/SKILL.md
             for skill_dir in sorted(skills_root.iterdir()):
                 if skill_dir.is_dir():
                     skill_file = skill_dir / "SKILL.md"
                     if skill_file.is_file():
-                        skill_files.append((skill_dir.name, skill_file))
+                        skill_files[skill_dir.name] = skill_file
 
-    return skill_files
+    return list(skill_files.items())
 
 
 def _load_skill(name: str, file: Path) -> Skill:

@@ -1,64 +1,57 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
+import argparse
 import datetime
-import os
 import subprocess
 import sys
-
-generate_bookmark = False
-
-current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-out_file = f"combined_{current_time}.pdf"
-
-bookmarks_file = r"bookmarks.txt"
-bookmarks_fmt = (
-    "BookmarkBegin\nBookmarkTitle: {}\nBookmarkLevel: 1\nBookmarkPageNumber: {}\n"
-)
-
-files = sys.argv[1:]
-files = [x.replace("\\\\", "\\") for x in files]
-files = [file for file in files if file.lower().endswith(".pdf")]
-files = sorted(files)
-print("Input Files:")
-for file in files:
-    print(f" - {file}")
-
-if generate_bookmark:
-    if os.path.exists(bookmarks_file):
-        os.remove(bookmarks_file)
-    if os.path.exists(out_file):
-        os.remove(out_file)
-
-    # Generate bookmarks file.
-    page_count = 1
-    with open(bookmarks_file, "w") as bf:
-        for f in files:
-            title = os.path.basename(os.path.splitext(f)[0])
-            bf.write(bookmarks_fmt.format(title, page_count))
-            num_pages = (
-                subprocess.check_output(["pdftk", f, "dump_data"])
-                .decode("utf-8")
-                .strip()
-            )
-            num_pages = int(
-                [
-                    line.split(":")[1]
-                    for line in num_pages.split("\n")
-                    if "NumberOfPages" in line
-                ][0]
-            )
-            page_count += num_pages
+from pathlib import Path
 
 
-# Combine PDFs and embed the generated bookmarks file.
-p1 = subprocess.Popen(
-    ["pdftk"] + files + ["cat", "output", out_file],
-    # stdout=subprocess.PIPE,
-)
-p1.wait()
-# p2 = subprocess.Popen(
-#     ["pdftk", "-", "update_info", bookmarks_file, "output", out_file],
-#     stdin=p1.stdout,
-# )
-# p1.stdout.close()
-# p2.wait()
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Combine PDF files in the order they are provided."
+    )
+    parser.add_argument(
+        "files",
+        nargs="+",
+        type=Path,
+        metavar="PDF",
+        help="input PDF files, in output page order",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="output path (default: combined_YYYYMMDD_HHMMSS.pdf)",
+    )
+    return parser.parse_args()
+
+
+def combine_pdfs(files: list[Path], output: Path) -> None:
+    subprocess.run(
+        ["pdftk", *(str(file) for file in files), "cat", "output", str(output)],
+        check=True,
+    )
+
+
+def main() -> int:
+    args = parse_args()
+    output = args.output or Path(
+        f"combined_{datetime.datetime.now():%Y%m%d_%H%M%S}.pdf"
+    )
+
+    try:
+        combine_pdfs(args.files, output)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    print("Input files (in page order):")
+    for file in args.files:
+        print(f" - {file}")
+    print(f"Output: {output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 
-ANDROID_HELPER_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-
 android_is_local_device() {
     [[ -n "${TERMUX_VERSION:-}" || "${PREFIX:-}" == /data/data/com.termux/files/usr ]]
 }
 
 android_require_rish() {
-    RISH="${RISH:-$ANDROID_HELPER_DIR/rish.sh}"
-    if [[ ! -x "$RISH" ]]; then
+    RISH="${RISH:-rish}"
+    if ! command -v "$RISH" >/dev/null 2>&1; then
         echo "rish is missing or not executable: $RISH" >&2
         return 1
     fi

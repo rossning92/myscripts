@@ -1,6 +1,10 @@
 ---
-description: to-do list and task management
+name: todo-list
+description: Manages tasks through the todo_list CLI. Use when the user asks to add, list, search, update, complete, reopen, reschedule, or delete a task or reminder.
+compatibility: Requires the todo_list command on PATH.
 ---
+
+# To-do list
 
 Use the `todo_list` command for to-do list and task management.
 

@@ -1,6 +1,6 @@
 #!/system/bin/sh
-BASEDIR=$(dirname "$0")
-DEX="$BASEDIR"/rish_shizuku.dex
+BASEDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+DEX="$BASEDIR/rish_shizuku.dex"
 
 if [ ! -f "$DEX" ]; then
   echo "Cannot find $DEX, please check the tutorial in Shizuku app"

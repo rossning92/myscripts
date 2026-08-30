@@ -39,6 +39,7 @@
         background: var(--chrome-toolbar);
       }
       #toolbar {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 2px;
@@ -117,6 +118,46 @@
       #addr::placeholder {
         color: #9aa0a6;
       }
+      #viewportBtn[aria-expanded="true"] {
+        color: var(--chrome-focus);
+        background: rgba(138, 180, 248, 0.16);
+      }
+      #viewportMenu {
+        position: absolute;
+        top: 44px;
+        right: 44px;
+        width: 210px;
+        padding: 6px;
+        border: 1px solid #5f6368;
+        border-radius: 8px;
+        background: #292a2d;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+        z-index: 4;
+      }
+      #viewportMenu[hidden] {
+        display: none;
+      }
+      #toolbar #viewportMenu button {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 4px;
+        color: var(--chrome-text);
+        font: inherit;
+        font-size: 13px;
+        text-align: left;
+      }
+      #toolbar #viewportMenu button::before {
+        width: 18px;
+        margin-right: 6px;
+        color: var(--chrome-focus);
+        content: "";
+      }
+      #toolbar #viewportMenu button[aria-checked="true"]::before {
+        content: "✓";
+      }
       #stage {
         position: relative;
         flex: 1 1 auto;
@@ -184,6 +225,23 @@
         autocorrect="off"
         spellcheck="false"
       />
+      <button
+        id="viewportBtn"
+        title="Viewport resolution"
+        aria-label="Viewport resolution"
+        aria-haspopup="menu"
+        aria-expanded="false"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="13" rx="2" />
+          <path d="M8 21h8M12 17v4" />
+        </svg>
+      </button>
+      <div id="viewportMenu" role="menu" aria-label="Viewport resolution" hidden>
+        <button type="button" role="menuitemradio" data-viewport="390x844">Phone 390×844</button>
+        <button type="button" role="menuitemradio" data-viewport="768x1024">Tablet 768×1024</button>
+        <button type="button" role="menuitemradio" data-viewport="1024x768">Desktop 1024×768</button>
+      </div>
       <button
         id="pipBtn"
         title="Picture in picture"
@@ -266,6 +324,8 @@
       const backBtn = document.getElementById("backBtn");
       const fwdBtn = document.getElementById("fwdBtn");
       const reloadBtn = document.getElementById("reloadBtn");
+      const viewportBtn = document.getElementById("viewportBtn");
+      const viewportMenu = document.getElementById("viewportMenu");
       const hiddenInput = document.getElementById("hiddenInput");
       const virtualKeys = document.getElementById("virtualKeys");
       const pipBtn = document.getElementById("pipBtn");
@@ -275,6 +335,98 @@
       setupVirtualKeys(virtualKeys, send);
       zoomOutBtn.addEventListener("click", zoom.zoomOut);
       zoomInBtn.addEventListener("click", zoom.zoomIn);
+
+      async function setViewport(value) {
+        const res = await fetch("/command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            command: "set-viewport",
+            args: { viewport: value },
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          throw new Error(data.error || "Could not set viewport");
+        }
+      }
+
+      function closeViewportMenu({ restoreFocus = false } = {}) {
+        viewportMenu.hidden = true;
+        viewportBtn.setAttribute("aria-expanded", "false");
+        if (restoreFocus) viewportBtn.focus();
+      }
+
+      viewportBtn.addEventListener("click", () => {
+        const willOpen = viewportMenu.hidden;
+        viewportMenu.hidden = !willOpen;
+        viewportBtn.setAttribute("aria-expanded", String(willOpen));
+        if (willOpen) {
+          const selected = viewportMenu.querySelector('[aria-checked="true"]');
+          (selected || viewportMenu.querySelector("button"))?.focus();
+        }
+      });
+
+      viewportMenu.addEventListener("click", (event) => {
+        const option = event.target.closest("[data-viewport]");
+        if (!option) return;
+        closeViewportMenu({ restoreFocus: true });
+        setViewport(option.dataset.viewport)
+          .then(refreshViewport)
+          .catch((error) => {
+            console.error(error);
+            refreshViewport();
+          });
+      });
+
+      document.addEventListener("click", (event) => {
+        if (
+          !viewportMenu.hidden &&
+          !event.target.closest("#viewportBtn, #viewportMenu")
+        ) {
+          closeViewportMenu();
+        }
+      });
+
+      viewportMenu.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          closeViewportMenu({ restoreFocus: true });
+          return;
+        }
+        const options = [...viewportMenu.querySelectorAll("[data-viewport]")];
+        const currentIndex = options.indexOf(document.activeElement);
+        let nextIndex;
+        if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % options.length;
+        if (event.key === "ArrowUp") {
+          nextIndex = (currentIndex - 1 + options.length) % options.length;
+        }
+        if (event.key === "Home") nextIndex = 0;
+        if (event.key === "End") nextIndex = options.length - 1;
+        if (nextIndex !== undefined) {
+          event.preventDefault();
+          options[nextIndex].focus();
+        }
+      });
+
+      async function refreshViewport() {
+        try {
+          const res = await fetch("/viewport");
+          const { width, height } = await res.json();
+          const value = `${width}x${height}`;
+          const selected = viewportMenu.querySelector(
+            `[data-viewport="${value}"]`,
+          );
+          for (const option of viewportMenu.querySelectorAll("[data-viewport]")) {
+            option.setAttribute("aria-checked", String(option === selected));
+          }
+          viewportBtn.title = `Viewport: ${width}×${height}`;
+          viewportBtn.setAttribute(
+            "aria-label",
+            `Viewport: ${width} by ${height}`,
+          );
+        } catch (error) {}
+      }
+      refreshViewport();
       const pictureInPicture = setupPictureInPicture({
         button: pipBtn,
         elements: [stage, hiddenInput],
@@ -342,7 +494,7 @@
       function startScreencast() {
         send("Page.startScreencast", {
           format: "jpeg",
-          quality: 80,
+          quality: 50,
           everyNthFrame: 1,
         });
       }
@@ -409,6 +561,7 @@
       // Single poll loop handles initial connection, disconnects, and tab switches
       async function poll() {
         try {
+          refreshViewport();
           const res = await fetch("/active-ws");
           const { ws: activeWs } = await res.json();
           if (activeWs && activeWs !== currentWsUrl) {

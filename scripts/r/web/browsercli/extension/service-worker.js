@@ -9,7 +9,12 @@ import {
 } from "./shared/actions.js";
 import { captureScreenshot } from "./shared/screenshot.js";
 import { upload } from "./shared/upload.js";
-import { normalizeUrl } from "./shared/navigation.js";
+import {
+  goBack,
+  goForward,
+  normalizeUrl,
+  reload,
+} from "./shared/navigation.js";
 
 const BRIDGE_URL = "http://127.0.0.1:21224/extension";
 const RECONNECT_ALARM = "browsercli-reconnect";
@@ -119,6 +124,9 @@ async function pageCommand(command, args = {}) {
     if (command === "press") return pressKey(send, args.key);
     if (command === "select") return select(send, args, args.value);
     if (command === "scroll-bottom") return scrollToBottom(send);
+    if (command === "back") return goBack(send);
+    if (command === "forward") return goForward(send);
+    if (command === "reload") return reload(send);
     if (command === "upload") return upload(send, args, args.filePath);
     throw new Error(`Unsupported extension command: ${command}`);
   });
@@ -192,8 +200,9 @@ async function run() {
         } else if (command.command === "screenshot") {
           result = await screenshot(command.args);
         } else if ([
-          "get-text", "get-html", "get-markdown", "scroll-bottom", "click",
-          "type", "fill", "press", "select", "upload",
+          "get-text", "get-html", "get-markdown", "scroll-bottom", "back",
+          "forward", "reload", "click", "type", "fill", "press", "select",
+          "upload",
         ].includes(command.command)) {
           result = await pageCommand(command.command, command.args);
         } else {

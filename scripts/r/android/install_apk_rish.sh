@@ -3,14 +3,13 @@ set -euo pipefail
 
 APK=${1:?Usage: install_apk_rish.sh APK PACKAGE}
 PACKAGE=${2:?Usage: install_apk_rish.sh APK PACKAGE}
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-RISH="$SCRIPT_DIR/rish.sh"
+RISH="${RISH:-rish}"
 
 if [[ ! -f "$APK" ]]; then
     echo "APK not found: $APK" >&2
     exit 1
 fi
-if [[ ! -x "$RISH" ]]; then
+if ! command -v "$RISH" >/dev/null 2>&1; then
     echo "rish is missing or not executable: $RISH" >&2
     exit 1
 fi

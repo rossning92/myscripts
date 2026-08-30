@@ -142,6 +142,15 @@ program
   });
 
 program
+  .command("viewport")
+  .description("Set the active page viewport resolution")
+  .argument("<WIDTHxHEIGHT>", "Viewport resolution (for example 390x844)")
+  .action(async (viewport) => {
+    const result = await sendCommand("set-viewport", { viewport });
+    console.log(`${result.width}x${result.height}`);
+  });
+
+program
   .command("close-browser")
   .description("Close the whole browser (quits Chrome and all its tabs)")
   .action(async () => {
@@ -187,6 +196,27 @@ program
   .description("Scroll to the bottom of the page")
   .action(async () => {
     await sendCommand("scroll-bottom");
+  });
+
+program
+  .command("back")
+  .description("Navigate back in the active page")
+  .action(async () => {
+    await sendCommand("back");
+  });
+
+program
+  .command("forward")
+  .description("Navigate forward in the active page")
+  .action(async () => {
+    await sendCommand("forward");
+  });
+
+program
+  .command("reload")
+  .description("Reload the active page")
+  .action(async () => {
+    await sendCommand("reload");
   });
 
 addTargetOptions(program.command("click"))

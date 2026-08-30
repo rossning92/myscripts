@@ -40,7 +40,7 @@ def get_tool_use_text(tool_use: ToolUse) -> str:
     }
     preview = preview_getters.get(tool_name, str)(args)
     args_text = truncate_text(preview)
-    return "\033[34m● \033[1m{}\033[22m: {}\033[0m".format(tool_name, args_text)
+    return "\033[34m• \033[1m{}\033[22m: {}\033[0m".format(tool_name, args_text)
 
 
 def get_reasoning_text(text: str) -> str:
