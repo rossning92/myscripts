@@ -2,7 +2,7 @@
 
 Settings are read from environment variables:
     CREATE_PDF_DPI              Output resolution (default: 300)
-    CREATE_PDF_JPEG_QUALITY     JPEG quality from 1 to 95 (default: 50)
+    CREATE_PDF_JPEG_QUALITY     JPEG quality from 1 to 95 (default: 85)
     CREATE_PDF_OUTPUT_FILE      Destination PDF (default: first image with a
                                 .pdf suffix)
     CREATE_PDF_BLACK_AND_WHITE  Convert images to 1-bit black and white when
@@ -68,7 +68,7 @@ def main() -> int:
 
     try:
         dpi = float(os.environ.get("CREATE_PDF_DPI", 300))
-        quality = int(os.environ.get("CREATE_PDF_JPEG_QUALITY", 50))
+        quality = int(os.environ.get("CREATE_PDF_JPEG_QUALITY", 85))
     except ValueError as error:
         print(
             "Error: CREATE_PDF_DPI and CREATE_PDF_JPEG_QUALITY must be "
@@ -92,9 +92,7 @@ def main() -> int:
             return 2
 
     output = Path(
-        os.environ.get(
-            "CREATE_PDF_OUTPUT_FILE", image_paths[0].with_suffix(".pdf")
-        )
+        os.environ.get("CREATE_PDF_OUTPUT_FILE", image_paths[0].with_suffix(".pdf"))
     ).expanduser()
     if output.suffix.lower() != ".pdf":
         output = output.with_suffix(".pdf")
