@@ -31,7 +31,6 @@ from ai.utils.tooluse import (
 from utils.jsonschema import JSONSchema
 from utils.jsonutil import load_json
 from utils.menu.confirmmenu import ConfirmMenu
-from utils.menu.filemenu import FileMenu
 from utils.menu.menu import PROCESS_EVENT_INTERVAL_SEC
 from utils.textutil import truncate_output
 
@@ -141,7 +140,6 @@ class AgentMenu(ChatMenu):
             MCPClient(command=shlex.split(item["command"])) for item in mcp_items
         ]
 
-        self.add_command(self.__open_file_menu, hotkey="alt+f")
         self.add_command(self.__toggle_tools, hotkey="ctrl+t")
 
         self.__tools_callable = (
@@ -418,9 +416,6 @@ class AgentMenu(ChatMenu):
         self.set_setting("enable_tools", enabled)
         self.__update_tools()
         self.set_message(f"Tools {'on' if enabled else 'off'}")
-
-    def __open_file_menu(self):
-        FileMenu(goto=os.getcwd()).exec()
 
     def get_status_text(self) -> str:
         s = f"cwd={os.getcwd()}"

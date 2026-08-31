@@ -255,7 +255,7 @@ class ChatMenu(Menu[Line]):
         context: Optional[str] = None,
         image_urls: Optional[List[str]] = None,
         out_file: Optional[str] = None,
-        prompt: str = "❯",
+        prompt: str = "›",
         prompt_file: Optional[str] = None,
         system_prompt="",
         settings_menu_class=SettingsMenu,
@@ -288,6 +288,9 @@ class ChatMenu(Menu[Line]):
         self.__retry_count = 0
         self.__usage = UsageMetadata()
         self.__message_queue: List[str] = []
+        self.__native_file_picker_state: Optional[
+            Literal["waiting_for_blur", "waiting_for_focus", "cancelled"]
+        ] = None
 
         self._out_message: Optional[Message] = None
 
@@ -374,20 +377,38 @@ class ChatMenu(Menu[Line]):
     def __add_file_native(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             selected_file = os.path.join(tmp_dir, "selected_file")
+            self.__native_file_picker_state = "waiting_for_blur"
             try:
                 subprocess.run(
                     ["termux-storage-get", selected_file],
                     check=True,
                 )
+                result = _wait_for_file_copy(
+                    selected_file,
+                    cancelled=lambda: self.__native_file_picker_state == "cancelled",
+                    wait=self.process_events,
+                )
             except (OSError, subprocess.CalledProcessError) as e:
                 self.set_message(f"failed to select file: {e}")
                 return
+            finally:
+                self.__native_file_picker_state = None
 
-            if not _wait_for_file_copy(selected_file):
-                self.set_message("file selection timed out")
+            if result == "cancelled":
+                self.set_message("file selection cancelled")
                 return
 
             self.__add_file_path(selected_file, detect_image_content=True)
+
+    def on_focus_lost(self):
+        super().on_focus_lost()
+        if self.__native_file_picker_state == "waiting_for_blur":
+            self.__native_file_picker_state = "waiting_for_focus"
+
+    def on_focus_gained(self):
+        super().on_focus_gained()
+        if self.__native_file_picker_state == "waiting_for_focus":
+            self.__native_file_picker_state = "cancelled"
 
     def __add_file_path(self, file: str, detect_image_content: bool = False):
         try:
@@ -1313,28 +1334,24 @@ def _detect_image_mime_type(path: str) -> Optional[str]:
 
 def _wait_for_file_copy(
     path: str,
-    timeout: float = 300,
     stable_duration: float = 0.5,
     poll_interval: float = 0.1,
-) -> bool:
-    """Wait for an asynchronous file copy to appear and stop growing."""
-    deadline = time.monotonic() + timeout
-    while not os.path.exists(path):
-        if time.monotonic() >= deadline:
-            return False
-        time.sleep(poll_interval)
-
+    cancelled: Callable[[], bool] = lambda: False,
+    wait: Callable[[float], Any] = time.sleep,
+) -> Literal["copied", "cancelled"]:
     previous_size = -1
     stable_since = time.monotonic()
-    while time.monotonic() < deadline:
-        size = os.path.getsize(path)
-        if size != previous_size:
-            previous_size = size
-            stable_since = time.monotonic()
-        elif time.monotonic() - stable_since >= stable_duration:
-            return True
-        time.sleep(poll_interval)
-    return False
+    while True:
+        if os.path.exists(path):
+            size = os.path.getsize(path)
+            if size != previous_size:
+                previous_size = size
+                stable_since = time.monotonic()
+            elif time.monotonic() - stable_since >= stable_duration:
+                return "copied"
+        elif cancelled():
+            return "cancelled"
+        wait(poll_interval)
 
 
 def _main():

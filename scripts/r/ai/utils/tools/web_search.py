@@ -33,7 +33,6 @@ class _DuckDuckGoResultsParser(HTMLParser):
         self.current: dict[str, str] | None = None
         self.field: str | None = None
         self.field_tag: str | None = None
-        self.field_depth = 0
         self.buffer: list[str] = []
 
     @staticmethod
@@ -43,27 +42,31 @@ class _DuckDuckGoResultsParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs):
         classes = self._classes(attrs)
         if tag == "a" and "result-link" in classes:
-            if self.current:
-                self.results.append(self.current)
+            self._finish_field()
+            self._finish_result()
             self.current = {"url": dict(attrs).get("href", "")}
             self.field = "title"
         elif self.current is not None and "result-snippet" in classes:
+            self._finish_field()
             self.field = "snippet"
         elif self.field:
-            self.field_depth += 1
             return
         else:
             return
 
         self.field_tag = tag
-        self.field_depth = 1
         self.buffer = []
 
     def handle_endtag(self, tag: str):
+        if self.field and tag == self.field_tag:
+            self._finish_field()
+
+    def handle_data(self, data: str):
+        if self.field:
+            self.buffer.append(data)
+
+    def _finish_field(self):
         if not self.field:
-            return
-        self.field_depth -= 1
-        if self.field_depth or tag != self.field_tag:
             return
         assert self.current is not None
         self.current[self.field] = re.sub(r"\s+", " ", "".join(self.buffer)).strip()
@@ -71,20 +74,19 @@ class _DuckDuckGoResultsParser(HTMLParser):
         self.field_tag = None
         self.buffer = []
 
-    def handle_data(self, data: str):
-        if self.field:
-            self.buffer.append(data)
+    def _finish_result(self):
+        if self.current and self.current.get("url") and self.current.get("title"):
+            self.results.append(self.current)
+        self.current = None
 
     def finish(self) -> list[dict[str, str]]:
-        if self.current:
-            self.results.append(self.current)
-            self.current = None
+        self._finish_field()
+        self._finish_result()
         return self.results
 
 
 def _destination_url(url: str) -> str:
-    if url.startswith("//"):
-        url = "https:" + url
+    url = urllib.parse.urljoin("https://lite.duckduckgo.com/", url)
     parsed = urllib.parse.urlparse(url)
     destination = urllib.parse.parse_qs(parsed.query).get("uddg")
     return destination[0] if destination else url

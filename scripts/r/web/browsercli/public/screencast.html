@@ -243,6 +243,19 @@
         <button type="button" role="menuitemradio" data-viewport="1024x768">Desktop 1024×768</button>
       </div>
       <button
+        id="shareBtn"
+        title="Share image"
+        aria-label="Share current screencast image"
+        disabled
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="18" cy="5" r="2.5" />
+          <circle cx="6" cy="12" r="2.5" />
+          <circle cx="18" cy="19" r="2.5" />
+          <path d="M8.2 10.8l7.6-4.5M8.2 13.2l7.6 4.5" />
+        </svg>
+      </button>
+      <button
         id="pipBtn"
         title="Picture in picture"
         aria-label="Open picture in picture"
@@ -258,12 +271,22 @@
       <canvas id="screen"></canvas>
     </div>
     <div id="virtualKeys" role="group" aria-label="Remote keyboard controls">
+      <button
+        type="button"
+        id="keyboardBtn"
+        title="Toggle keyboard"
+        aria-label="Toggle keyboard"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <path d="M6 10h1M10 10h1M14 10h1M18 10h0M6 13h1M10 13h1M14 13h1M18 13h0M7 16h10" />
+        </svg>
+      </button>
       <button type="button" data-key="Escape" data-code="Escape" data-key-code="27">Esc</button>
       <button type="button" data-key="Home" data-code="Home" data-key-code="36">Home</button>
       <button type="button" data-key="ArrowUp" data-code="ArrowUp" data-key-code="38" aria-label="Arrow up">&#8593;</button>
       <button type="button" data-key="End" data-code="End" data-key-code="35">End</button>
       <button type="button" data-key="PageUp" data-code="PageUp" data-key-code="33">PgUp</button>
-      <button type="button" data-key="Backspace" data-code="Backspace" data-key-code="8" aria-label="Backspace">&#9003;</button>
       <button type="button" id="zoomInBtn" aria-label="Zoom in">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="10.5" cy="10.5" r="6.5" />
@@ -275,7 +298,6 @@
       <button type="button" data-key="ArrowDown" data-code="ArrowDown" data-key-code="40" aria-label="Arrow down">&#8595;</button>
       <button type="button" data-key="ArrowRight" data-code="ArrowRight" data-key-code="39" aria-label="Arrow right">&#8594;</button>
       <button type="button" data-key="PageDown" data-code="PageDown" data-key-code="34">PgDn</button>
-      <button type="button" data-key="Enter" data-code="Enter" data-key-code="13">Enter</button>
       <button type="button" id="zoomOutBtn" aria-label="Zoom out">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="10.5" cy="10.5" r="6.5" />
@@ -328,6 +350,8 @@
       const viewportMenu = document.getElementById("viewportMenu");
       const hiddenInput = document.getElementById("hiddenInput");
       const virtualKeys = document.getElementById("virtualKeys");
+      const keyboardBtn = document.getElementById("keyboardBtn");
+      const shareBtn = document.getElementById("shareBtn");
       const pipBtn = document.getElementById("pipBtn");
       const stage = document.getElementById("stage");
       const zoomOutBtn = document.getElementById("zoomOutBtn");
@@ -335,6 +359,43 @@
       setupVirtualKeys(virtualKeys, send);
       zoomOutBtn.addEventListener("click", zoom.zoomOut);
       zoomInBtn.addEventListener("click", zoom.zoomIn);
+
+      let currentFrameData = null;
+
+      function currentFrameFile() {
+        const binary = atob(currentFrameData);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return new File([bytes], `screencast-${Date.now()}.jpg`, {
+          type: "image/jpeg",
+        });
+      }
+
+      function shareCurrentImage() {
+        if (!currentFrameData) return;
+        const file = currentFrameFile();
+        return navigator.share({
+          files: [file],
+          title: "Screencast",
+        });
+      }
+
+      const canShareImages =
+        navigator.share &&
+        typeof File === "function" &&
+        (!navigator.canShare ||
+          navigator.canShare({
+            files: [new File([new Uint8Array(1)], "image.jpg", { type: "image/jpeg" })],
+          }));
+      if (canShareImages) {
+        shareBtn.addEventListener("click", () => {
+          shareCurrentImage().catch((error) => {
+            if (error.name !== "AbortError") console.error(error);
+          });
+        });
+      } else {
+        shareBtn.hidden = true;
+      }
 
       async function setViewport(value) {
         const res = await fetch("/command", {
@@ -440,6 +501,14 @@
         hiddenInput.focus({ preventScroll: true });
       }
 
+      keyboardBtn.addEventListener("click", () => {
+        if (document.activeElement === hiddenInput) {
+          hiddenInput.blur();
+        } else {
+          focusRemoteInput();
+        }
+      });
+
       // Pull the current navigation history to sync the address bar and the
       // enabled/disabled state of the back/forward buttons.
       async function refreshNav() {
@@ -534,11 +603,13 @@
             const meta = msg.params.metadata;
             pageWidth = meta.deviceWidth;
             pageHeight = meta.deviceHeight;
+            currentFrameData = msg.params.data;
             const img = new Image();
             img.onload = () => {
               canvas.width = img.width;
               canvas.height = img.height;
               ctx.drawImage(img, 0, 0);
+              shareBtn.disabled = false;
               pictureInPicture.refreshVideo();
             };
             img.src = "data:image/jpeg;base64," + msg.params.data;
@@ -621,12 +692,13 @@
         window.removeEventListener("mouseup", onWindowMouseUp);
       }
 
-      // For touch pointers, transient user activation is granted on release.
-      // Focusing from click lets mobile browsers open the software keyboard;
-      // pointerdown may focus the input without showing it.
-      canvas.addEventListener("click", focusRemoteInput);
+      const hasCoarsePointer = matchMedia("(hover: none) and (pointer: coarse)");
+      canvas.addEventListener("click", () => {
+        if (!hasCoarsePointer.matches) focusRemoteInput();
+      });
 
       canvas.addEventListener("mousedown", (e) => {
+        if (document.activeElement === hiddenInput) e.preventDefault();
         const { x, y } = toPageCoords(e);
         pressedButton = mouseButton(e);
         send("Input.dispatchMouseEvent", {

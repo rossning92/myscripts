@@ -1,10 +1,11 @@
 export function setupVirtualKeys(container, send) {
   container.addEventListener("pointerdown", (event) => {
-    const button = event.target.closest("button[data-key]");
+    const button = event.target.closest("button");
     if (!button) return;
 
-    // Preserve focus on the text proxy so the mobile keyboard stays open.
     event.preventDefault();
+    if (!button.dataset.key) return;
+
     const keyCode = Number(button.dataset.keyCode);
     const params = {
       key: button.dataset.key,

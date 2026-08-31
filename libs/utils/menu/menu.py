@@ -44,12 +44,19 @@ INPUT_SETTLE_TIMEOUT_MS = 50
 PROCESS_EVENT_INTERVAL_SEC = 0.1
 ESC_SEQUENCE_TIMEOUT_MS = 25
 MAX_RENDER_PASSES = 10
+BRACKETED_PASTE_ENABLE = "\x1b[?2004h"
+BRACKETED_PASTE_DISABLE = "\x1b[?2004l"
+BRACKETED_PASTE_END = "\x1b[201~"
 SHIFT_DOWN = 0x150
 SHIFT_UP = 0x151
 KEY_A2 = 450
 KEY_C2 = 456
 KEY_FOCUS_IN = 578
 KEY_FOCUS_OUT = 579
+
+
+class _PasteEvent(NamedTuple):
+    text: str
 
 
 def _clamp(n, smallest, largest):
@@ -90,9 +97,26 @@ def _read_escape_sequence_char(stdscr, restore_timeout_ms: int):
         stdscr.timeout(restore_timeout_ms)
 
 
+def _read_bracketed_paste(stdscr, restore_timeout_ms: int) -> _PasteEvent:
+    """Read one complete bracketed paste without redrawing between characters."""
+    chars: List[str] = []
+    stdscr.timeout(-1)
+    try:
+        while True:
+            ch = stdscr.get_wch()
+            if isinstance(ch, str):
+                chars.append(ch)
+                if "".join(chars[-len(BRACKETED_PASTE_END) :]) == BRACKETED_PASTE_END:
+                    return _PasteEvent(
+                        "".join(chars[: -len(BRACKETED_PASTE_END)])
+                    )
+    finally:
+        stdscr.timeout(restore_timeout_ms)
+
+
 def _decode_escape_sequence(
     stdscr, ch: Union[int, str], restore_timeout_ms: int
-) -> Union[int, str]:
+) -> Union[int, str, _PasteEvent]:
     if isinstance(ch, int):
         try:
             name = curses.keyname(ch).decode()
@@ -191,6 +215,19 @@ def _decode_escape_sequence(
             return "alt+right"
         else:
             return -1
+    elif ch3 == "2":
+        try:
+            # Bracketed paste begins with ESC [ 200 ~. ESC [ 201 ~ is only
+            # expected while _read_bracketed_paste is consuming its payload.
+            if (
+                _read_escape_sequence_char(stdscr, restore_timeout_ms) == "0"
+                and _read_escape_sequence_char(stdscr, restore_timeout_ms) == "0"
+                and _read_escape_sequence_char(stdscr, restore_timeout_ms) == "~"
+            ):
+                return _read_bracketed_paste(stdscr, restore_timeout_ms)
+        except curses.error:
+            pass
+        return -1
     else:
         return -1
 
@@ -1013,6 +1050,7 @@ class Menu(Generic[T]):
         if EXPERIMENTAL_EANBLE_WINDOWS_VT and sys.platform == "win32":
             enable_windows_vt()
         sys.stdout.write("\x1b[?1004h")
+        sys.stdout.write(BRACKETED_PASTE_ENABLE)
         sys.stdout.flush()
 
         curses.noecho()
@@ -1049,6 +1087,8 @@ class Menu(Generic[T]):
     def destroy_curses():
         if Menu._stdscr is None:
             return
+        sys.stdout.write(BRACKETED_PASTE_DISABLE)
+        sys.stdout.flush()
         curses.endwin()
         Menu._stdscr = None
         Menu._color_pair_map.clear()
@@ -1177,7 +1217,7 @@ class Menu(Generic[T]):
             self._update_screen()
 
         # Keyboard event
-        ch: Union[int, str] = -1
+        ch: Union[int, str, _PasteEvent] = -1
         try:
             ch = Menu._stdscr.get_wch()
         except curses.error:
@@ -1203,7 +1243,14 @@ class Menu(Generic[T]):
                 self.__input.on_char("\n")
                 self.update_screen()
 
-            if ch == "alt+enter" and "alt+enter" not in self.__hotkeys:
+            if isinstance(ch, _PasteEvent):
+                if self.__allow_input:
+                    self.__input.insert_text(ch.text)
+                    self.update_screen()
+                # Do not interpret characters inside a paste as menu hotkeys.
+                ch = -1
+
+            elif ch == "alt+enter" and "alt+enter" not in self.__hotkeys:
                 self.__input.on_char("\n")
                 self.update_screen()
 

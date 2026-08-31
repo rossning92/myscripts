@@ -22,8 +22,8 @@ png | pnm | pdf)
     ;;
 esac
 
-if [[ $# -gt 0 ]]; then
-    output_file="$1"
+if [[ $# -gt 0 || -n "${SCAN_OUTPUT_FILE:-}" ]]; then
+    output_file="${1:-${SCAN_OUTPUT_FILE:-}}"
     mkdir -p "$(dirname "$output_file")"
 
     if [[ -z "${SCAN_FORMAT:-}" ]]; then
