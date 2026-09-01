@@ -9,7 +9,7 @@ from utils.menu.menu import Menu
 
 _SPLIT_OPERATORS = {";", "&&", "||", "|"}
 _OPERATOR_CHARS = set("();<>|&")
-_SAFE_STDERR_REDIRECTS = ("2>/dev/null", "2>&1")
+_SAFE_REDIRECTS = (">/dev/null", "1>/dev/null", "2>/dev/null", "2>&1")
 _INTRINSICALLY_ALLOWED_COMMANDS = {"true"}
 
 
@@ -150,6 +150,16 @@ def _parse_commands(command: str) -> tuple[list[list[str]] | None, str | None]:
     while index < len(tokens):
         token = tokens[index]
         if (
+            index + 1 < len(tokens)
+            and token.kind is _TokenKind.OPERATOR
+            and tokens[index + 1].kind is _TokenKind.WORD
+            and token.end == tokens[index + 1].start
+        ):
+            redirect = command[token.start : tokens[index + 1].end]
+            if redirect in _SAFE_REDIRECTS:
+                index += 2
+                continue
+        if (
             index + 2 < len(tokens)
             and token.kind is _TokenKind.WORD
             and tokens[index + 1].kind is _TokenKind.OPERATOR
@@ -158,7 +168,7 @@ def _parse_commands(command: str) -> tuple[list[list[str]] | None, str | None]:
             and tokens[index + 1].end == tokens[index + 2].start
         ):
             redirect = command[token.start : tokens[index + 2].end]
-            if redirect in _SAFE_STDERR_REDIRECTS:
+            if redirect in _SAFE_REDIRECTS:
                 index += 3
                 continue
         if token.kind is _TokenKind.OPERATOR:

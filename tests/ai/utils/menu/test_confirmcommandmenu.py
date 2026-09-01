@@ -94,11 +94,16 @@ class TestCommandConfirmation(unittest.TestCase):
         self.assert_requires_confirmation("git log > /etc/passwd")
         self.assert_requires_confirmation("git log & rm -rf ~")
 
-    def test_safe_stderr_redirects_allowed(self):
+    def test_safe_redirects_allowed(self):
+        self.assert_allowed("git log >/dev/null")
+        self.assert_allowed("git log >/dev/null && git status")
+        self.assert_allowed("git log 1>/dev/null")
         self.assert_allowed("git log 2>&1")
         self.assert_allowed("git log 2>&1 | head")
         self.assert_allowed("git log 2>/dev/null")
         self.assert_allowed("git log 2>/dev/null | head")
+        self.assert_requires_confirmation("git log > /dev/null")
+        self.assert_requires_confirmation("git log >/tmp/output")
         self.assert_requires_confirmation("git log 1>&2")
         self.assert_requires_confirmation("git log 2>/tmp/errors")
 

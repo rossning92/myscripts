@@ -1,4 +1,5 @@
 {
   "globalHotkey": "win+alt+.",
+  "tmuxHotkey": "t",
   "variableNames": "TODO_DATA_FILE"
 }

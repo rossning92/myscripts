@@ -2,6 +2,11 @@ import argparse
 import subprocess
 
 
+def get_tool_use_preview(args: dict[str, object]) -> str:
+    url = args.get("url")
+    return url if isinstance(url, str) else str(args)
+
+
 def web_fetch(url: str) -> str:
     """
     Fetch the content of a web page from the given URL.

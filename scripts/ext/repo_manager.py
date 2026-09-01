@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Tuple
 
 from _script import start_script
+from utils.fileutils import get_display_path
 from utils.jsonutil import load_json
 from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
@@ -131,7 +132,7 @@ class Repo:
         if relative_path and relative_path != os.pardir:
             if not relative_path.startswith(os.pardir + os.sep):
                 return os.path.join("repos", relative_path)
-        return self.path.replace(os.path.expanduser("~"), "~", 1)
+        return get_display_path(self.path)
 
     @property
     def vcs_info(self) -> str:
@@ -261,7 +262,10 @@ class RepoMenu(Menu[Repo]):
             path_width = self._max_path_width()
             status_padding = " " * (status_width - len(item.status_text))
             status = f"{item.colored_status_text}{status_padding}"
-            return f"{status}  {item.display_path:<{path_width}}  {vcs_info}"
+            display_path = f"{item.display_path:<{path_width}}"
+            if item.dirty:
+                display_path = f"\x1b[33m{display_path}\x1b[0m"
+            return f"{status}  {display_path}  {vcs_info}"
         return f"{' ' * (self._max_status_width() + 2)}{item.display_path}"
 
     def _max_status_width(self) -> int:

@@ -30,6 +30,7 @@
     "node --check *",
     "npm test",
     "npm test *",
+    "npm view *",
     "ocrmypdf *",
     "pdftotext *",
     "ping *",

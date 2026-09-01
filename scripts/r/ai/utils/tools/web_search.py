@@ -4,27 +4,6 @@ import subprocess
 import urllib.parse
 from html.parser import HTMLParser
 
-from utils.menu.textmenu import TextMenu
-
-
-class SearchRetryMenu(TextMenu):
-    def __init__(self, error_message: str, prompt: str):
-        super().__init__(
-            text=error_message,
-            prompt=f"{prompt}\n([r]etry, [d]ebug)",
-            prompt_color="red",
-        )
-        self.should_retry = False
-        self.add_command(self._retry, hotkey="r")
-        self.add_command(self._debug, hotkey="d")
-
-    def _retry(self):
-        self.should_retry = True
-        self.close()
-
-    def _debug(self):
-        self.run_raw(lambda: subprocess.run(["browsercli", "inspect"]))
-
 
 class _DuckDuckGoResultsParser(HTMLParser):
     def __init__(self):
@@ -109,33 +88,31 @@ def extract_search_results(html: str) -> str:
 
 
 def _fetch_search_html(url: str) -> str:
-    while True:
-        open_result = subprocess.run(
-            ["browsercli", "open", url],
+    open_result = subprocess.run(
+        ["browsercli", "open", url],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    if open_result.returncode == 0:
+        result = subprocess.run(
+            ["browsercli", "get-html"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
         )
-        if open_result.returncode == 0:
-            result = subprocess.run(
-                ["browsercli", "get-html"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-        else:
-            result = open_result
+    else:
+        result = open_result
 
-        if result.returncode == 0 and result.stdout:
-            return result.stdout
+    if result.returncode == 0 and result.stdout:
+        return result.stdout
 
-        retry_menu = SearchRetryMenu(
-            error_message=result.stdout,
-            prompt=f"failed to search {url}",
-        )
-        retry_menu.exec()
-        if not retry_menu.should_retry:
-            raise Exception(result.stdout)
+    raise RuntimeError(f"failed to search {url}\n{result.stdout}".rstrip())
+
+
+def get_tool_use_preview(args: dict[str, object]) -> str:
+    query = args.get("query")
+    return query if isinstance(query, str) else str(args)
 
 
 def web_search(query: str) -> str:

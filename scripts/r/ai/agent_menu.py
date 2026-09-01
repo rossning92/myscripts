@@ -15,6 +15,7 @@ import ai.utils.tools.read
 import ai.utils.tools.web_fetch
 import ai.utils.tools.web_search
 from ai.chat_menu import ChatMenu, Line
+from ai.utils.checkpoint import Checkpoint
 from ai.utils.mcp import MCPClient
 from ai.utils.memory import get_memory_prompt
 from ai.utils.menu.confirmcommandmenu import ConfirmCommandMenu
@@ -135,6 +136,8 @@ class AgentMenu(ChatMenu):
             **kwargs,
         )
 
+        self.__checkpoint = self.__create_checkpoint(self.get_session_id())
+
         mcp_items = mcp if mcp else cast(List[_MCP], self.get_settings()["mcp"])
         self.__mcp_clients = [
             MCPClient(command=shlex.split(item["command"])) for item in mcp_items
@@ -142,29 +145,49 @@ class AgentMenu(ChatMenu):
 
         self.add_command(self.__toggle_tools, hotkey="ctrl+t")
 
+        default_tools = [
+            (
+                self.__hook_read_tool(ai.utils.tools.read.read)
+                if self.get_settings()["skill"]
+                else ai.utils.tools.read.read
+            ),
+            self.__wrap_edit(ai.utils.tools.edit.edit),
+            (
+                ai.utils.tools.powershell.powershell
+                if sys.platform == "win32"
+                else ai.utils.tools.bash.bash
+            ),
+            # The system prompt directs searches through rg instead of a grep tool.
+            # ai.utils.tools.grep.grep,
+            ai.utils.tools.web_fetch.web_fetch,
+            ai.utils.tools.web_search.web_search,
+        ]
         self.__tools_callable = (
-            tools_callable
-            if tools_callable is not None
-            else [
-                (
-                    self.__hook_read_tool(ai.utils.tools.read.read)
-                    if self.get_settings()["skill"]
-                    else ai.utils.tools.read.read
-                ),
-                ai.utils.tools.edit.edit,
-                (
-                    ai.utils.tools.powershell.powershell
-                    if sys.platform == "win32"
-                    else ai.utils.tools.bash.bash
-                ),
-                # The system prompt directs searches through rg instead of a grep tool.
-                # ai.utils.tools.grep.grep,
-                ai.utils.tools.web_fetch.web_fetch,
-                ai.utils.tools.web_search.web_search,
-            ]
+            tools_callable if tools_callable is not None else default_tools
         )
 
         self.__update_tools()
+
+    def __wrap_edit(self, tool: Callable) -> Callable:
+        @functools.wraps(tool)
+        def checkpointed_edit(file: str, old_string: str, new_string: str):
+            message_index, _ = self.get_message_index_and_subindex()
+            self.__checkpoint.save(message_index, file)
+            return tool(file=file, old_string=old_string, new_string=new_string)
+
+        return checkpointed_edit
+
+    def _on_session_changed(self, session_id: str):
+        self.__checkpoint = self.__create_checkpoint(session_id)
+
+    def _on_messages_reverted(self, from_message_index: int):
+        self.__checkpoint.restore(from_message_index)
+
+    def __create_checkpoint(self, session_id: str) -> Checkpoint:
+        checkpoint_root = (
+            Path(self.get_data_dir()) / "sessions" / session_id / "checkpoints"
+        )
+        return Checkpoint(checkpoint_root, Path.cwd())
 
     def __update_tools(self):
         self.__tools = self.get_tools()

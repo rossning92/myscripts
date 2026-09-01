@@ -1,9 +1,9 @@
 import { spawn } from "child_process";
-import { getBrowser } from "./browser-core.js";
+import { withActivePage } from "./browser-core.js";
 import { DAEMON_PORT } from "./config.js";
 
-export async function inspect() {
-  await getBrowser();
+export async function screencast() {
+  await withActivePage(() => {});
 
   const viewerUrl = `http://127.0.0.1:${DAEMON_PORT}/screencast`;
   const opener =

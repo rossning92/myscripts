@@ -272,10 +272,10 @@ addTargetOptions(program.command("screenshot"))
   });
 
 program
-  .command("inspect")
+  .command("screencast")
   .description("Open a screencast viewer for the page")
   .action(async () => {
-    const result = await sendCommand("inspect");
+    const result = await sendCommand("screencast");
     if (result) console.log(result);
   });
 

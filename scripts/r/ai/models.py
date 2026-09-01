@@ -45,6 +45,7 @@ MODELS: List[Model] = [
         "claude-sonnet-4-5",
         api_type="anthropic_messages",
     ),
+    Model("openai", "gpt-4.1-nano"),
     Model("openai", "gpt-4.1-mini"),
     Model("openai", "gpt-4.1"),
     Model("openai", "gpt-5.6-sol"),
@@ -89,6 +90,13 @@ MODELS: List[Model] = [
         api_type="gemini_generate_content",
     ),
     Model("openai", "gpt-image-2", api_type="openai_images"),
+    Model(
+        "openrouter",
+        "openrouter/free",
+        api_type="openai_chat_completions",
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+    ),
     Model(
         "openrouter",
         "google/gemini-3-flash-preview",

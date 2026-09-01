@@ -182,6 +182,57 @@
         height: 1px;
         z-index: -1;
       }
+      #fileChooser {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 3;
+      }
+      #fileChooser[hidden] {
+        display: none;
+      }
+      #fileChooserPanel {
+        width: min(360px, 100%);
+        padding: 20px;
+        border: 1px solid #5f6368;
+        border-radius: 12px;
+        background: #292a2d;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+      }
+      #fileChooserPanel h2 {
+        margin-bottom: 8px;
+        font-size: 18px;
+      }
+      #fileChooserPanel p {
+        margin-bottom: 18px;
+        color: #bdc1c6;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      #fileChooserActions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      #fileChooserActions button {
+        min-height: 36px;
+        padding: 0 16px;
+        border: 1px solid #5f6368;
+        border-radius: 18px;
+        background: transparent;
+        color: var(--chrome-text);
+        font: inherit;
+        cursor: pointer;
+      }
+      #fileChooserActions #chooseFilesBtn {
+        border-color: var(--chrome-focus);
+        background: var(--chrome-focus);
+        color: #202124;
+      }
       @media (max-width: 600px) {
         #toolbar {
           height: 48px;
@@ -269,7 +320,18 @@
     </div>
     <div id="stage">
       <canvas id="screen"></canvas>
+      <div id="fileChooser" role="dialog" aria-modal="true" aria-labelledby="fileChooserTitle" hidden>
+        <div id="fileChooserPanel">
+          <h2 id="fileChooserTitle">Choose files to upload</h2>
+          <p id="fileChooserDescription">Select a file from this device for the remote page.</p>
+          <div id="fileChooserActions">
+            <button type="button" id="cancelFilesBtn">Cancel</button>
+            <button type="button" id="chooseFilesBtn">Choose file</button>
+          </div>
+        </div>
+      </div>
     </div>
+    <input id="localFileInput" type="file" hidden />
     <div id="virtualKeys" role="group" aria-label="Remote keyboard controls">
       <button
         type="button"
@@ -314,6 +376,7 @@
       spellcheck="false"
     />
     <script type="module">
+      import { setupFileUpload } from "/static/file-upload.js";
       import { setupPictureInPicture } from "/static/pip.js";
       import { setupScreencastZoom } from "/static/zoom.js";
       import { setupVirtualKeys } from "/static/virtual-keys.js";
@@ -331,10 +394,10 @@
       const pending = new Map();
 
       function send(method, params = {}) {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
           if (ws && ws.readyState === WebSocket.OPEN) {
             const myId = id++;
-            pending.set(myId, resolve);
+            pending.set(myId, { resolve, reject, method });
             ws.send(JSON.stringify({ id: myId, method, params }));
           } else {
             resolve(null);
@@ -356,6 +419,11 @@
       const stage = document.getElementById("stage");
       const zoomOutBtn = document.getElementById("zoomOutBtn");
       const zoomInBtn = document.getElementById("zoomInBtn");
+      const fileChooser = document.getElementById("fileChooser");
+      const fileChooserDescription = document.getElementById("fileChooserDescription");
+      const chooseFilesBtn = document.getElementById("chooseFilesBtn");
+      const cancelFilesBtn = document.getElementById("cancelFilesBtn");
+      const localFileInput = document.getElementById("localFileInput");
       setupVirtualKeys(virtualKeys, send);
       zoomOutBtn.addEventListener("click", zoom.zoomOut);
       zoomInBtn.addEventListener("click", zoom.zoomIn);
@@ -396,6 +464,15 @@
       } else {
         shareBtn.hidden = true;
       }
+
+      const fileUpload = setupFileUpload({
+        send,
+        dialog: fileChooser,
+        description: fileChooserDescription,
+        chooseButton: chooseFilesBtn,
+        cancelButton: cancelFilesBtn,
+        input: localFileInput,
+      });
 
       async function setViewport(value) {
         const res = await fetch("/command", {
@@ -556,6 +633,20 @@
       backBtn.addEventListener("click", () => navHistory(-1));
       fwdBtn.addEventListener("click", () => navHistory(1));
       reloadBtn.addEventListener("click", () => send("Page.reload"));
+
+      function selectAllOnInitialFocus(input) {
+        let selectOnClick = false;
+        input.addEventListener("pointerdown", () => {
+          selectOnClick = document.activeElement !== input;
+        });
+        input.addEventListener("focus", () => input.select());
+        input.addEventListener("click", () => {
+          if (selectOnClick) input.select();
+          selectOnClick = false;
+        });
+      }
+      selectAllOnInitialFocus(addr);
+
       addr.addEventListener("keydown", (e) => {
         if (e.key === "Enter") go();
       });
@@ -577,9 +668,10 @@
         document.title = "Screencast";
         ws = new WebSocket(wsUrl);
 
-        ws.onopen = () => {
+        ws.onopen = async () => {
+          await send("Page.enable");
+          await send("Page.setInterceptFileChooserDialog", { enabled: true });
           startScreencast();
-          send("Page.enable");
           refreshNav();
         };
 
@@ -587,8 +679,19 @@
           const msg = JSON.parse(e.data);
           // Resolve awaited command responses.
           if (msg.id !== undefined && pending.has(msg.id)) {
-            pending.get(msg.id)(msg);
+            const request = pending.get(msg.id);
             pending.delete(msg.id);
+            if (msg.error) {
+              request.reject(
+                new Error(`${request.method}: ${msg.error.message || "CDP command failed"}`),
+              );
+            } else {
+              request.resolve(msg);
+            }
+            return;
+          }
+          if (msg.method === "Page.fileChooserOpened") {
+            fileUpload.open(msg.params);
             return;
           }
           // Keep the address bar / buttons in sync on main-frame navigations.
@@ -621,7 +724,11 @@
 
         ws.onclose = () => {
           currentWsUrl = null;
+          for (const request of pending.values()) {
+            request.reject(new Error("CDP connection closed"));
+          }
           pending.clear();
+          fileUpload.close();
         };
       }
 

@@ -14,7 +14,7 @@ from _shutil import get_home_path
 from open_with.open_with import open_with
 
 from utils.clip import set_clip
-from utils.fileutils import human_readable_size
+from utils.fileutils import get_display_path, human_readable_size
 from utils.platform import is_termux
 from utils.shutil import shell_open
 
@@ -690,7 +690,7 @@ class FileMenu(Menu[_File]):
 
         # Update prompt
         prompt = f"{self.__prompt} " if self.__prompt else ""
-        self.set_prompt(f"{prompt}({self.get_cur_dir()})")
+        self.set_prompt(f"{prompt}({get_display_path(self.get_cur_dir())})")
 
         # Set last selected file
         if selected_file is None and self.get_cur_dir() in self.__selected_file_dict:

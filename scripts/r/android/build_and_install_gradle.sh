@@ -4,7 +4,10 @@ set -euo pipefail
 BUILD_FILE=${1:?Usage: build_and_install_gradle.sh BUILD_FILE}
 PROJECT_DIR=$(cd -- "$(dirname -- "$BUILD_FILE")" && pwd)
 
-run_script r/android/run_gradle.sh "$BUILD_FILE" assembleDebug
+(
+    cd "$PROJECT_DIR"
+    CWD="$PROJECT_DIR" run_script r/android/gradle.sh assembleDebug
+)
 
 APK=$(
     find "$PROJECT_DIR" -path '*/build/outputs/apk/debug/*.apk' \

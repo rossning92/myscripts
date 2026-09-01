@@ -12,6 +12,8 @@ import ai.openai_compatible.chat
 import ai.openai_image.chat
 import ai.utils.tools.bash
 import ai.utils.tools.read
+import ai.utils.tools.web_fetch
+import ai.utils.tools.web_search
 from ai.models import get_model
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolResult, ToolUse
@@ -37,6 +39,8 @@ def get_tool_use_text(tool_use: ToolUse) -> str:
     preview_getters = {
         "bash": ai.utils.tools.bash.get_tool_use_preview,
         "read": ai.utils.tools.read.get_tool_use_preview,
+        "web_fetch": ai.utils.tools.web_fetch.get_tool_use_preview,
+        "web_search": ai.utils.tools.web_search.get_tool_use_preview,
     }
     preview = preview_getters.get(tool_name, str)(args)
     args_text = truncate_text(preview)

@@ -293,7 +293,7 @@ class _MyScriptMenu(Menu[Script]):
         )
 
         self.add_command(self._copy_cmdline, hotkey="ctrl+y", override=True)
-        self.add_command(self._copy_to)
+        self.add_command(self._copy_to, hotkey="alt+c")
         self.add_command(self._copy_file_path, hotkey="alt+y")
         self.add_command(self._delete_file, hotkey="ctrl+k")
         self.add_command(self._duplicate_script, hotkey="ctrl+d")

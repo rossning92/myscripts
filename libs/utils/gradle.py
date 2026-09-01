@@ -22,10 +22,9 @@ def is_gradle_build_file(path: str) -> bool:
 
 
 def get_gradle_command(
-    build_file: str, gradle_args: Optional[List[str]] = None
+    _build_file: str, gradle_args: Optional[List[str]] = None
 ) -> List[str]:
     return [
         "run_script",
-        "r/android/run_gradle.sh",
-        build_file,
+        "r/android/gradle.sh",
     ] + (gradle_args or [])

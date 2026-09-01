@@ -5,6 +5,7 @@ import time
 from typing import List, Optional, Tuple
 
 from _script import start_script
+from utils.fileutils import get_display_path
 from utils.menu.confirmmenu import confirm
 from utils.menu.inputmenu import InputMenu
 from utils.menu.menu import Menu
@@ -69,7 +70,7 @@ class VcsDiffMenu(Menu):
         raise NotImplementedError
 
     def _repo_display_name(self) -> str:
-        return os.getcwd().replace(os.path.expanduser("~"), "~", 1)
+        return get_display_path(os.getcwd())
 
     def _get_vcs_prompt(self, is_clean: bool) -> str:
         raise NotImplementedError

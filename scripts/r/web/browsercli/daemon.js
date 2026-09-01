@@ -1,7 +1,10 @@
+import { randomUUID } from "crypto";
+import { createReadStream, createWriteStream } from "fs";
+import { mkdir, stat } from "fs/promises";
 import { createServer } from "http";
-import { createReadStream } from "fs";
-import { stat } from "fs/promises";
-import { extname, resolve, sep } from "path";
+import { tmpdir } from "os";
+import { basename, extname, resolve, sep } from "path";
+import { pipeline } from "stream/promises";
 import { fileURLToPath } from "url";
 import {
   getBrowser,
@@ -23,7 +26,7 @@ import { upload as uploadCdp } from "./extension/shared/upload.js";
 import { getMarkdownHtml, htmlToMarkdown } from "./get-markdown.js";
 import { snapshot } from "./snapshot.js";
 import { saveScreenshotData, screenshot } from "./screenshot.js";
-import { inspect } from "./inspect.js";
+import { screencast } from "./screencast.js";
 import { extensionBridge } from "./extension-bridge.js";
 import { getExtensionSourceVersion } from "./extension-source.js";
 import { getViewport, parseViewport, setViewport } from "./viewport.js";
@@ -39,6 +42,7 @@ const contentTypes = {
 };
 
 let activeBackend = "browser";
+const screencastUploadDir = resolve(tmpdir(), "browsercli-screencast-uploads");
 
 async function runOnActiveBackend(command, args, browserHandler) {
   if (activeBackend === "extension") {
@@ -209,11 +213,11 @@ const commands = {
     return await screenshot(target);
   },
 
-  async inspect() {
+  async screencast() {
     if (activeBackend === "extension") {
-      throw new Error("inspect is only available for the managed browser backend");
+      throw new Error("screencast is only available for the managed browser backend");
     }
-    return await inspect();
+    return await screencast();
   },
 };
 
@@ -223,6 +227,17 @@ function readBody(req) {
     req.on("data", (chunk) => (data += chunk));
     req.on("end", () => resolve(data));
   });
+}
+
+async function saveScreencastUpload(req, filename) {
+  await mkdir(screencastUploadDir, { recursive: true });
+  const safeName = basename(filename || "upload").replace(
+    /[^a-zA-Z0-9._-]/g,
+    "_",
+  );
+  const filePath = resolve(screencastUploadDir, `${randomUUID()}-${safeName}`);
+  await pipeline(req, createWriteStream(filePath, { flags: "wx" }));
+  return filePath;
 }
 
 const startTime = Date.now();
@@ -309,6 +324,21 @@ const server = createServer(async (req, res) => {
 
   if (pathname === "/screencast") {
     await serveStatic("/static/screencast.html", res);
+    return;
+  }
+
+  if (pathname === "/screencast/upload" && req.method === "POST") {
+    try {
+      const filePath = await saveScreencastUpload(
+        req,
+        decodeURIComponent(req.headers["x-file-name"] || "upload"),
+      );
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ result: { filePath } }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err.message || String(err) }));
+    }
     return;
   }
 

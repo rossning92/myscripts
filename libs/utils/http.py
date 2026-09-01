@@ -1,6 +1,18 @@
+import asyncio
 from typing import AsyncIterator
 
 import aiohttp
+
+
+_RETRYABLE_ERROR_TYPES = (
+    aiohttp.ClientConnectionError,
+    aiohttp.ClientPayloadError,
+    asyncio.TimeoutError,
+)
+
+
+def is_retryable_error(exception: BaseException) -> bool:
+    return isinstance(exception, _RETRYABLE_ERROR_TYPES)
 
 
 async def check_for_status(response):

@@ -1,7 +1,4 @@
-import os
-
 from ai.utils.codeedit import apply_change
-from utils.checkpoints import backup_files
 
 
 def edit(file: str, old_string: str, new_string: str):
@@ -12,7 +9,4 @@ def edit(file: str, old_string: str, new_string: str):
     - This tool can only change one instance at a time. If you need to change multiple instances, make separate calls to this tool for each instance.
     - If you want to create a new file, use: a new file path; an empty old_string; the new file's contents as new_string.
     """
-    if os.path.exists(file):
-        backup_files([file])
-
     apply_change(file=file, search=old_string, replace=new_string)

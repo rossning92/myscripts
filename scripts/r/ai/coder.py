@@ -11,16 +11,10 @@ from ai.agent_menu import AgentMenu, load_subagents
 from ai.chat_menu import Line
 from ai.utils.env import get_env_info
 from ai.utils.filecontextmenu import FileContextMenu
-from ai.utils.message import Message
 from ai.utils.rules import get_project_rule_file, get_rules_prompt
 from ai.utils.tools import Settings
 from ai.utils.tooluse import ToolUse
-from utils.checkpoints import (
-    get_oldest_files_since_timestamp,
-    restore_files_since_timestamp,
-)
 from utils.editor import edit_text_file
-from utils.menu.diffmenu import DiffMenu
 from utils.menu.filemenu import FileMenu
 from utils.notify import send_notify
 
@@ -75,7 +69,6 @@ class CoderMenu(AgentMenu):
         self.__voice_input_enabled = voice_input
         self.add_command(self.__add_file, hotkey="alt+a")
         self.add_command(self.__edit_project_rule)
-        self.add_command(self.__open_diff, hotkey="ctrl+d")
 
     def on_created(self):
         super().on_created()
@@ -85,21 +78,6 @@ class CoderMenu(AgentMenu):
     def __edit_project_rule(self):
         file = get_project_rule_file(self.get_data_dir(), "AGENTS.md")
         self.run_raw(lambda: edit_text_file(str(file)))
-
-    def __open_diff(self):
-        messages = self.get_messages()
-        if len(messages) == 0:
-            self.set_message("No messages found")
-            return
-
-        files = []
-        for history_dir, rel_path in get_oldest_files_since_timestamp(
-            messages[0]["timestamp"]
-        ):
-            files.append((os.path.join(history_dir, rel_path), rel_path))
-
-        if files:
-            DiffMenu(files=files).exec()
 
     def get_system_prompt(self) -> str:
         prompt_parts = []
@@ -126,12 +104,6 @@ class CoderMenu(AgentMenu):
             prompt_parts.append(env)
 
         return "\n\n".join(p.strip() for p in prompt_parts if p.strip())
-
-    def revert_messages(self, from_msg_index: int) -> List[Message]:
-        removed_messages = super().revert_messages(from_msg_index=from_msg_index)
-        for message in reversed(removed_messages):
-            restore_files_since_timestamp(timestamp=message["timestamp"])
-        return removed_messages
 
     def get_status_text(self) -> str:
         status_lines = []

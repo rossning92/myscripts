@@ -4,6 +4,7 @@ import base64
 import glob
 import hashlib
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,8 @@ from ai.chat import (
     get_tool_use_text,
 )
 from ai.models import DEFAULT_MODEL, MODEL_IDS, get_model
+from ai.title_generator import generate_title, get_fallback_title
+from ai.utils.session import Session, load_session, save_session
 from ai.utils.llama_cpp_server import ensure_llama_cpp_server
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolResult, ToolUse
@@ -36,8 +39,8 @@ from utils.editor import edit_text
 from utils.encode_image_base64 import encode_image_base64
 from utils.gitignore import create_gitignore
 from utils.historymanager import HistoryManager
+from utils.http import is_retryable_error
 from utils.jsonschema import JSONSchema
-from utils.jsonutil import load_json, save_json
 from utils.menu import Menu
 from utils.menu.exceptionmenu import ExceptionMenu
 from utils.menu.filemenu import FileMenu
@@ -48,7 +51,6 @@ from utils.menu.textmenu import TextMenu
 from utils.platform import is_termux
 from utils.script.path import get_data_dir
 from utils.shutil import shell_open
-from utils.slugify import slugify
 from utils.spinner import Spinner
 from utils.template import render_template
 from utils.term import set_terminal_title
@@ -59,9 +61,13 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 _MODULE_NAME = Path(__file__).stem
 
-_MAX_CHAT_HISTORY = 200
+_MAX_SESSION_HISTORY = 200
+_SESSION_FILE_NAME = "session.json"
 
 _INTERRUPT_MESSAGE = "[INTERRUPTED]"
+_MAX_RETRIES = 5
+_RETRY_INITIAL_DELAY_SEC = 1.0
+_RETRY_MAX_DELAY_SEC = 30.0
 
 EXPERIMENTAL_FOLLOW_NEW_MESSAGE = False
 
@@ -99,14 +105,14 @@ class SettingsMenu(JsonEditMenu):
             self.data["model"] = model
 
     def get_default_values(self) -> Dict[str, Any]:
-        return {"model": DEFAULT_MODEL, "retry": False}
+        return {"generate_title": True, "model": DEFAULT_MODEL}
 
     def get_schema(self) -> Optional[JSONSchema]:
         return {
             "type": "object",
             "properties": {
+                "generate_title": {"type": "boolean"},
                 "model": {"type": "string", "enum": MODEL_IDS},
-                "retry": {"type": "boolean"},
             },
         }
 
@@ -151,25 +157,22 @@ class Line:
             return self.text
 
 
-class _ChatItem:
+class _SessionItem:
     def __init__(
         self,
         path: str,
     ) -> None:
         self.path = path
-        messages: List[Message] = load_json(path, default=[])
+        session = load_session(path)
+        messages = session["messages"]
 
-        file_name = os.path.splitext(os.path.basename(path))[0]
-        display_name = "" if file_name.startswith("chat_") else file_name
-        self.text = messages[0]["text"] if messages else ""
+        self.text = session.get("title") or (
+            messages[0]["text"] if messages else ""
+        )
         ts = format_timestamp(os.path.getmtime(path))
         ts = f"\033[34m{ts}\033[0m" if ts else ts
-        display_name = (
-            f"\033[32m{display_name}\033[0m" if display_name else display_name
-        )
         parts = [
             ts,
-            display_name,
             truncate_text(self.text),
         ]
         self.preview = " ".join(part for part in parts if part)
@@ -191,35 +194,36 @@ class _EditImageUrlsMenu(ListEditMenu):
             self.items.append(encoded)
 
 
-class _SelectChatMenu(Menu[_ChatItem]):
-    def __init__(self, chat_dir: str) -> None:
-        self.__chat_dir = chat_dir
-        super().__init__(prompt="load history chat")
+class _SelectSessionMenu(Menu[_SessionItem]):
+    def __init__(self, session_dir: str) -> None:
+        self.__session_dir = session_dir
+        super().__init__(prompt="load session")
         self.__refresh()
-        self.add_command(self.__delete_chat, hotkey="ctrl+k")
+        self.add_command(self.__delete_session, hotkey="ctrl+k")
 
     def __refresh(self):
+        session_files = glob.glob(
+            os.path.join(self.__session_dir, "*", _SESSION_FILE_NAME)
+        )
         self.items[:] = [
-            _ChatItem(f)
-            for f in reversed(
-                sorted(
-                    glob.glob(os.path.join(self.__chat_dir, "*.json")),
-                    key=os.path.getmtime,
-                )
-            )
+            _SessionItem(f)
+            for f in reversed(sorted(session_files, key=os.path.getmtime))
         ]
 
-    def __delete_chat(self):
-        chats = self.get_selected_items()
-        if chats and confirm("delete chat?"):
-            for chat in chats:
-                os.remove(chat.path)
+    def __delete_session(self):
+        sessions = self.get_selected_items()
+        if sessions and confirm("delete session?"):
+            for session in sessions:
+                if os.path.basename(session.path) == _SESSION_FILE_NAME:
+                    shutil.rmtree(os.path.dirname(session.path))
+                else:
+                    os.remove(session.path)
             self.__refresh()
 
-    def get_item_text(self, item: _ChatItem) -> str:
+    def get_item_text(self, item: _SessionItem) -> str:
         return item.preview
 
-    def match_item(self, patt: str, item: _ChatItem, index: int) -> int:
+    def match_item(self, patt: str, item: _SessionItem, index: int) -> int:
         return super().match_item(patt, item, index)
 
 
@@ -285,9 +289,13 @@ class ChatMenu(Menu[Line]):
         self.__system_prompt = system_prompt
         self.__copy_mode = 0
         self.__chat_task: Optional[Future[None]] = None
+        self.__title_task: Optional[Future[str]] = None
+        self.__session_title: Optional[str] = None
+        self.__terminal_title_state: Literal["idle", "generating", "done"] = "idle"
         self.__retry_count = 0
         self.__usage = UsageMetadata()
         self.__message_queue: List[str] = []
+        self.__title_events: Queue[Callable[[], None]] = Queue()
         self.__native_file_picker_state: Optional[
             Literal["waiting_for_blur", "waiting_for_focus", "cancelled"]
         ] = None
@@ -332,29 +340,31 @@ class ChatMenu(Menu[Line]):
         self.add_command(self.__edit_settings, hotkey="alt+s")
         self.add_command(self.__go_prev_message, hotkey="left")
         self.add_command(self.__go_next_message, hotkey="right")
-        self.add_command(self.__load_chat, hotkey="ctrl+l")
+        self.add_command(self.__load_session, hotkey="ctrl+l")
         self.add_command(self.__load_prompt, hotkey="tab")
         self.add_command(self.__save_prompt)
-        self.add_command(self.__save_chat_as)
         self.add_command(self.__open_selected_item)
         self.add_command(self.__take_photo)
         self.add_command(self.__show_system_prompt)
         self.add_command(self.__open_data_dir, hotkey="alt+d")
         self.add_command(self.__copy_messages, hotkey="ctrl+y", override=True)
-        self.add_command(self.new_chat, hotkey="ctrl+n")
-        self.add_command(self.save_chat, hotkey="ctrl+s")
+        self.add_command(self.continue_session, hotkey="alt+enter")
+        self.add_command(self.new_session, hotkey="ctrl+n")
+        self.add_command(self.save_session, hotkey="ctrl+s")
         self.add_command(self.__revert_messages, hotkey="ctrl+z")
 
-        self.__chat_dir = os.path.join(self.__data_dir, "conversations")
+        self.__session_dir = os.path.join(self.__data_dir, "sessions")
         self.__history_manager = HistoryManager(
-            save_dir=self.__chat_dir,
-            prefix="chat_",
-            ext=".json",
-            max_history=_MAX_CHAT_HISTORY,
+            save_dir=self.__session_dir,
+            prefix="",
+            ext="",
+            max_history=_MAX_SESSION_HISTORY,
+            directory=True,
         )
 
-        self.__messages: List[Message] = []
-        self.__chat_file = self.__history_manager.get_new_file()
+        self.__session: Session = {"messages": []}
+        self.__messages = self.__session["messages"]
+        self.__session_file = self.__get_new_session_file()
 
         self.__update_terminal_title(state="idle")
         self.__update_prompt()
@@ -516,13 +526,19 @@ class ChatMenu(Menu[Line]):
             del self.get_messages()[msg_index + 1 :]
 
             self.__refresh_lines()
+            if msg_index == 0:
+                self.__session.pop("title", None)
+                self.__refresh_session_title()
             self.__update_terminal_title()
 
             if message["role"] == "user":
                 self.send_message("")
 
     def __edit_settings(self):
+        generate_title = self.get_settings()["generate_title"]
         self.__settings_menu.exec()
+        if generate_title != self.get_settings()["generate_title"]:
+            self.__refresh_session_title()
 
     def __navigate_message(self, direction: Literal["next", "prev"]):
         i = self.get_selected_index()
@@ -550,22 +566,6 @@ class ChatMenu(Menu[Line]):
     def __edit_prompt(self):
         self.__edit_message(msg_index=0)
 
-    def __save_chat_as(self):
-        menu = FileMenu(
-            prompt="save chat as",
-            goto=self.__chat_dir,
-            show_size=False,
-            allow_cd=False,
-        )
-        chat_file = menu.select_new_file(ext=".json")
-        if not chat_file:
-            return
-
-        slugified_chat_file = slugify(chat_file)
-        save_json(slugified_chat_file, self.__messages)
-        self.__chat_file = slugified_chat_file
-        self.set_message(f"chat saved to {slugified_chat_file}")
-
     def __save_prompt(self):
         line = self.get_selected_item()
         if not line:
@@ -586,12 +586,12 @@ class ChatMenu(Menu[Line]):
 
         self.set_message(f"prompt saved: {prompt_file}")
 
-    def __load_chat(self):
-        menu = _SelectChatMenu(chat_dir=self.__chat_dir)
+    def __load_session(self):
+        menu = _SelectSessionMenu(session_dir=self.__session_dir)
         menu.exec()
         selected = menu.get_selected_item()
         if selected:
-            self.load_chat(selected.path)
+            self.load_session(selected.path)
 
     def __load_prompt(self, prompt_file: Optional[str] = None):
         if not prompt_file:
@@ -675,11 +675,12 @@ class ChatMenu(Menu[Line]):
 
         if 0 <= from_msg_index < len(messages):
             removed_messages = messages[from_msg_index:]
-            del messages[from_msg_index:]
 
         if not removed_messages:
             return []
 
+        self._on_messages_reverted(from_msg_index)
+        del messages[from_msg_index:]
         self.__message_queue.clear()
 
         self.__refresh_lines()
@@ -691,6 +692,10 @@ class ChatMenu(Menu[Line]):
         else:
             self.clear_input()
 
+        self.__refresh_session_title()
+        self.__update_terminal_title(
+            state="generating" if self.__is_running else "done"
+        )
         self.__update_prompt()
         return removed_messages
 
@@ -709,15 +714,80 @@ class ChatMenu(Menu[Line]):
     ):
         if self.__headless:
             return
+        self.__terminal_title_state = state
         status = {"idle": "", "generating": "⧗", "done": "✓"}[state]
         title = self.__title
         if status:
             title += " " + status
         if self.__messages:
-            t = self.__messages[0].get("text", "")
-            if t:
-                title += " " + t.splitlines()[0][:100]
+            session_title = self.__session_title or self.__session.get("title")
+            if not session_title:
+                first_prompt = self.__messages[0].get("text", "")
+                session_title = get_fallback_title(first_prompt)
+            if session_title:
+                title += " " + session_title
         set_terminal_title(title)
+
+    def __start_title_summary(self, prompt: str):
+        if (
+            self.__headless
+            or not self.get_settings()["generate_title"]
+            or not prompt.strip()
+        ):
+            return
+
+        self.__cancel_title_summary()
+
+        async def title_task():
+            return await generate_title(prompt)
+
+        def on_title_future_done(title_future: Future[str]):
+            if title_future.cancelled() or title_future.exception():
+                return
+            title = title_future.result()
+            if not title:
+                return
+            self.__title_events.put(
+                lambda: self.__apply_title_summary(title_future, prompt, title)
+            )
+
+        title_future = asyncio.run_coroutine_threadsafe(title_task(), _loop)
+        title_future.add_done_callback(on_title_future_done)
+        self.__title_task = title_future
+
+    def __cancel_title_summary(self):
+        title_task = self.__title_task
+        self.__title_task = None
+        if title_task and not title_task.done():
+            title_task.cancel()
+
+    def __apply_title_summary(
+        self, title_task: Future[str], prompt: str, title: str
+    ):
+        if (
+            self.__title_task is not title_task
+            or not self.get_settings()["generate_title"]
+            or not self.__messages
+        ):
+            return
+        first_message = self.__messages[0]
+        if first_message.get("text") != prompt:
+            return
+        self.__title_task = None
+        self.__session_title = title
+        self.__session["title"] = title
+        self.save_session()
+        self.__update_terminal_title(state=self.__terminal_title_state)
+
+    def __refresh_session_title(self):
+        self.__cancel_title_summary()
+        self.__session_title = None
+        if not self.__messages:
+            return
+        first_message = self.__messages[0]
+        self.__session_title = self.__session.get("title")
+        if not self.__session_title:
+            self.__start_title_summary(first_message.get("text", ""))
 
     def __show_system_prompt(self):
         system_prompt = self.get_system_prompt()
@@ -758,6 +828,23 @@ class ChatMenu(Menu[Line]):
 
     def get_data_dir(self):
         return self.__data_dir
+
+    def __get_new_session_file(self) -> str:
+        session_dir = self.__history_manager.get_new_file()
+        return os.path.join(session_dir, _SESSION_FILE_NAME)
+
+    def get_session_id(self) -> str:
+        assert self.__session_file is not None
+        session_file = Path(self.__session_file)
+        if session_file.name == _SESSION_FILE_NAME:
+            return session_file.parent.name
+        return session_file.stem
+
+    def _on_session_changed(self, session_id: str):
+        pass
+
+    def _on_messages_reverted(self, from_message_index: int):
+        pass
 
     def get_message_index_and_subindex(self):
         num_messages = len(self.get_messages())
@@ -839,6 +926,9 @@ class ChatMenu(Menu[Line]):
 
         self.__complete_chat()
 
+    def continue_session(self) -> None:
+        self.send_message("")
+
     def append_user_message(
         self,
         text: str,
@@ -899,7 +989,9 @@ class ChatMenu(Menu[Line]):
 
         self.get_messages().append(message)
 
-        self.save_chat()
+        self.save_session()
+        if msg_index == 0:
+            self.__start_title_summary(text)
         self.update_screen()
 
     def get_tools(self) -> List[ToolDefinition]:
@@ -949,7 +1041,11 @@ class ChatMenu(Menu[Line]):
         self.append_item(line)
         self.process_events()
 
-    def __complete_chat(self, status: Optional[str] = None):
+    def __complete_chat(
+        self,
+        status: Optional[str] = None,
+        retry_delay_sec: float = 0.0,
+    ):
         selected_model = get_model(self.get_settings()["model"])
         if (
             selected_model.provider == "llama_cpp"
@@ -973,6 +1069,8 @@ class ChatMenu(Menu[Line]):
         terminal_event_processed = False
 
         async def chat_task():
+            if retry_delay_sec > 0:
+                await asyncio.sleep(retry_delay_sec)
             chunk_index = 0
             async for chunk in await complete_chat(
                 messages=messages,
@@ -1044,7 +1142,7 @@ class ChatMenu(Menu[Line]):
 
         text = self._out_message["text"]
         self.get_messages().append(self._out_message)
-        self.save_chat()
+        self.save_session()
         self._out_message = None
 
         if not cancelled:
@@ -1085,24 +1183,47 @@ class ChatMenu(Menu[Line]):
 
         self.update_screen()
 
+    def __discard_pending_response(self):
+        pending_message_index = len(self.get_messages())
+        self.__lines[:] = [
+            line
+            for line in self.__lines
+            if line.msg_index != pending_message_index
+        ]
+        self._out_message = None
+        self.update_screen()
+
+    def __retry_chat(self, exception: Exception, delay_sec: float):
+        self.__retry_count += 1
+        self.__discard_pending_response()
+        status = f"retry {self.__retry_count}/{_MAX_RETRIES} in {delay_sec:g}s"
+        status += f": {truncate_text(str(exception))}"
+        self.__complete_chat(status=status, retry_delay_sec=delay_sec)
+
     def __on_chat_exception(self, exception: Exception):
         self.__update_terminal_title(state="done")
 
-        if self.get_settings()["retry"]:
-            self.__retry_count += 1
-            self.__complete_chat(status=f"retry {self.__retry_count}: {exception}")
-        else:
-            self.__is_running = False
-            if self.__headless:
-                raise exception
-            menu = ExceptionMenu(exception=exception)
-            menu.exec()
-
-    def save_chat(self):
-        if self.__chat_file is None:
+        if is_retryable_error(exception) and self.__retry_count < _MAX_RETRIES:
+            delay = min(
+                _RETRY_INITIAL_DELAY_SEC * 2 ** self.__retry_count,
+                _RETRY_MAX_DELAY_SEC,
+            )
+            self.__retry_chat(exception, delay_sec=delay)
             return
-        os.makedirs(os.path.dirname(self.__chat_file), exist_ok=True)
-        save_json(self.__chat_file, self.__messages)
+
+        self.__is_running = False
+        if self.__headless:
+            raise exception
+        menu = ExceptionMenu(exception=exception)
+        menu.exec()
+
+    def save_session(self):
+        if self.__session_file is None:
+            return
+        session_dir = os.path.dirname(self.__session_file)
+        os.makedirs(session_dir, exist_ok=True)
+        save_session(self.__session_file, self.__session)
+        os.utime(session_dir)
         self.__history_manager.delete_old_files()
 
     def __refresh_lines(self):
@@ -1183,17 +1304,23 @@ class ChatMenu(Menu[Line]):
 
         self.update_screen()
 
-    def load_chat(self, file: str):
+    def load_session(self, file: str):
         if not os.path.exists(file):
-            self.set_message(f"Conv file not exist: {file}")
+            self.set_message(f"session file does not exist: {file}")
             return
 
-        self.__chat_file = file
-        self.__messages = load_json(self.__chat_file)
+        self.__session_file = file
+        self._on_session_changed(self.get_session_id())
+        self.__session = load_session(self.__session_file)
+        self.__messages = self.__session["messages"]
         self.__refresh_lines()
+        self.__refresh_session_title()
         self.__update_terminal_title()
 
     def clear_messages(self):
+        self.__cancel_title_summary()
+        self.__session_title = None
+        self.__session.pop("title", None)
         self.__lines.clear()
         self.get_messages().clear()
         self.__usage.reset()
@@ -1202,7 +1329,7 @@ class ChatMenu(Menu[Line]):
         self.set_follow(True)
         self.update_screen()
 
-    def new_chat(self):
+    def new_session(self):
         self.clear_messages()
 
         self.set_input("")
@@ -1211,7 +1338,8 @@ class ChatMenu(Menu[Line]):
         self.__update_prompt()
         self.__update_terminal_title(state="idle")
 
-        self.__chat_file = self.__history_manager.get_new_file()
+        self.__session_file = self.__get_new_session_file()
+        self._on_session_changed(self.get_session_id())
 
     def on_enter_pressed(self):
         text = self.get_input()
@@ -1267,6 +1395,11 @@ class ChatMenu(Menu[Line]):
             timeout_sec=timeout_sec,
             raise_keyboard_interrupt=raise_keyboard_interrupt,
         )
+        while not self.__title_events.empty():
+            try:
+                self.__title_events.get_nowait()()
+            except Empty:
+                break
         now = time.monotonic()
         if self.__is_running and now - self.__last_spinner_update >= 0.1:
             self.__spinner.advance()
