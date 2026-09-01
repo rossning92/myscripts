@@ -35,7 +35,10 @@ class Model:
 
     @property
     def id(self) -> str:
-        return f"{self.provider}:{self.model}"
+        model_id = f"{self.provider}:{self.model}"
+        if self.reasoning_effort:
+            model_id += f"-{self.reasoning_effort}"
+        return model_id
 
 
 # Ranking: https://deepswe.datacurve.ai/
@@ -56,6 +59,13 @@ MODELS: List[Model] = [
         "gpt-5.6-sol",
         base_url=os.environ.get("CLIPROXY_BASE_URL", "http://127.0.0.1:8317/v1"),
         api_key=os.environ.get("CLIPROXY_API_KEY", "myscripts-local-key"),
+    ),
+    Model(
+        "cliproxy",
+        "gpt-5.6-sol",
+        base_url=os.environ.get("CLIPROXY_BASE_URL", "http://127.0.0.1:8317/v1"),
+        api_key=os.environ.get("CLIPROXY_API_KEY", "myscripts-local-key"),
+        reasoning_effort="low",
     ),
     Model(
         "cliproxy",

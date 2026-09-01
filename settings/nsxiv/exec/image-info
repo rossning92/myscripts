@@ -1,8 +1,0 @@
-#!/bin/sh
-
-# nsxiv displays this output on the left side of its status bar.
-filename=$(basename -- "$1")
-filesize=$(du -Hh -- "$1" 2>/dev/null | cut -f 1)
-
-printf '%s  %sx%s  %s | n/p next/prev  +/- zoom  W fit  Enter thumbs  </> rotate  f fullscreen  q quit\n' \
-    "$filesize" "$2" "$3" "$filename"

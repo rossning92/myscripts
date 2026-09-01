@@ -1,0 +1,15 @@
+[options]
+overlay = true
+overlay_font = Monospace:12
+overlay_position_bottom = true
+overlay_text = $imv_current_index/$imv_file_count  ${imv_width}x${imv_height}  ${imv_scale}%  $imv_current_file
+
+[binds]
+r = rotate by 90
+<Meta+o> = exec alacritty -e myscripts --prompt "open with" --args "$imv_current_file"
+<equal> = zoom 2
+<minus> = zoom -2
+<Up> = exec true
+<Down> = exec true
+i = exec true
+o = exec true

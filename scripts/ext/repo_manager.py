@@ -151,8 +151,6 @@ class Repo:
     @property
     def status_tokens(self) -> List[Tuple[str, str]]:
         tokens = []
-        if self.dirty:
-            tokens.append(("*", "33"))
         if self.ahead:
             tokens.append((f"↑{self.ahead}", "36"))
         if self.behind:

@@ -205,12 +205,12 @@ const commands = {
     );
   },
 
-  async screenshot(target = {}) {
+  async screenshot({ output, ...target } = {}) {
     if (activeBackend === "extension") {
       const { data } = await extensionBridge.send("screenshot", target);
-      return await saveScreenshotData(data);
+      return await saveScreenshotData(data, output);
     }
-    return await screenshot(target);
+    return await screenshot(target, output);
   },
 
   async screencast() {

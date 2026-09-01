@@ -122,6 +122,7 @@ class AgentMenu(ChatMenu):
     def __init__(
         self,
         yes_always=True,
+        enable_tools: Optional[bool] = None,
         settings_menu_class=SettingsMenu,
         mcp: Optional[List[_MCP]] = None,
         subagents: Optional[List[_Subagent]] = None,
@@ -135,6 +136,9 @@ class AgentMenu(ChatMenu):
             settings_menu_class=settings_menu_class,
             **kwargs,
         )
+
+        if enable_tools is not None:
+            self.get_settings()["enable_tools"] = enable_tools
 
         self.__checkpoint = self.__create_checkpoint(self.get_session_id())
 
@@ -329,7 +333,6 @@ class AgentMenu(ChatMenu):
             return
 
         last_message = messages[-1]
-        text_content = last_message["text"]
 
         interrupted = False
         has_error = False
@@ -386,7 +389,9 @@ class AgentMenu(ChatMenu):
                 )
                 break
 
-        self.on_response(text_content, done=not tool_results)
+        self.on_response(
+            done=not tool_results and not self._has_queued_messages(),
+        )
 
         if tool_results:
             if not has_error and interrupted:
@@ -394,8 +399,14 @@ class AgentMenu(ChatMenu):
             else:
                 self.send_message("", tool_results=tool_results)
 
-    def on_response(self, text: str, done: bool):
-        pass
+    def on_response(self, done: bool):
+        if done:
+            self.__notify_chat_finished()
+
+    def __notify_chat_finished(self):
+        if not self._is_headless():
+            sys.stdout.write("\a")
+            sys.stdout.flush()
 
     def on_tool_use_start(self, tool_use: ToolUse):
         msg_index, subindex = self.get_message_index_and_subindex()

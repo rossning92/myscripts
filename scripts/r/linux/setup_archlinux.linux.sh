@@ -227,7 +227,11 @@ append_line_sudo /etc/sudoers "$(whoami) ALL=(ALL:ALL) NOPASSWD: ALL"
 # ------------
 
 # Image viewer
-run_script r/linux/setup_nsxiv.sh
+run_script r/linux/setup_imv.sh
+
+# PDF viewer
+pac_install zathura zathura-pdf-mupdf
+xdg-mime default org.pwmt.zathura.desktop application/pdf
 
 # Screenshot
 pac_install flameshot

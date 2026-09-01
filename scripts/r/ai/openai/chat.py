@@ -178,7 +178,9 @@ async def complete_chat(
                     data = json.loads(line[6:].decode("utf-8"))
                     logger.debug(f"Received data: {data}")
 
-                    if data["type"] == "response.completed":
+                    if data["type"] == "error":
+                        raise Exception(json.dumps(data))
+                    elif data["type"] == "response.completed":
                         if usage:
                             u = data["response"]["usage"]
                             usage.total_tokens = u["total_tokens"]

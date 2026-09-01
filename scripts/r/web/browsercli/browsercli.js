@@ -57,7 +57,7 @@ async function ensureDaemon() {
   try {
     const { startTime } = await healthCheck();
     if (getLatestMtime(__dirname) <= startTime) return;
-    console.error("browsercli source changed");
+    console.warn("browsercli source changed; restarting browser and daemon");
     await postCommand("close-browser").catch(() => {});
     await waitForDaemon(false);
   } catch {}
@@ -78,9 +78,18 @@ async function sendCommand(command, args = {}) {
 
 function addTargetOptions(command) {
   return command
-    .option("--ref <ref>", "Element ref from snapshot (e.g. @e0)")
-    .option("--role <role>", "Accessibility role to match")
-    .option("--name <name>", "Accessible name to match");
+    .option(
+      "--ref <ref>",
+      "Snapshot element ref (preferred for agents; e.g. @e0)",
+    )
+    .option(
+      "--role <role>",
+      "Accessible role for reusable automation (requires --name)",
+    )
+    .option(
+      "--name <name>",
+      "Accessible name for reusable automation (requires --role)",
+    );
 }
 
 function targetArgs(options, { optional = false } = {}) {
@@ -116,7 +125,6 @@ program
   .command("open")
   .description("Open a URL")
   .argument("<url>", "URL to open")
-  .option("--headed", "Open browser in headed mode")
   .option(
     "--extension",
     "Open in the active tab of Chrome running the browsercli extension"
@@ -124,7 +132,6 @@ program
   .action(async (url, options) => {
     const status = await sendCommand("open", {
       url,
-      headed: options.headed,
       extension: options.extension,
     });
     if (status) {
@@ -140,7 +147,7 @@ program
 
 program
   .command("connect")
-  .description("Select the browser backend used by subsequent commands")
+  .description("Explicitly select a browser backend.")
   .argument("<backend>", "Backend to use: browser or extension")
   .option("--headed", "Open the managed browser in headed mode")
   .action(async (backend, options) => {
@@ -294,11 +301,16 @@ addTargetOptions(program.command("upload"))
   });
 
 addTargetOptions(program.command("screenshot"))
-  .description("Take a page or element screenshot and save it to a temporary file")
+  .description("Take a page or element screenshot")
+  .option("-o, --output <path>", "Save to this path instead of a temporary file")
   .action(async (options) => {
+    const { output, ...targetOptions } = options;
     const savedPath = await sendCommand(
       "screenshot",
-      targetArgs(options, { optional: true }),
+      {
+        ...targetArgs(targetOptions, { optional: true }),
+        output: output ? path.resolve(output) : undefined,
+      },
     );
     console.log(savedPath);
   });

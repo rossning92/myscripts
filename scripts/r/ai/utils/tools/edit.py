@@ -1,5 +1,14 @@
 from ai.utils.codeedit import apply_change
 
+from typing import Any, Dict
+
+from utils.fileutils import get_display_path
+
+
+def get_tool_use_preview(args: Dict[str, Any]) -> str:
+    file = args.get("file")
+    return get_display_path(file) if isinstance(file, str) else str(args)
+
 
 def edit(file: str, old_string: str, new_string: str):
     """

@@ -36,7 +36,7 @@ fi
 codex_args=(
     "${sandbox_args[@]}"
     -c 'tui.terminal_title=[]'
-    -c 'tui.status_line=["context-used","weekly-limit"]'
+    -c 'tui.status_line=["context-used","used-tokens","weekly-limit"]'
     -c 'tui.show_tooltips=false'
     -c 'tui.keymap.global.open_transcript=["ctrl-t","page-up"]'
     -c 'check_for_update_on_startup=false'

@@ -12,17 +12,17 @@ function temporaryScreenshotPath() {
   );
 }
 
-export async function saveScreenshotData(data) {
+export async function saveScreenshotData(data, outputPath) {
   if (typeof data !== "string" || data.length === 0) {
     throw new Error("Browser extension returned an empty screenshot");
   }
-  const filePath = temporaryScreenshotPath();
+  const filePath = outputPath || temporaryScreenshotPath();
   await writeFile(filePath, Buffer.from(data, "base64"));
   return filePath;
 }
 
-export async function screenshot(target = {}) {
+export async function screenshot(target = {}, outputPath) {
   const { data } = await withActivePageCdp((send) =>
     captureScreenshot(send, target));
-  return saveScreenshotData(data);
+  return saveScreenshotData(data, outputPath);
 }

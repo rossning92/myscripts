@@ -280,9 +280,11 @@ class ConfirmCommandMenu(Menu[str]):
         )
         self.confirmed = False
         self.__save = False
+        self.__session_allowed = False
 
         self.add_command(self.__confirm, hotkey="y", name="yes", pinned=True)
         self.add_command(self.__cancel, hotkey="n", name="no", pinned=True)
+        self.add_command(self.__allow_session, hotkey="a", pinned=True)
         if self.save_pattern:
             self.add_command(
                 self.__save_and_confirm,
@@ -302,6 +304,11 @@ class ConfirmCommandMenu(Menu[str]):
     def __save_and_confirm(self):
         self.confirmed = True
         self.__save = True
+        self.close()
+
+    def __allow_session(self):
+        self.confirmed = True
+        self.__session_allowed = True
         self.close()
 
     def on_enter_pressed(self):
@@ -337,6 +344,10 @@ class ConfirmCommandMenu(Menu[str]):
         menu.exec()
         if not menu.is_confirmed():
             raise KeyboardInterrupt("Command execution was canceled by the user")
+
+        if menu.__session_allowed:
+            Settings.need_confirm = False
+            return
 
         if menu.__save:
             if menu.save_pattern is None:

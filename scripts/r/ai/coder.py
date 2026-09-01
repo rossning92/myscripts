@@ -8,13 +8,14 @@ import ai.agent_menu
 import ai.utils.tools.bash
 import ai.utils.tools.powershell
 from ai.agent_menu import AgentMenu, load_subagents
-from ai.chat_menu import Line
+from ai.chat_menu import Line, _is_image_file
 from ai.utils.env import get_env_info
 from ai.utils.filecontextmenu import FileContextMenu
 from ai.utils.rules import get_project_rule_file, get_rules_prompt
 from ai.utils.tools import Settings
 from ai.utils.tooluse import ToolUse
 from utils.editor import edit_text_file
+from utils.encode_image_base64 import encode_image_base64
 from utils.menu.filemenu import FileMenu
 from utils.notify import send_notify
 
@@ -206,6 +207,14 @@ def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument("files", nargs="*")
     parser.add_argument(
+        "--images",
+        nargs="+",
+        action="append",
+        default=[],
+        metavar="IMAGE",
+        help="attach one or more image files to the initial message",
+    )
+    parser.add_argument(
         "-d",
         "--repo-path",
         "--dir",
@@ -228,6 +237,9 @@ def _main():
         help="print the response without showing the menu (requires --prompt)",
     )
     parser.add_argument("-m", "--model", type=str)
+    parser.add_argument(
+        "--no-tools", action="store_true", help="disable all tools for this session"
+    )
     parser.add_argument("--allow", action="append", help="allow certain bash commands")
     parser.add_argument("--voice-input", action="store_true")
     args = parser.parse_args()
@@ -265,6 +277,14 @@ def _main():
         os.path.relpath(file, root) if os.path.isabs(file) else file
         for file in args.files
     ]
+    image_urls = []
+    image_files = [file for group in args.images for file in group]
+    for image_file in image_files:
+        if not os.path.isfile(image_file):
+            parser.error(f"image file does not exist: {image_file}")
+        if not _is_image_file(image_file):
+            parser.error(f"unsupported image file: {image_file}")
+        image_urls.append(encode_image_base64(image_file))
 
     system_prompt = args.system_prompt
     if system_prompt and os.path.isfile(system_prompt):
@@ -273,11 +293,13 @@ def _main():
 
     menu = CoderMenu(
         files=files,
+        image_urls=image_urls,
         context=args.context,
         extra_system_prompt=system_prompt,
         message=args.prompt,
         headless=args.headless,
         voice_input=args.voice_input,
+        enable_tools=False if args.no_tools else None,
     )
     menu.exec()
 

@@ -350,6 +350,7 @@ class ChatMenu(Menu[Line]):
         self.add_command(self.__copy_messages, hotkey="ctrl+y", override=True)
         self.add_command(self.continue_session, hotkey="alt+enter")
         self.add_command(self.new_session, hotkey="ctrl+n")
+        self.add_command(self.__regenerate, hotkey="ctrl+r")
         self.add_command(self.save_session, hotkey="ctrl+s")
         self.add_command(self.__revert_messages, hotkey="ctrl+z")
 
@@ -709,6 +710,12 @@ class ChatMenu(Menu[Line]):
             prompt += f" (queued: {len(self.__message_queue)})"
         self.set_prompt(prompt)
 
+    def _has_queued_messages(self) -> bool:
+        return bool(self.__message_queue)
+
+    def _is_headless(self) -> bool:
+        return self.__headless
+
     def __update_terminal_title(
         self, state: Literal["idle", "generating", "done"] = "done"
     ):
@@ -913,7 +920,11 @@ class ChatMenu(Menu[Line]):
 
         self.__is_running = True
         if text or tool_results:
+            # TODO: Pending context and images should belong to queued messages, not tool results.
             self.append_user_message(text, tool_results=tool_results)
+
+        while self.__message_queue:
+            self.append_user_message(self.__message_queue.pop(0))
 
         # Select the last line of the message being sent
         last_line_index = len(self.__lines) - 1
@@ -927,6 +938,25 @@ class ChatMenu(Menu[Line]):
         self.__complete_chat()
 
     def continue_session(self) -> None:
+        self.send_message("")
+
+    def __regenerate(self) -> None:
+        if self.__is_running:
+            self.set_message("cannot regenerate while a response is being generated")
+            return
+
+        selected = self.get_selected_item()
+        if selected is None:
+            self.set_message("error: no message selected")
+            return
+
+        # A selected user message is the prompt to branch from, while a selected
+        # assistant message is the response being replaced.
+        from_msg_index = selected.msg_index
+        if selected.role == "user":
+            from_msg_index += 1
+
+        self.revert_messages(from_msg_index=from_msg_index)
         self.send_message("")
 
     def append_user_message(
@@ -1159,12 +1189,7 @@ class ChatMenu(Menu[Line]):
         self.__is_running = False
 
         if self.__message_queue:
-            if cancelled:
-                self.__message_queue.clear()
-                self.__update_prompt()
-            else:
-                next_text = self.__message_queue.pop(0)
-                self.send_message(next_text)
+            self.send_message("")
 
     def __on_chat_chunk(self, chunk_index: int, chunk: str):
         for i, a in enumerate(chunk.split("\n")):
@@ -1362,12 +1387,14 @@ class ChatMenu(Menu[Line]):
         return super().on_item_selection_changed(item, i)
 
     def on_message(self, content: str):
-        pass
+        if not self.__headless and not self.__message_queue:
+            sys.stdout.write("\a")
+            sys.stdout.flush()
 
     def on_generating(self):
         pass
 
-    def on_response(self, text: str, done: bool):
+    def on_response(self, done: bool):
         pass
 
     def get_status_text(self) -> str:
