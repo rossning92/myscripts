@@ -57,7 +57,7 @@ async function ensureDaemon() {
   try {
     const { startTime } = await healthCheck();
     if (getLatestMtime(__dirname) <= startTime) return;
-    console.error("Source changed, restarting daemon...");
+    console.error("browsercli source changed");
     await postCommand("close-browser").catch(() => {});
     await waitForDaemon(false);
   } catch {}
@@ -95,6 +95,16 @@ function targetArgs(options, { optional = false } = {}) {
     throw new Error("Specify --ref, or both --role and --name");
   }
   return { ref, role, name };
+}
+
+function describeTarget({ ref, role, name }) {
+  if (ref) return ref;
+  if (role) return `${role} ${JSON.stringify(name)}`;
+  return "focused element";
+}
+
+function printSuccess(message) {
+  console.error(`[browsercli] ${message}`);
 }
 
 program
@@ -155,6 +165,7 @@ program
   .description("Close the whole browser (quits Chrome and all its tabs)")
   .action(async () => {
     await sendCommand("close-browser");
+    printSuccess("browser closed");
   });
 
 program
@@ -196,6 +207,7 @@ program
   .description("Scroll to the bottom of the page")
   .action(async () => {
     await sendCommand("scroll-bottom");
+    printSuccess("scrolled to bottom");
   });
 
 program
@@ -203,6 +215,7 @@ program
   .description("Navigate back in the active page")
   .action(async () => {
     await sendCommand("back");
+    printSuccess("navigated back");
   });
 
 program
@@ -210,6 +223,7 @@ program
   .description("Navigate forward in the active page")
   .action(async () => {
     await sendCommand("forward");
+    printSuccess("navigated forward");
   });
 
 program
@@ -217,26 +231,37 @@ program
   .description("Reload the active page")
   .action(async () => {
     await sendCommand("reload");
+    printSuccess("page reloaded");
   });
 
 addTargetOptions(program.command("click"))
   .description("Click an element by ref or accessible role and name")
   .action(async (options) => {
-    await sendCommand("click", targetArgs(options));
+    const target = targetArgs(options);
+    await sendCommand("click", target);
+    printSuccess(`clicked ${describeTarget(target)}`);
   });
 
 addTargetOptions(program.command("type"))
   .description("Type text into the focused or specified element")
   .argument("<text>", "Text to type")
   .action(async (text, options) => {
-    await sendCommand("type", { text, ...targetArgs(options, { optional: true }) });
+    const target = targetArgs(options, { optional: true });
+    await sendCommand("type", { text, ...target });
+    printSuccess(
+      `typed ${text.length} characters into ${describeTarget(target)}`,
+    );
   });
 
 addTargetOptions(program.command("fill"))
   .description("Clear and type text into an element")
   .argument("<text>", "Text to fill")
   .action(async (text, options) => {
-    await sendCommand("fill", { text, ...targetArgs(options) });
+    const target = targetArgs(options);
+    await sendCommand("fill", { text, ...target });
+    printSuccess(
+      `filled ${describeTarget(target)} with ${text.length} characters`,
+    );
   });
 
 program
@@ -245,20 +270,27 @@ program
   .argument("<key>", "Key to press")
   .action(async (key) => {
     await sendCommand("press", { key });
+    printSuccess(`pressed ${JSON.stringify(key)}`);
   });
 
 addTargetOptions(program.command("select"))
   .description("Select an option in a dropdown")
   .argument("<val>", "Value to select")
   .action(async (val, options) => {
-    await sendCommand("select", { value: val, ...targetArgs(options) });
+    const target = targetArgs(options);
+    await sendCommand("select", { value: val, ...target });
+    printSuccess(`selected ${JSON.stringify(val)} in ${describeTarget(target)}`);
   });
 
 addTargetOptions(program.command("upload"))
   .description("Upload a file to a file input element")
   .argument("<filePath>", "Path to the file to upload")
   .action(async (filePath, options) => {
-    await sendCommand("upload", { filePath, ...targetArgs(options) });
+    const target = targetArgs(options);
+    await sendCommand("upload", { filePath, ...target });
+    printSuccess(
+      `uploaded ${JSON.stringify(filePath)} to ${describeTarget(target)}`,
+    );
   });
 
 addTargetOptions(program.command("screenshot"))
