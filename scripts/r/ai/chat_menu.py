@@ -666,9 +666,12 @@ class ChatMenu(Menu[Line]):
         self.__update_prompt()
 
     def __revert_messages(self):
-        selected = self.get_selected_item()
-        if selected:
-            self.revert_messages(from_msg_index=selected.msg_index)
+        messages = self.get_messages()
+        for msg_index in range(len(messages) - 1, -1, -1):
+            message = messages[msg_index]
+            if message["role"] == "user" and not message.get("tool_result"):
+                self.revert_messages(from_msg_index=msg_index)
+                return
 
     def revert_messages(self, from_msg_index: int) -> List[Message]:
         removed_messages: List[Message] = []
@@ -914,6 +917,8 @@ class ChatMenu(Menu[Line]):
         self,
         text: str,
         tool_results: Optional[List[ToolResult]] = None,
+        *,
+        focus_latest: bool = True,
     ) -> None:
         if self.__is_running and tool_results is None:
             return
@@ -926,10 +931,10 @@ class ChatMenu(Menu[Line]):
         while self.__message_queue:
             self.append_user_message(self.__message_queue.pop(0))
 
-        # Select the last line of the message being sent
-        last_line_index = len(self.__lines) - 1
-        if last_line_index >= 0:
-            self.set_selection(last_line_index, last_line_index)
+        if focus_latest:
+            last_line_index = len(self.__lines) - 1
+            if last_line_index >= 0:
+                self.set_selection(last_line_index, last_line_index)
 
         self.__context = None
         self.__retry_count = 0

@@ -397,7 +397,9 @@ class AgentMenu(ChatMenu):
             if not has_error and interrupted:
                 self.append_user_message("", tool_results=tool_results)
             else:
-                self.send_message("", tool_results=tool_results)
+                self.send_message(
+                    "", tool_results=tool_results, focus_latest=False
+                )
 
     def on_response(self, done: bool):
         if done:

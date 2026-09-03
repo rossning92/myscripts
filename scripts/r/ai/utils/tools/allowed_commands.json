@@ -46,6 +46,7 @@
     "sed *",
     "sleep *",
     "sort",
+    "sort *",
     "tail *",
     "termux-*",
     "todo_list *",
