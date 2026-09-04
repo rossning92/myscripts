@@ -393,6 +393,10 @@ def rename_script(
 
     # Rename script
     new_script_full_path = get_absolute_script_path(new_script_rel_path)
+    if os.path.abspath(new_script_full_path) == os.path.abspath(script_full_path):
+        return None
+    if os.path.lexists(new_script_full_path):
+        raise FileExistsError(f'Path already exists: "{new_script_rel_path}"')
     os.makedirs(os.path.dirname(new_script_full_path), exist_ok=True)
     shutil.move(script_full_path, new_script_full_path)
 

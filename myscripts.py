@@ -604,17 +604,24 @@ class _MyScriptMenu(Menu[Script]):
 
     def _rename_script(self, replace_all_occurrence=False):
         script = self.get_selected_script()
-        if script:
+        self.clear_input()
+        if not script:
+            return
+
+        try:
             new_script_path = rename_script(
                 script.script_path,
                 replace_all_occurrence=replace_all_occurrence,
             )
-            if new_script_path:
-                index = self.script_manager.scripts.index(script)
-                new_script = Script(new_script_path)
-                self.script_manager.scripts[index] = new_script
+        except FileExistsError as e:
+            self.set_message(str(e))
+            return
 
-        self.clear_input()
+        if not new_script_path:
+            return
+
+        index = self.script_manager.scripts.index(script)
+        self.script_manager.scripts[index] = Script(new_script_path)
 
     def _rename_script_replace_all(self):
         self._rename_script(
