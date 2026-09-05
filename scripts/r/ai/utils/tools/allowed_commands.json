@@ -17,6 +17,7 @@
     "date",
     "date *",
     "dir *",
+    "echo *",
     "find *",
     "gcm *",
     "git *",

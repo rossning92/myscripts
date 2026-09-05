@@ -86,6 +86,11 @@ MODELS: List[Model] = [
     ),
     Model(
         "gemini",
+        "gemini-3.8-flash",
+        api_type="gemini_generate_content",
+    ),
+    Model(
+        "gemini",
         "gemini-3-pro-image",
         api_type="gemini_generate_content",
     ),
@@ -116,7 +121,16 @@ MODELS: List[Model] = [
     ),
     Model(
         "llama_cpp",
-        os.environ.get("LLAMA_CPP_MODEL", "Qwen/Qwen3-1.7B-GGUF"),
+        os.environ.get("LLAMA_CPP_MODEL", "qwen3.8-27b"),
+        api_type="openai_chat_completions",
+        base_url=os.environ.get(
+            "LLAMA_CPP_ENDPOINT", "http://127.0.0.1:8080/v1"
+        ),
+        api_key=os.environ.get("LLAMA_CPP_API_KEY", "no-key"),
+    ),
+    Model(
+        "llama_cpp",
+        "qwen3.5-0.8b",
         api_type="openai_chat_completions",
         base_url=os.environ.get(
             "LLAMA_CPP_ENDPOINT", "http://127.0.0.1:8080/v1"

@@ -459,6 +459,11 @@
       "packages": ["less"]
     }
   },
+  "ggml-cuda": {
+    "pacman": {
+      "packages": ["ggml-cuda"]
+    }
+  },
   "llama-cpp": {
     "pacman": {
       "packages": ["llama-cpp"]
