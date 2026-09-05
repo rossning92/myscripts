@@ -113,6 +113,7 @@ SCRIPT_EXTENSIONS = {
     ".txt",
     ".url",
     ".vbs",  # Windows specific
+    ".html",
 }
 
 BINARY_EXTENSIONS = {
@@ -1009,6 +1010,16 @@ class Script:
                 find_script("ext/run_script_ssh.py"),
                 script_path,
             ]
+
+        elif ext == ".html":
+            if template:
+                script_path = write_temp_file(
+                    self.render(variables=variables),
+                    slugify(self.name) + ext,
+                )
+
+            open_url(Path(script_path).resolve().as_uri())
+            return True
 
         elif ext in [".md", ".txt"]:
             if script_path.endswith(".email.md"):
