@@ -1161,7 +1161,6 @@ class ChatMenu(Menu[Line]):
 
     def __on_chat_done(self, cancelled=False):
         assert self._out_message
-        self.__update_terminal_title(state="done")
 
         if cancelled:
             self._out_message["text"] += f"\n{_INTERRUPT_MESSAGE}"
@@ -1195,6 +1194,8 @@ class ChatMenu(Menu[Line]):
 
         if self.__message_queue:
             self.send_message("")
+        else:
+            self.__update_terminal_title(state="done")
 
     def __on_chat_chunk(self, chunk_index: int, chunk: str):
         for i, a in enumerate(chunk.split("\n")):
@@ -1380,7 +1381,6 @@ class ChatMenu(Menu[Line]):
         if self.__is_running:
             self.__message_queue.append(text)
             self.clear_input()
-            self.set_message(f"message queued ({len(self.__message_queue)})")
             self.__update_prompt()
             return
 

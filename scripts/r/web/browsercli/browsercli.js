@@ -136,10 +136,12 @@ program
     });
     if (status) {
       if (status.mode === "extension") {
-        console.error("[browsercli] extension active-tab");
+        printSuccess(
+          `opened ${JSON.stringify(url)} in the extension active tab`,
+        );
       } else {
-        console.error(
-          `[browsercli] :${status.port} ${status.mode} profile=${status.profile}`,
+        printSuccess(
+          `opened ${JSON.stringify(url)} in the ${status.mode} browser on :${status.port} (profile=${status.profile})`,
         );
       }
     }

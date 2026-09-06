@@ -10,7 +10,7 @@ if [[ -f "/etc/debian_version" ]]; then
         }
     done
 elif [[ -f "/etc/arch-release" ]]; then
-    sudo pacman -S --noconfirm awesome xorg-server xorg-xinit awesome
+    sudo pacman -S --noconfirm --needed awesome xorg-server xorg-xinit
 fi
 
 # Copy awesome config file
@@ -21,4 +21,5 @@ append_if_not_exist() {
         echo "$2" >>$1
     fi
 }
-append_if_not_exist ~/.xinitrc "exec awesome"
+# Replace the current process with AwesomeWM when initializing X.
+append_if_not_exist "$HOME/.xinitrc" "exec awesome"

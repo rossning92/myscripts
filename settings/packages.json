@@ -608,7 +608,7 @@
       "packages": ["npm"]
     },
     "post_install": [
-      "grep -qF \"npm-global/bin\" ~/.bashrc || echo 'export PATH=\"$PATH:'$(npm config get prefix)'/bin\"' >> ~/.bashrc && source ~/.bashrc"
+      "mkdir -p \"$HOME/.npm-global\" && npm config set prefix \"$HOME/.npm-global\" && (grep -qxF 'export PATH=\"$HOME/.npm-global/bin:$PATH\"' \"$HOME/.bashrc\" 2>/dev/null || printf '%s\\n' 'export PATH=\"$HOME/.npm-global/bin:$PATH\"' >> \"$HOME/.bashrc\")"
     ]
   },
   "ocenaudio": {
@@ -926,6 +926,14 @@
       "packages": ["sunshine-bin"]
     }
   },
+  "sxhkd": {
+    "apt": {
+      "packages": ["sxhkd"]
+    },
+    "pacman": {
+      "packages": ["sxhkd"]
+    }
+  },
   "syncthing": {
     "brew": {
       "packages": ["syncthing"]
@@ -1050,6 +1058,18 @@
   "wget": {
     "pacman": {
       "packages": ["wget"]
+    }
+  },
+  "wmctrl": {
+    "executables": ["wmctrl"],
+    "apt": {
+      "packages": ["wmctrl"]
+    },
+    "dnf": {
+      "packages": ["wmctrl"]
+    },
+    "pacman": {
+      "packages": ["wmctrl"]
     }
   },
   "windirstat": {
