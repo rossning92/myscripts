@@ -127,7 +127,7 @@ pac_install udisks2 udiskie
 append_line_dedup ~/.xinitrc "udiskie &"
 
 # Install window manager
-{{ include('r/linux/setup_awesomewm.sh') }}
+run_script r/linux/setup_awesomewm.sh
 
 # Enable DNS resolve caching.
 sudo systemctl enable --now systemd-resolved.service
@@ -136,52 +136,8 @@ sudo systemctl enable --now systemd-resolved.service
 pac_install earlyoom
 sudo systemctl enable earlyoom --now
 
-# ------------------------------
-# Hardware specific (TODO: move)
-# ------------------------------
-
-# Install proprietary NVIDIA GPU driver.
-# https://wiki.archlinux.org/title/NVIDIA#Xorg_configuration
-if lspci -k | grep -q "NVIDIA Corporation"; then
-    kernel_version=$(uname -r)
-    if [[ $kernel_version == *lts* ]]; then
-        pac_install nvidia-lts
-    else
-        pac_install nvidia-open
-    fi
-    pac_install nvidia-settings
-    sudo nvidia-xconfig --metamodes="nvidia-auto-select +0+0 {ForceCompositionPipeline=On, ForceFullCompositionPipeline=On}" --output-xconfig /etc/X11/xorg.conf.d/20-nvidia.conf
-fi
-
-# Setup Intel graphics.
-# https://wiki.archlinux.org/title/intel_graphics
-if lspci -k | grep -q "Intel Corporation UHD Graphics 615"; then
-    # Provides the legacy intel DDX driver from Gen 2 to Gen 9 hardware
-    pac_install xf86-video-intel
-
-    sudo mkdir -p /etc/X11/xorg.conf.d/
-    sudo bash -c 'cat > /etc/X11/xorg.conf.d/20-intel.conf <<EOF
-Section "Device"
-  Identifier "Intel Graphics"
-  Driver "intel"
-  Option "TearFree" "true"
-EndSection
-EOF'
-fi
-
-if lspci -k | grep -q "Intel Corporation UHD Graphics 630"; then
-    pac_install xf86-video-intel
-
-    sudo mkdir -p /etc/X11/xorg.conf.d/
-    sudo bash -c 'cat > /etc/X11/xorg.conf.d/20-intel.conf <<EOF
-Section "Device"
-  Identifier "Intel Graphics"
-  Driver "intel"
-  Option "TearFree" "true"
-  Option "TripleBuffer" "true"
-EndSection
-EOF'
-fi
+run_script r/linux/arch/install_nvidia_driver.sh
+run_script r/linux/arch/install_intel_driver.sh
 
 # Setup keyboard
 setup_logitech_keyboard() {
@@ -238,9 +194,6 @@ pac_install flameshot
 append_line_dedup ~/.xinitrc 'flameshot &'
 
 run_script r/linux/arch/setup_lock_screen.sh
-
-# Replace the current process with the awesomewm when initializing X.
-append_line_dedup ~/.xinitrc "exec awesome"
 
 run_script r/install_package.py vscode
 run_script r/install_package.py google-chrome

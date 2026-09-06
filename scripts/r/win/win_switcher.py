@@ -1,10 +1,14 @@
+import sys
 import time
 from pathlib import Path
 from typing import Dict, Optional, Set
 
+from _pkgmanager import require_package
 from utils.menu import Menu
 from utils.notify import get_notifications
 from utils.term import hide_terminal_from_taskbar, set_terminal_title
+from utils.termux import is_in_termux
+from utils.tmux import is_in_tmux
 from utils.window import (
     WindowItem,
     WindowStatus,
@@ -172,6 +176,9 @@ class WinSwitcherMenu(Menu[WindowItem]):
 
 
 if __name__ == "__main__":
+    if sys.platform == "linux" and not (is_in_termux() or is_in_tmux()):
+        require_package("wmctrl")
+
     set_terminal_title(Path(__file__).stem)
     hide_terminal_from_taskbar()
     WinSwitcherMenu().exec()
