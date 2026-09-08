@@ -14,6 +14,7 @@ require("awful.autofocus")
 local wibox = require("wibox")
 -- Theme handling library
 local beautiful = require("beautiful")
+local dpi = require("beautiful.xresources").apply_dpi
 -- Notification library
 local naughty = require("naughty")
 local menubar = require("menubar")
@@ -223,6 +224,7 @@ awful.screen.connect_for_each_screen(function(s)
     local systray = wibox.widget.systray()
 
     local right_widgets = {
+        spacing = dpi(6),
         layout = wibox.layout.fixed.horizontal,
     }
 

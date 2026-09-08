@@ -15,6 +15,7 @@ import ai.utils.tools.read
 import ai.utils.tools.web_fetch
 import ai.utils.tools.web_search
 from ai.chat_menu import ChatMenu, Line
+from ai.utils.tools.bash import SandboxPermissionError, _run_bash
 from ai.utils.checkpoint import Checkpoint
 from ai.utils.mcp import MCPClient
 from ai.utils.memory import get_memory_prompt
@@ -241,6 +242,20 @@ class AgentMenu(ChatMenu):
                     save_path=str(ALLOWED_COMMANDS_FILE),
                 )
                 return self.__run_blocking(lambda: tool(**tool_use["args"]))
+            if tool_name == "bash" and Settings.sandbox:
+                try:
+                    return self.__run_blocking(lambda: tool(**tool_use["args"]))
+                except SandboxPermissionError as ex:
+                    menu = ConfirmMenu(
+                        "Sandbox blocked this command. Retry outside the sandbox?"
+                    )
+                    menu.exec()
+                    if not menu.is_confirmed():
+                        return ex.output
+                    command = tool_use["args"]["command"]
+                    return self.__run_blocking(
+                        lambda: _run_bash(command, sandbox=False)
+                    )
             return tool(**tool_use["args"])
 
         client = next(

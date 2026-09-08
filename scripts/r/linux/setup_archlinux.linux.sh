@@ -38,6 +38,7 @@ yay_install() {
 pac_install \
     acpi \
     alacritty \
+    curl \
     fzf \
     git \
     inetutils \
@@ -51,30 +52,15 @@ pac_install \
     wmctrl \
     xclip \
     zip
-append_line_dedup "$HOME/.bashrc" 'alias v=nvim'
 
-# Install fonts
-pac_install $(pacman -Ssq 'noto-fonts-*')
-pac_install ttf-jetbrains-mono
+# Configure system time.
+sudo timedatectl set-ntp true
+timezone=$(curl -fsS https://ipapi.co/timezone)
+sudo timedatectl set-timezone "$timezone"
 
-# Make JetBrains Mono the default for applications that request the generic
-# monospace family.
-mkdir -p "$HOME/.config/fontconfig/conf.d"
-cat >"$HOME/.config/fontconfig/conf.d/50-monospace.conf" <<'EOF'
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
-<fontconfig>
-  <alias>
-    <family>monospace</family>
-    <prefer>
-      <family>JetBrains Mono</family>
-    </prefer>
-  </alias>
-</fontconfig>
-EOF
-fc-cache -f
+run_script r/linux/arch/install_fonts.sh
 
-{{ include('r/linux/arch/install_yay.sh') }}
+run_script r/linux/arch/install_yay.sh
 
 # Configure HiDPI display
 DPI_VALUE=120 # 96 * 1.25
@@ -117,10 +103,6 @@ run_script r/linux/arch/setup_keyd.sh
 append_line_dedup \
     "$HOME/.bash_profile" \
     '[[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]] && startx'
-
-# Configure bash alias.
-append_line_dedup "$HOME/.bashrc" 'alias v="nvim"'
-append_line_dedup "$HOME/.bashrc" 'alias i="sudo pacman -S --noconfirm"'
 
 # Automatically mount USB devices
 pac_install udisks2 udiskie
@@ -197,11 +179,6 @@ run_script r/linux/arch/setup_lock_screen.sh
 
 run_script r/install_package.py vscode
 run_script r/install_package.py google-chrome
-
-# System time
-sudo timedatectl set-ntp true
-# Set the timezone based on geo-location:
-timedatectl set-timezone $(curl -s https://ipapi.co/timezone)
 
 # Install GitHub CLI
 pac_install github-cli

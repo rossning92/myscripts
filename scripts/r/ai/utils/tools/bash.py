@@ -7,6 +7,22 @@ from typing import Any, Dict
 from ai.utils.tools import Settings
 
 
+_PERMISSION_ERROR_MARKERS = (
+    "permission denied",
+    "operation not permitted",
+    "read-only file system",
+    "access denied",
+    "eacces",
+    "eperm",
+)
+
+
+class SandboxPermissionError(RuntimeError):
+    def __init__(self, output: str):
+        super().__init__(output)
+        self.output = output
+
+
 def get_tool_use_preview(args: Dict[str, Any]) -> str:
     command = args.get("command")
     return command if isinstance(command, str) else str(args)
@@ -37,8 +53,7 @@ def _build_sandbox_command(command: str) -> list[str]:
     return args + ["--chdir", cwd, shell, "-c", command]
 
 
-def _run_bash(command: str) -> str:
-    sandbox = Settings.sandbox
+def _run_bash(command: str, *, sandbox: bool) -> str:
     args: str | list[str] = _build_sandbox_command(command) if sandbox else command
 
     result = subprocess.run(
@@ -49,7 +64,12 @@ def _run_bash(command: str) -> str:
         text=True,
         errors="replace",
     )
-    return result.stdout.strip()
+    output = result.stdout.strip()
+    if sandbox and result.returncode != 0 and any(
+        marker in output.lower() for marker in _PERMISSION_ERROR_MARKERS
+    ):
+        raise SandboxPermissionError(output)
+    return output
 
 
 def bash(command: str) -> str:
@@ -59,4 +79,4 @@ def bash(command: str) -> str:
     - Ensure the command is properly formatted and does not contain any harmful instructions.
     """
 
-    return _run_bash(command)
+    return _run_bash(command, sandbox=Settings.sandbox)
