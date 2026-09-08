@@ -21,6 +21,7 @@ from ai.utils.memory import get_memory_prompt
 from ai.utils.menu.confirmcommandmenu import ConfirmCommandMenu
 from ai.utils.message import Message
 from ai.utils.skill import get_skill_prompt, get_skills
+from ai.utils.tools import Settings
 from ai.utils.tools.permission import ALLOWED_COMMANDS, ALLOWED_COMMANDS_FILE
 from ai.utils.tooluse import (
     ToolDefinition,
@@ -231,7 +232,9 @@ class AgentMenu(ChatMenu):
             None,
         )
         if tool:
-            if tool_name in ["bash", "powershell"]:
+            if tool_name in ["bash", "powershell"] and not (
+                tool_name == "bash" and Settings.sandbox
+            ):
                 ConfirmCommandMenu.confirm_command(
                     command=tool_use["args"]["command"],
                     allowed_commands=ALLOWED_COMMANDS,

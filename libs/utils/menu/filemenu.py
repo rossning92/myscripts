@@ -82,6 +82,29 @@ def get_download_dir():
         return os.path.join(get_home_path(), "Downloads")
 
 
+def get_trash_dir():
+    data_home = os.environ.get("XDG_DATA_HOME")
+    if not data_home:
+        data_home = os.path.join(get_home_path(), ".local", "share")
+    return os.path.join(data_home, "Trash", "files")
+
+
+def _get_trash_deletion_time(file: "_File") -> float:
+    trash_info_file = os.path.join(
+        os.path.dirname(get_trash_dir()), "info", file.name + ".trashinfo"
+    )
+    try:
+        with open(trash_info_file, encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("DeletionDate="):
+                    return datetime.fromisoformat(
+                        line.removeprefix("DeletionDate=").strip()
+                    ).timestamp()
+    except (OSError, ValueError):
+        pass
+    return file.mtime
+
+
 class _Config:
     def __init__(self) -> None:
         self.cur_dir: str = get_home_path()
@@ -373,7 +396,9 @@ class FileMenu(Menu[_File]):
         self.update_screen()
 
     def _sort_files(self):
-        if self.__config.sort_by == "mtime":
+        if os.path.realpath(self.get_cur_dir()) == os.path.realpath(get_trash_dir()):
+            self.__files.sort(key=_get_trash_deletion_time, reverse=True)
+        elif self.__config.sort_by == "mtime":
             self.__files.sort(key=lambda x: x.mtime, reverse=True)
         elif self.__config.sort_by == "size":
             self.__files.sort(key=lambda x: x.size, reverse=True)
@@ -428,21 +453,20 @@ class FileMenu(Menu[_File]):
             if dest_dir is not None:
                 self.__last_copy_to_path = dest_dir
                 for src in files:
+                    dest = os.path.join(dest_dir, os.path.basename(src))
                     if os.path.isdir(src):
                         shutil.copytree(
                             src,
-                            os.path.join(dest_dir, os.path.basename(src)),
+                            dest,
                             dirs_exist_ok=True,
                         )
                         if not copy:
                             shutil.rmtree(src)
                     else:
-                        if os.path.exists(
-                            os.path.join(dest_dir, os.path.basename(src))
-                        ):
+                        if os.path.exists(dest):
                             if confirm(
                                 filemgr._submenu_prompt(
-                                    f'"{os.path.basename(src)}" already exists in "{dest_dir}". Overwrite?'
+                                    f'Overwrite "{os.path.basename(src)}" in "{dest_dir}"?'
                                 )
                             ):
                                 should_copy_or_move = True
@@ -453,9 +477,9 @@ class FileMenu(Menu[_File]):
 
                         if should_copy_or_move:
                             if copy:
-                                shutil.copy(src, dest_dir)
+                                shutil.copy(src, dest)
                             else:
-                                shutil.move(src, dest_dir)
+                                shutil.move(src, dest)
 
                 self.goto_directory(dest_dir, selected_file=os.path.basename(files[0]))
                 self.set_multi_select(False)
@@ -550,6 +574,7 @@ class FileMenu(Menu[_File]):
         shortcut_paths = {
             get_download_dir(): ("ctrl+d", "downloads"),
             get_home_path(): ("ctrl+h", "home"),
+            get_trash_dir(): ("ctrl+t", "trash"),
         }
         removable_media_dir = os.path.join(
             "/run/media", os.path.basename(get_home_path())

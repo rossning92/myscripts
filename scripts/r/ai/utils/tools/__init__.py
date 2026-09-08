@@ -1,5 +1,6 @@
 class Settings:
-    need_confirm: bool = True
+    confirm_command: bool = True
+    sandbox: bool = False
 
     def __init__(self):
         raise TypeError("Settings class should not be instantiated")

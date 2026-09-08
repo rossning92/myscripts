@@ -2,6 +2,7 @@ import glob
 import math
 import os
 import re
+from typing import NamedTuple
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -219,6 +220,72 @@ def _labels_from_files(file_list, parse_file_name=None):
     return [n.replace("_", " ") for n in names]
 
 
+def _border_color(imgs):
+    total = count = 0
+    for im in imgs:
+        pixels = np.asarray(im.convert("RGB"))
+        border = np.concatenate(
+            (pixels[0], pixels[-1], pixels[1:-1, 0], pixels[1:-1, -1])
+        )
+        total += border.sum()
+        count += border.size
+    return "white" if total / count >= 127.5 else "black"
+
+
+class _AtlasLayout(NamedTuple):
+    positions: list
+    row_heights: list
+    col_widths: list
+    row_offsets: list
+    col_offsets: list
+    width: int
+    height: int
+
+
+def _calculate_atlas_layout(imgs, cols, spacing, col_major_order=False):
+    num_imgs = len(imgs)
+    cols = min(cols, num_imgs)
+    rows = math.ceil(num_imgs / cols)
+    if col_major_order:
+        rows, cols = cols, rows
+
+    positions = []
+    row_heights = [0] * rows
+    col_widths = [0] * cols
+    for index, im in enumerate(imgs):
+        if col_major_order:
+            col = index // rows
+            row = index % rows
+        else:
+            row = index // cols
+            col = index % cols
+        positions.append((row, col))
+        row_heights[row] = max(row_heights[row], im.height)
+        col_widths[col] = max(col_widths[col], im.width)
+
+    row_offsets = []
+    offset = 0
+    for height in row_heights:
+        row_offsets.append(offset)
+        offset += height + spacing
+
+    col_offsets = []
+    offset = 0
+    for width in col_widths:
+        col_offsets.append(offset)
+        offset += width + spacing
+
+    return _AtlasLayout(
+        positions=positions,
+        row_heights=row_heights,
+        col_widths=col_widths,
+        row_offsets=row_offsets,
+        col_offsets=col_offsets,
+        width=sum(col_widths) + spacing * (cols - 1),
+        height=sum(row_heights) + spacing * (rows - 1),
+    )
+
+
 def combine_images(
     image_files=None,
     images=None,
@@ -277,13 +344,6 @@ def combine_images(
             for im in imgs
         ]
 
-    if not cols:
-        cols = 1
-
-    # Adjust column size if it's smaller than the number of files
-    if len(imgs) < cols:
-        cols = len(imgs)
-
     # Add text
     if draw_label:
         if labels is None and file_list is not None:
@@ -303,40 +363,30 @@ def combine_images(
                 )
 
     if generate_atlas:
-        width = max([im.width for im in imgs])
-        height = max([im.height for im in imgs])
-
-        # Convert spacing from percentage to pixels
-        spacing = int(spacing * width)
-
         num_imgs = len(imgs)
-        rows = int(math.ceil(num_imgs / cols))
-        if col_major_order:  # Swap rows and cols
-            t = rows
-            rows = cols
-            cols = t
+        max_width = max(im.width for im in imgs)
+        spacing = int(spacing * max_width)
 
+        if not cols:
+            def aspect_error(num_cols):
+                layout = _calculate_atlas_layout(
+                    imgs, num_cols, spacing, col_major_order
+                )
+                return abs(math.log(layout.width / layout.height))
+
+            cols = min(range(1, num_imgs + 1), key=aspect_error)
+
+        layout = _calculate_atlas_layout(imgs, cols, spacing, col_major_order)
         im_combined = Image.new(
             "RGB",
-            (
-                width * cols + spacing * (cols - 1),
-                height * rows + spacing * (rows - 1),
-            ),
-            "black",
+            (layout.width, layout.height),
+            _border_color(imgs),
         )
 
-        for c in range(len(imgs)):
-            if not col_major_order:
-                i = c // cols
-                j = c % cols
-            else:
-                j = c // rows
-                i = c % rows
-
-            x = j * width + j * spacing
-            y = i * height + i * spacing
-            im_combined.paste(imgs[c], (x, y))
-            c += 1
+        for im, (row, col) in zip(imgs, layout.positions):
+            x = layout.col_offsets[col] + (layout.col_widths[col] - im.width) // 2
+            y = layout.row_offsets[row] + (layout.row_heights[row] - im.height) // 2
+            im_combined.paste(im, (x, y))
 
         if title is not None:
             if title_align == "bottom":

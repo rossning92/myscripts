@@ -6,6 +6,29 @@ from _image import combine_images
 from utils.shutil import shell_open
 
 
+def _env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return default
+
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be true or false")
+
+
+def _env_number(name, convert, default=None):
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return default
+    try:
+        return convert(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a valid {convert.__name__}") from exc
+
+
 def _expand_globs(patterns):
     files = []
     for pattern in patterns:
@@ -36,7 +59,11 @@ if __name__ == "__main__":
             "`*` matches within a folder and `**` recurses into subfolders."
         ),
     )
-    parser.add_argument("-o", "--out-file", default="out/out.png")
+    parser.add_argument(
+        "-o",
+        "--out-file",
+        help="Output path. Defaults to <input names>_combined.png beside the first image.",
+    )
     parser.add_argument(
         "-s",
         "--scale",
@@ -48,29 +75,32 @@ if __name__ == "__main__":
 
     args.image_files = _expand_globs(args.image_files)
 
-    cols = int("{{_NUM_COLS}}") if "{{_NUM_COLS}}" else None
-    col_major_order = True if "{{_COL_MAJOR_ORDER}}" else False
-    draw_label = True if "{{_DRAW_LABEL}}" else False
-    label_align = "{{_LABEL_ALIGN}}" if "{{_LABEL_ALIGN}}" else "bottom"
-    gif_duration = int("{{_GIF_DURA}}") if "{{_GIF_DURA}}" else 500
-    font_scale = float("{{_FONT_SCALE}}") if "{{_FONT_SCALE}}" else 1.0
-    font_color = "{{_FONT_COLOR}}" if "{{_FONT_COLOR}}" else "white"
+    if args.out_file is None:
+        input_names = [
+            os.path.splitext(os.path.basename(path))[0] for path in args.image_files
+        ]
+        args.out_file = os.path.join(
+            os.path.dirname(args.image_files[0]),
+            "_".join(input_names) + "_combined.png",
+        )
+
+    generate_gif = _env_bool("CI_GENERATE_GIF")
 
     combine_images(
         image_files=args.image_files,
         out_file=args.out_file,
         scale=args.scale,
-        cols=cols,
-        col_major_order=col_major_order,
-        draw_label=draw_label,
-        label_align=label_align,
-        generate_gif=True if "{{_GEN_GIF}}" else False,
-        generate_vid=True if "{{_GEN_VID}}" else False,
-        generate_atlas=True if "{{_GEN_ATLAS}}" else False,
-        gif_duration=gif_duration,
-        font_scale=font_scale,
-        font_color=font_color,
+        cols=_env_number("CI_NUM_COLS", int),
+        col_major_order=_env_bool("CI_COLUMN_MAJOR_ORDER"),
+        draw_label=_env_bool("CI_DRAW_LABEL"),
+        label_align=os.environ.get("CI_LABEL_ALIGN") or "bottom",
+        generate_gif=generate_gif,
+        generate_vid=_env_bool("CI_GENERATE_VIDEO"),
+        generate_atlas=True,
+        gif_duration=_env_number("CI_GIF_DURATION", int, 500),
+        font_scale=_env_number("CI_FONT_SCALE", float, 1.0),
+        font_color=os.environ.get("CI_FONT_COLOR") or "white",
     )
 
     out_gif = os.path.splitext(args.out_file)[0] + ".gif"
-    shell_open(os.path.abspath(out_gif if "{{_GEN_GIF}}" else args.out_file))
+    shell_open(os.path.abspath(out_gif if generate_gif else args.out_file))

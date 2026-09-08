@@ -1,0 +1,54 @@
+[options]
+# When pqiv is opened with one file, also load the other images in its folder.
+browse=1
+sort=1
+
+# Stop at the last image instead of wrapping back to the first.
+end-of-files-action=wait
+
+# Remove externally deleted/moved images from pqiv's file list.
+watch-files=on
+
+# Reuse freedesktop thumbnails instead of regenerating them for every gallery.
+thumbnail-size=256x256
+thumbnail-persistence=yes
+
+# This value is a fraction of the available screen: pqiv defaults to 0.8
+# (80%), which leaves an extra margin around large images. Use 1.0 (100%) so
+# auto-scaled images can use the full available screen.
+scale-mode-screen-fraction=1.0
+
+[actions]
+# Keep images at 100% unless they are larger than the window, then shrink them
+# proportionally to fit. This also resets the mode on every pqiv launch.
+toggle_scale_mode(2)
+
+[keybindings]
+# Use conventional image-viewer navigation instead of panning.
+<Left> { goto_file_relative(-1); }
+<Right> { goto_file_relative(1); }
+
+# Enter opens the thumbnail montage; Enter selects an image while in montage.
+<Return> { montage_mode_enter(); }
+
+# Rotate clockwise with a single key.
+r { rotate_right(); }
+
+# Reload the current image from disk.
+<Control>r { reload(); }
+
+# Move the current image to the desktop Trash. pqiv shell-quotes `$1` itself,
+# so it must not be wrapped in another pair of quotes here.
+<Delete> { command(gio trash $1); }
+
+# Open the current image with another application.
+<Alt>o { command(alacritty -e myscripts --prompt "open with" --args $1); }
+
+# Montage-specific actions.
+@MONTAGE {
+    m { toggle_mark(); }
+    # Trash only thumbnails explicitly marked with `m`.
+    <Delete> { command(-xargs -r -d '\\n' gio trash); }
+    # Open all thumbnails marked with `m`.
+    <Alt>o { command(-xargs -r -d '\\n' alacritty -e myscripts --prompt "open with" --args); }
+}

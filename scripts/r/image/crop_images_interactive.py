@@ -1,7 +1,6 @@
 import argparse
 import json
 import mimetypes
-import os
 import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -93,16 +92,13 @@ def crop_images_interactive(files: List[str]):
         return
 
     for file in files:
-        out_dir = os.path.join(os.path.dirname(file), "out")
-        os.makedirs(out_dir, exist_ok=True)
-        out_file = os.path.join(out_dir, os.path.basename(file))
         with Image.open(file) as source:
             source_format = source.format
             image = ImageOps.exif_transpose(source)
             image = image.crop((rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3]))
-            save_args = {"quality": 90} if source_format in ("JPEG", "WEBP") else {}
-            image.save(out_file, **save_args)
-        print(f"Saved: {out_file}")
+        save_args = {"quality": 90} if source_format in ("JPEG", "WEBP") else {}
+        image.save(file, format=source_format, **save_args)
+        print(f"Saved: {file}")
 
 
 def _main():

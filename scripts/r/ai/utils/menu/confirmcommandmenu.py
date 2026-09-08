@@ -324,7 +324,7 @@ class ConfirmCommandMenu(Menu[str]):
         save_path: str,
         ignore_case: bool = False,
     ):
-        if not Settings.need_confirm:
+        if not Settings.confirm_command:
             return
 
         confirmation = _get_command_confirmation(
@@ -346,7 +346,7 @@ class ConfirmCommandMenu(Menu[str]):
             raise KeyboardInterrupt("Command execution was canceled by the user")
 
         if menu.__session_allowed:
-            Settings.need_confirm = False
+            Settings.confirm_command = False
             return
 
         if menu.__save:

@@ -38,15 +38,24 @@ class SettingsMenu(ai.agent_menu.SettingsMenu):
         return {
             **super().get_default_values(),
             "model": SettingsMenu.default_model,
-            "need_confirm": True,
+            "confirm_command": False,
+            "sandbox": True,
         }
+
+    def get_schema(self):
+        schema = super().get_schema()
+        assert schema and schema["type"] == "object"
+        schema["properties"]["confirm_command"] = {"type": "boolean"}
+        schema["properties"]["sandbox"] = {"type": "boolean"}
+        return schema
 
     def on_dict_update(self, data):
         super().on_dict_update(data)
         self.__update_settings()
 
     def __update_settings(self):
-        Settings.need_confirm = self.data["need_confirm"]
+        Settings.confirm_command = self.data["confirm_command"]
+        Settings.sandbox = self.data["sandbox"]
 
 
 class CoderMenu(AgentMenu):

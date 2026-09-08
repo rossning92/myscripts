@@ -183,7 +183,7 @@ append_line_sudo /etc/sudoers "$(whoami) ALL=(ALL:ALL) NOPASSWD: ALL"
 # ------------
 
 # Image viewer
-run_script r/linux/setup_imv.sh
+run_script r/linux/setup_pqiv.sh
 
 # PDF viewer
 pac_install zathura zathura-pdf-mupdf
