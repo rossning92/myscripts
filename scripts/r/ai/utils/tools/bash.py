@@ -50,7 +50,7 @@ def _build_sandbox_command(command: str) -> list[str]:
     args.extend(["--ro-bind", "/", "/", "--bind", cwd, cwd])
     if not termux:
         args.extend(["--tmpfs", "/tmp", "--proc", "/proc", "--dev", "/dev"])
-    return args + ["--chdir", cwd, shell, "-c", command]
+    return args + ["--setenv", "TMPDIR", "/tmp", "--chdir", cwd, shell, "-c", command]
 
 
 def _run_bash(command: str, *, sandbox: bool) -> str:

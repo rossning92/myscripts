@@ -9,10 +9,7 @@ def main() -> None:
     args = parser.parse_args()
 
     csv_file = args.file
-    menu = CsvMenu(csv_file=csv_file)
-    menu.exec()
-    if menu.selected_val is not None:
-        print(menu.selected_val)
+    CsvMenu(csv_file=csv_file).exec()
 
 
 if __name__ == "__main__":

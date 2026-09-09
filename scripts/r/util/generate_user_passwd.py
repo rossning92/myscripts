@@ -41,21 +41,21 @@ def main():
     if not interactive:
         return
 
-    print("\nu copy username  p copy password", end="", flush=True)
+    print("\nu copy username  p copy password  q quit", end="", flush=True)
     while True:
         key = getch()
         key = key.lower() if key else ""
 
         if key == "u":
             set_clip(username)
-            message = "Username copied"
-            break
-        if key == "p":
+            print("\nUsername copied", end="", flush=True)
+        elif key == "p":
             set_clip(password)
-            message = "Password copied"
+            print("\nPassword copied", end="", flush=True)
+        elif key == "q":
             break
 
-    print(f"\n{message}")
+    print()
 
 
 if __name__ == "__main__":

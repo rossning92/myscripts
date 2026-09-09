@@ -1988,6 +1988,15 @@ class Menu(Generic[T]):
     def get_scroll_distance(self) -> int:
         return max(1, (self.__width - self.__gutter_width) // 2)
 
+    def scroll_horizontal_into_view(self, start: int, end: int):
+        viewport_width = max(1, self.__width - self.__gutter_width)
+        if start < self.__scroll_x:
+            self.__scroll_x = start
+        visible_width = viewport_width - 1 if self.__scroll_x > 0 else viewport_width
+        if end > self.__scroll_x + visible_width:
+            self.__scroll_x = max(0, end - viewport_width + 1)
+        self.update_screen()
+
     def get_status_text(self) -> str:
         status = ""
         if self.__message:

@@ -1,16 +1,15 @@
 import csv
-import datetime
 import os
 from typing import List, Optional, OrderedDict
 
-from utils.editor import edit_text
+from utils.clip import set_clip
 from utils.jsonutil import load_json, save_json
 from utils.menu.confirmmenu import confirm
 
 from .menu import Menu
 from .inputmenu import InputMenu
 
-MAX_COLUMN_WIDTH = 16
+MAX_COLUMN_WIDTH = 12
 
 COLUMN_SEPARATOR = "  "
 
@@ -153,30 +152,6 @@ class CsvData:
             self.column_width.append(max_width)
 
 
-class CsvCell:
-    def __init__(
-        self,
-        df: CsvData,
-        row_index: int,
-        name: str,
-        max_column_name_width: int,
-    ) -> None:
-        self.df = df
-        self.row_index = row_index
-        self.name = name
-        self.max_column_name_width = max_column_name_width
-
-    def __str__(self) -> str:
-        cell_value = str(self.df.get_cell(self.row_index, self.name))
-        lines = cell_value.splitlines()
-        header = self.name.ljust(self.max_column_name_width, " ") + " : "
-        indented_lines = "\n".join(
-            ((" " * (self.max_column_name_width + 3)) + line if i > 0 else line)
-            for i, line in enumerate(lines)
-        )
-        return header + indented_lines
-
-
 class CsvRow:
     def __init__(self, df: CsvData, row_index: int) -> None:
         self.df = df
@@ -184,101 +159,6 @@ class CsvRow:
 
     def __str__(self) -> str:
         return " ".join(self.df.get_row_list(self.row_index))
-
-
-class RowMenu(Menu[CsvCell]):
-    def __init__(self, df: CsvData, row_index: int) -> None:
-        self.df = df
-        self.row_index = row_index
-        self.selected_cell: Optional[CsvCell] = None
-
-        self.cells: List[CsvCell] = []
-        self._initialize_cells()
-
-        super().__init__(
-            items=self.cells,
-            wrap_text=True,
-            prompt=f"row {row_index}",
-        )
-
-        self.add_command(
-            lambda: self.run_raw(
-                lambda: self.edit_cell(external_editor=True)
-            ),
-            hotkey="ctrl+e",
-            name="edit_cell_in_editor",
-        )
-        self.add_command(
-            self._prev_row,
-            hotkey="left",
-        )
-        self.add_command(
-            self._next_row,
-            hotkey="right",
-        )
-        self.add_command(
-            self._insert_datetime,
-            hotkey="alt+d",
-            name="insert_datetime",
-        )
-
-    def _goto_row(self, row_index: int):
-        self.row_index = row_index
-        self.set_prompt(f"row {row_index}")
-        self._initialize_cells()
-        self.update_screen()
-
-    def _prev_row(self):
-        self._goto_row(max(self.row_index - 1, 0))
-
-    def _next_row(self):
-        self._goto_row(min(self.row_index + 1, self.df.get_row_count() - 1))
-
-    def _insert_datetime(self):
-        cell = self.get_selected_item()
-        if cell is not None:
-            now = datetime.datetime.now()
-            datetime_str = now.strftime("%Y-%m-%d %H:%M")
-            self.df.set_cell(self.row_index, cell.name, datetime_str)
-            self.df.save_csv()
-            self.update_screen()
-
-    def _initialize_cells(self):
-        max_column_name_width = max(len(col) for col in self.df.get_header())
-        self.cells[:] = [
-            CsvCell(
-                df=self.df,
-                row_index=self.row_index,
-                name=name,
-                max_column_name_width=max_column_name_width,
-            )
-            for name, _ in self.df.get_row_dict(self.row_index).items()
-        ]
-
-    def on_enter_pressed(self):
-        self.edit_cell()
-
-    def edit_cell(self, external_editor=False):
-        cell = self.get_selected_item()
-        if cell is not None:
-            value = self.df.get_cell(self.row_index, cell.name)
-
-            if external_editor:
-                new_value = edit_text(text=value).rstrip()
-            else:
-                new_value = InputMenu(
-                    prompt=f"edit {cell.name}",
-                    text=value,
-                    items=self.df.get_unique_values_for_column(cell.name),
-                ).request_input()
-
-            if new_value is not None and new_value != value:
-                self.df.set_cell(self.row_index, cell.name, new_value)
-                self.df.save_csv()
-                # If the header is changed, close the menu because the cell becomes invalid.
-                if self.row_index == 0:
-                    self.close()
-                self.update_screen()
 
 
 def _get_setting_file(csv_file: str) -> str:
@@ -293,12 +173,12 @@ class CsvMenu(Menu[CsvRow]):
         self.__settings = load_json(self.__setting_file, default={})
 
         self.df = CsvData(csv_file)
-        self.selected_val: Optional[str] = None
 
         self._rows: List[CsvRow] = []
         self.__update_rows()
 
         self._select_row = False
+        self._selected_column = 0
 
         super().__init__(
             items=self._rows,
@@ -314,7 +194,10 @@ class CsvMenu(Menu[CsvRow]):
         self.add_command(self.__duplicate_row, hotkey="ctrl+d")
         self.add_command(self.__delete_row, hotkey="ctrl+k")
         self.add_command(self.__save, hotkey="ctrl+s")
+        self.add_command(self.__copy_selected_cell, hotkey="ctrl+y", override=True)
         self.add_command(self.__sort_by_column, hotkey="alt+s")
+        self.add_command(self.__select_prev_column, hotkey="left")
+        self.add_command(self.__select_next_column, hotkey="right")
 
         if "selected_row" in self.__settings:
             row = self.__settings["selected_row"]
@@ -336,6 +219,13 @@ class CsvMenu(Menu[CsvRow]):
         self.df.save_csv()
         self.set_message("saved")
 
+    def __copy_selected_cell(self):
+        row = self.get_selected_item()
+        if row is not None:
+            value = self.df.get_row_list(row.row_index)[self._selected_column]
+            set_clip(value)
+            self.set_message(f"copied: {value}")
+
     def __update_rows(self):
         self._rows.clear()
         for row_index in range(self.df.get_row_count()):
@@ -344,33 +234,65 @@ class CsvMenu(Menu[CsvRow]):
     def on_enter_pressed(self):
         if self._select_row:
             super().on_enter_pressed()
-        else:
-            row = self.get_selected_item()
-            if row is not None:
-                self.__edit_row(row_index=row.row_index)
+            return
 
-    def __edit_row(self, row_index: int):
-        menu = RowMenu(df=self.df, row_index=row_index)
-        menu.exec()
-        if menu.selected_cell is not None:
-            val = self.df.get_cell(row_index, menu.selected_cell.name)
-            self.selected_val = val
-            self.close()
+        row = self.get_selected_item()
+        if row is not None:
+            self.__edit_cell(row.row_index)
+
+    def __edit_cell(self, row_index: int):
+        name = self.df.get_header()[self._selected_column]
+        value = self.df.get_row_list(row_index)[self._selected_column]
+        new_value = InputMenu(
+            prompt=f"edit {name}",
+            text=value,
+            items=self.df.get_unique_values_for_column(name),
+        ).request_input()
+        if new_value is not None and new_value != value:
+            self.df.set_cell(row_index, name, new_value)
+            self.df.save_csv()
+            self.update_screen()
+
+    def __select_prev_column(self):
+        if not self._select_row:
+            self._selected_column = max(self._selected_column - 1, 0)
+            self.__scroll_selected_column_into_view()
+
+    def __select_next_column(self):
+        if not self._select_row:
+            self._selected_column = min(
+                self._selected_column + 1, len(self.df.get_header()) - 1
+            )
+            self.__scroll_selected_column_into_view()
+
+    def __scroll_selected_column_into_view(self):
+        start = sum(
+            min(width, MAX_COLUMN_WIDTH) + len(COLUMN_SEPARATOR)
+            for width in self.df.column_width[: self._selected_column]
+        )
+        width = min(
+            self.df.column_width[self._selected_column], MAX_COLUMN_WIDTH
+        )
+        self.scroll_horizontal_into_view(start, start + width)
 
     def get_item_text(self, item: CsvRow) -> str:
         row = self.df.get_row_list(item.row_index)
-        s = COLUMN_SEPARATOR.join(
-            [
-                format_text(
-                    text,
-                    column_width=self.df.column_width[i],
-                    row_index=item.row_index,
-                    is_last_column=i == len(row) - 1,
-                )
-                for i, text in enumerate(map(str, row))
-            ]
-        )
-        return s
+        cells = [
+            format_text(
+                text,
+                column_width=self.df.column_width[i],
+                row_index=item.row_index,
+                is_last_column=i == len(row) - 1,
+            )
+            for i, text in enumerate(map(str, row))
+        ]
+        selected_row = self.get_selected_item()
+        if not self._select_row and selected_row is item:
+            cells[self._selected_column] = (
+                "\x1b[27m" + cells[self._selected_column] + "\x1b[7m"
+            )
+            return "\x1b[7m" + COLUMN_SEPARATOR.join(cells) + "\x1b[27m"
+        return COLUMN_SEPARATOR.join(cells)
 
     def __add_column(self):
         name = InputMenu(prompt="New column name").request_input()
@@ -382,9 +304,10 @@ class CsvMenu(Menu[CsvRow]):
 
     def __add_row(self, row_index=None):
         row_index = self.df.add_row(index=row_index)
+        self.df.save_csv()
         self.__update_rows()
-        self.__edit_row(row_index=row_index)
         self.set_selected_row(row_index)
+        self.__edit_cell(row_index)
 
     def __add_row_before(self):
         row = self.get_selected_item()
@@ -400,9 +323,10 @@ class CsvMenu(Menu[CsvRow]):
         row = self.get_selected_item()
         if row is not None:
             dup_row_index = self.df.duplicate_row(row.row_index)
+            self.df.save_csv()
             self.__update_rows()
             self.set_selected_row(dup_row_index)
-            self.__edit_row(dup_row_index)
+            self.__edit_cell(dup_row_index)
 
     def __delete_row(self):
         row = self.get_selected_item()

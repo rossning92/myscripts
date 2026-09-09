@@ -4,6 +4,7 @@ import os
 import shlex
 import sys
 import threading
+from concurrent.futures import Future
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypedDict, cast
 
@@ -157,7 +158,7 @@ class AgentMenu(ChatMenu):
                 if self.get_settings()["skill"]
                 else ai.utils.tools.read.read
             ),
-            self.__wrap_edit(ai.utils.tools.edit.edit),
+            ai.utils.tools.edit.edit,
             (
                 ai.utils.tools.powershell.powershell
                 if sys.platform == "win32"
@@ -173,15 +174,6 @@ class AgentMenu(ChatMenu):
         )
 
         self.__update_tools()
-
-    def __wrap_edit(self, tool: Callable) -> Callable:
-        @functools.wraps(tool)
-        def checkpointed_edit(file: str, old_string: str, new_string: str):
-            message_index, _ = self.get_message_index_and_subindex()
-            self.__checkpoint.save(message_index, file)
-            return tool(file=file, old_string=old_string, new_string=new_string)
-
-        return checkpointed_edit
 
     def _on_session_changed(self, session_id: str):
         self.__checkpoint = self.__create_checkpoint(session_id)
@@ -202,29 +194,23 @@ class AgentMenu(ChatMenu):
         return list(message.get("tool_use", []))
 
     def __run_blocking(self, func: Callable[[], Any]) -> Any:
-        # Run a blocking tool call on a worker thread while pumping the curses
-        # event loop on this (main) thread, so the UI stays responsive while we
-        # wait. Mirrors how a nested menu.exec() loop keeps the parent live.
-        result: Dict[str, Any] = {}
-        done = threading.Event()
+        future: Future[Any] = Future()
 
         def worker():
+            if not future.set_running_or_notify_cancel():
+                return
             try:
-                result["value"] = func()
-            except BaseException as ex:  # noqa: BLE001 - re-raised on main below.
-                result["error"] = ex
-            finally:
-                done.set()
+                future.set_result(func())
+            except BaseException as ex:
+                future.set_exception(ex)
 
         threading.Thread(target=worker, daemon=True).start()
 
-        while not done.is_set():
+        while not future.done():
             if self.process_events(timeout_sec=PROCESS_EVENT_INTERVAL_SEC):
-                break  # Menu was closed; stop pumping.
+                return future.result()
 
-        if "error" in result:
-            raise result["error"]
-        return result.get("value")
+        return future.result()
 
     def __execute_tool(self, tool_use: ToolUse):
         tool_name = tool_use["tool_name"]
@@ -233,6 +219,11 @@ class AgentMenu(ChatMenu):
             None,
         )
         if tool:
+            if tool_name == "edit":
+                file = tool_use["args"]["file"]
+                message_index, _ = self.get_message_index_and_subindex()
+                self.__checkpoint.save(message_index, file)
+
             if tool_name in ["bash", "powershell"] and not (
                 tool_name == "bash" and Settings.sandbox
             ):
@@ -241,7 +232,6 @@ class AgentMenu(ChatMenu):
                     allowed_commands=ALLOWED_COMMANDS,
                     save_path=str(ALLOWED_COMMANDS_FILE),
                 )
-                return self.__run_blocking(lambda: tool(**tool_use["args"]))
             if tool_name == "bash" and Settings.sandbox:
                 try:
                     return self.__run_blocking(lambda: tool(**tool_use["args"]))
@@ -256,18 +246,20 @@ class AgentMenu(ChatMenu):
                     return self.__run_blocking(
                         lambda: _run_bash(command, sandbox=False)
                     )
-            return tool(**tool_use["args"])
+            return self.__run_blocking(lambda: tool(**tool_use["args"]))
 
-        client = next(
-            (
-                c
-                for c in self.__mcp_clients
-                if any(t.name == tool_use["tool_name"] for t in c.list_tools())
-            ),
-            None,
+        client = self.__run_blocking(
+            lambda: next(
+                (
+                    c
+                    for c in self.__mcp_clients
+                    if any(t.name == tool_use["tool_name"] for t in c.list_tools())
+                ),
+                None,
+            )
         )
         if client:
-            return client.call_tool(tool_use)
+            return self.__run_blocking(lambda: client.call_tool(tool_use))
 
         subagent = next(a for a in self.__subagents if a["name"] == tool_name)
         menu = AgentMenu(
