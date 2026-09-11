@@ -9,14 +9,13 @@ local function worker()
     end
 
     local widget, text = status_widget.new("expansion-card")
-    local icon = "󰢮";
 
     -- `-l 1` reports GPU data every 1 second
     awful.spawn.with_line_callback('nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits -l 1', {
         stdout = function(line)
             local utilization = line:match("(%d+)")
             if utilization then
-                text:set_text(utilization .. "%")
+                text:set_text(string.format("%-3s", math.min(tonumber(utilization), 99) .. "%"))
             end
         end
     })

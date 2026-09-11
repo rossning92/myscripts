@@ -10,7 +10,17 @@ local dec_brightness_cmd
 
 local brightness_widget = {}
 
+-- Keep the global keybindings harmless on systems without a backlight.
+function brightness_widget:set(_) end
+function brightness_widget:toggle() end
+function brightness_widget:inc() end
+function brightness_widget:dec() end
+
 local function worker(user_args)
+    if os.execute("brightnessctl --class=backlight -m >/dev/null 2>&1") ~= true then
+        return nil
+    end
+
     local args = user_args or {}
 
     local timeout = args.timeout or 100
@@ -22,10 +32,10 @@ local function worker(user_args)
     local percentage = args.percentage or false
     local rmb_set_max = args.rmb_set_max or false
 
-    get_brightness_cmd = "bash -c 'brightnessctl -m | cut -d, -f4 | tr -d %'"
-    set_brightness_cmd = "brightnessctl set %d%%" -- <level>
-    inc_brightness_cmd = "brightnessctl set +" .. step .. "%"
-    dec_brightness_cmd = "brightnessctl set " .. step .. "-%"
+    get_brightness_cmd = "bash -c 'brightnessctl --class=backlight -m | cut -d, -f4 | tr -d %'"
+    set_brightness_cmd = "brightnessctl --class=backlight set %d%%" -- <level>
+    inc_brightness_cmd = "brightnessctl --class=backlight set +" .. step .. "%"
+    dec_brightness_cmd = "brightnessctl --class=backlight set " .. step .. "-%"
 
     local widget, text = status_widget.new("brightness-6")
     function widget:set_value(level)

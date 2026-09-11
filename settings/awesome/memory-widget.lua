@@ -4,16 +4,15 @@ local status_widget = require("status-widget")
 local memory_widget = {}
 
 local function worker()
-    local widget, text = status_widget.new("memory")
+    local widget, text = status_widget.new("ram")
     local _, timer = awful.widget.watch(
-        'free -h',
+        "free -b",
         1,
         function(_, stdout)
             local total, used = stdout:match("Mem:%s+(%S+)%s+(%S+)")
             if total and used then
-                local formatted_used = used:gsub("Gi", "")
-                local formatted_total = total:gsub("Gi", "G")
-                text:set_text(formatted_used .. "/" .. formatted_total)
+                local percentage = math.floor(tonumber(used) / tonumber(total) * 100 + 0.5)
+                text:set_text(string.format("%-3s", math.min(percentage, 99) .. "%"))
             end
         end
     )

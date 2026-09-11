@@ -8,7 +8,7 @@ if [[ ! -f /etc/arch-release ]]; then
 fi
 
 if ! command -v pqiv >/dev/null 2>&1; then
-    sudo pacman -S --needed pqiv
+    sudo pacman -S --needed --noconfirm pqiv
 fi
 
 config_dir="${XDG_CONFIG_HOME:-${HOME}/.config}"

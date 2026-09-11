@@ -1,5 +1,5 @@
 {
   "globalHotkey": "win+alt+t",
-  "title": "Telegram",
+  "windowClass": "web.telegram.org",
   "webApp": true
 }

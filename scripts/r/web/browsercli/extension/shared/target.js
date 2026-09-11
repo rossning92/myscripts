@@ -24,8 +24,51 @@ export function findElementByRef(ref) {
   return walk(document);
 }
 
-export function describeTarget({ ref, role, name }) {
-  return ref ? `ref "${ref}"` : `${role} named "${name}"`;
+// Self-contained because it is serialized into Runtime.evaluate.
+export function findElementByText(text) {
+  const normalize = (value) =>
+    String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+  const wanted = normalize(text);
+  const roots = [];
+  const collectRoots = (root) => {
+    roots.push(root);
+    for (const element of root.querySelectorAll("*")) {
+      if (element.shadowRoot) collectRoots(element.shadowRoot);
+    }
+  };
+  collectRoots(document);
+
+  const textMatches = [];
+  for (const root of roots) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const actual = normalize(node.nodeValue);
+      const element = node.parentElement;
+      if (actual !== wanted || !element || element.getClientRects().length === 0) {
+        continue;
+      }
+      const style = getComputedStyle(element);
+      if (style.visibility === "hidden" || style.display === "none") continue;
+      textMatches.push(element);
+    }
+  }
+
+  const matches = [...new Set(textMatches)];
+  if (matches.length > 1) {
+    throw new Error(
+      `Visible text ${JSON.stringify(wanted)} matched ${matches.length} elements`,
+    );
+  }
+  return matches[0] ?? null;
+}
+
+export function describeTarget({ ref, role, name, text }) {
+  if (ref) return `ref "${ref}"`;
+  if (text) return `text "${text}"`;
+  return `${role} named "${name}"`;
 }
 
 async function evaluateTarget(send, expression, description) {
@@ -79,6 +122,13 @@ async function resolveTargetOnce(send, args, { focused = false } = {}) {
       `ref "${args.ref}"`,
     );
   }
+  if (args.text) {
+    return evaluateTarget(
+      send,
+      `(${findElementByText.toString()})(${JSON.stringify(args.text)})`,
+      describeTarget(args),
+    );
+  }
   if (focused) {
     return evaluateTarget(send, "document.activeElement", "focused element");
   }
@@ -94,7 +144,7 @@ export async function resolveTarget(
     waitIntervalMs = DEFAULT_WAIT_INTERVAL_MS,
   } = {},
 ) {
-  if (focused && !args.ref && !(args.role && args.name)) {
+  if (focused && !args.ref && !args.text && !(args.role && args.name)) {
     return resolveTargetOnce(send, args, { focused });
   }
   const deadline = Date.now() + waitTimeoutMs;

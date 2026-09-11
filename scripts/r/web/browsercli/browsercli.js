@@ -93,22 +93,31 @@ function addTargetOptions(command) {
 }
 
 function targetArgs(options, { optional = false } = {}) {
-  const { ref, role, name } = options;
-  if (ref && (role || name)) {
-    throw new Error("Use either --ref or --role with --name, not both");
+  const { ref, role, name, text } = options;
+  const modes = [Boolean(ref), Boolean(role || name), Boolean(text)].filter(
+    Boolean,
+  );
+  if (modes.length > 1) {
+    throw new Error("Use only one of --ref, --text, or --role with --name");
   }
   if ((role && !name) || (!role && name)) {
     throw new Error("--role and --name must be used together");
   }
-  if (!optional && !ref && !role) {
-    throw new Error("Specify --ref, or both --role and --name");
+  if (!optional && !ref && !role && !text) {
+    throw new Error("Specify --ref, --text, or both --role and --name");
   }
-  return { ref, role, name };
+  if (ref) return { ref };
+  if (role) return { role, name };
+  if (text) return { text };
+  return {};
 }
 
-function describeTarget({ ref, role, name }) {
+function describeTarget({ ref, role, name, text }) {
   if (ref) return ref;
   if (role) return `${role} ${JSON.stringify(name)}`;
+  if (text) {
+    return `text ${JSON.stringify(text)}`;
+  }
   return "focused element";
 }
 
@@ -244,7 +253,13 @@ program
   });
 
 addTargetOptions(program.command("click"))
-  .description("Click an element by ref or accessible role and name")
+  .option(
+    "--text <text>",
+    "Exact visible text",
+  )
+  .description(
+    "Click an element by ref, visible text, or accessible role and name",
+  )
   .action(async (options) => {
     const target = targetArgs(options);
     await sendCommand("click", target);
@@ -256,7 +271,7 @@ addTargetOptions(program.command("type"))
   .argument("<text>", "Text to type")
   .action(async (text, options) => {
     const target = targetArgs(options, { optional: true });
-    await sendCommand("type", { text, ...target });
+    await sendCommand("type", { ...target, text });
     printSuccess(
       `typed ${text.length} characters into ${describeTarget(target)}`,
     );
@@ -267,7 +282,7 @@ addTargetOptions(program.command("fill"))
   .argument("<text>", "Text to fill")
   .action(async (text, options) => {
     const target = targetArgs(options);
-    await sendCommand("fill", { text, ...target });
+    await sendCommand("fill", { ...target, text });
     printSuccess(
       `filled ${describeTarget(target)} with ${text.length} characters`,
     );

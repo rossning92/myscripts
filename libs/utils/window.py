@@ -671,6 +671,40 @@ def activate_window_by_name(name, match_mode=TITLE_MATCH_MODE_DEFAULT):
     return _control_window(name=name, cmd="activate", match_mode=match_mode)
 
 
+def activate_window_by_class(name: str) -> bool:
+    """Activate an X11 window matching a WM_CLASS component exactly."""
+    if sys.platform != "linux" or not os.environ.get("DISPLAY"):
+        return False
+    if not shutil.which("wmctrl"):
+        return False
+
+    proc = subprocess.run(
+        ["wmctrl", "-lx"],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        logging.warning("wmctrl -lx failed: %s", proc.stderr.strip())
+        return False
+
+    expected_class = name.casefold()
+    for line in reversed(proc.stdout.splitlines()):
+        # wmctrl -lx columns: window-id desktop instance.class host title
+        parts = line.split(None, 4)
+        if len(parts) < 3:
+            continue
+        wm_class = parts[2]
+        instance_name, separator, class_name = wm_class.rpartition(".")
+        candidates = {wm_class.casefold(), class_name.casefold()}
+        if separator:
+            candidates.add(instance_name.casefold())
+        if expected_class not in candidates:
+            continue
+        return subprocess.call(["wmctrl", "-i", "-a", parts[0]]) == 0
+
+    return False
+
+
 def close_window_by_name(name, match_mode=TITLE_MATCH_MODE_DEFAULT):
     return _control_window(name=name, cmd="close", match_mode=match_mode)
 

@@ -331,7 +331,7 @@ class CsvMenu(Menu[CsvRow]):
     def __delete_row(self):
         row = self.get_selected_item()
         if row is not None:
-            if confirm('Delete row "{row}"?'):
+            if confirm(f'Delete row "{row}"?'):
                 self.df.delete_row(row_index=row.row_index)
                 self.df.save_csv()
                 self.__update_rows()

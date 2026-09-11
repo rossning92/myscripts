@@ -241,6 +241,7 @@ class FileMenu(Menu[_File]):
         self.add_command(self._copy_file_full_path, hotkey="alt+y")
         self.add_command(self._create_new_dir, hotkey="ctrl+n")
         self.add_command(self._delete_files, hotkey="ctrl+k")
+        self.add_command(self._empty_trash)
         self.add_command(self._edit_text_file, hotkey="ctrl+e")
         self.add_command(self._calc_dir_size, hotkey="alt+s")
         self.add_command(self._toggle_recursive, hotkey="ctrl+l")
@@ -431,6 +432,33 @@ class FileMenu(Menu[_File]):
                 self.set_multi_select(False)
 
             self.update_screen()
+
+    def _empty_trash(self):
+        if os.path.realpath(self.get_cur_dir()) != os.path.realpath(get_trash_dir()):
+            self.set_message("Empty trash is only available in the trash view")
+            return
+
+        if not confirm(
+            self._submenu_prompt("Permanently empty trash?"), prompt_color="red"
+        ):
+            return
+
+        trash_root = os.path.dirname(get_trash_dir())
+        try:
+            for subdir in ("files", "info"):
+                directory = os.path.join(trash_root, subdir)
+                for name in os.listdir(directory):
+                    path = os.path.join(directory, name)
+                    if os.path.isdir(path) and not os.path.islink(path):
+                        shutil.rmtree(path)
+                    else:
+                        os.remove(path)
+        except OSError as e:
+            self.set_message(f"Failed to empty trash: {e}")
+            return
+
+        self._refresh_cur_dir()
+        self.set_message("Trash emptied")
 
     def _copy_or_move_files(self, file: Optional[str] = None, copy=True):
         files: List[str] = []

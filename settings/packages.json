@@ -246,6 +246,9 @@
     "pacman": {
       "packages": ["flameshot"]
     },
+    "post_install": [
+      "mkdir -p \"$HOME/.config/flameshot\" && config_file=\"$HOME/.config/flameshot/flameshot.ini\" && if [ ! -f \"$config_file\" ]; then printf '[General]\\nuseX11LegacyScreenshot=true\\n' > \"$config_file\"; elif grep -q '^useX11LegacyScreenshot=' \"$config_file\"; then sed -i 's/^useX11LegacyScreenshot=.*/useX11LegacyScreenshot=true/' \"$config_file\"; else printf '\\nuseX11LegacyScreenshot=true\\n' >> \"$config_file\"; fi"
+    ],
     "winget": {
       "packages": ["Flameshot.Flameshot"]
     }

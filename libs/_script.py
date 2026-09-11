@@ -83,7 +83,11 @@ from utils.uv import (
     get_uv_python_executable,
     wrap_uv_command,
 )
-from utils.window import activate_window_by_name, close_window_by_name
+from utils.window import (
+    activate_window_by_class,
+    activate_window_by_name,
+    close_window_by_name,
+)
 
 SCRIPT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -700,6 +704,19 @@ class Script:
 
     def __activate_window(self, run_in_tmux: bool) -> bool:
         title = self.get_window_title()
+        window_class = self.cfg["windowClass"]
+        if (
+            sys.platform == "linux"
+            and window_class
+            and not run_in_tmux
+            and not is_in_tmux()
+        ):
+            assert isinstance(window_class, str)
+            if activate_window_by_class(window_class):
+                logging.info(f"Activated window by class: {window_class}")
+                return True
+            return False
+
         if (run_in_tmux or is_in_tmux()) and subprocess.call(
             [
                 "tmux",
@@ -1995,6 +2012,7 @@ def get_default_script_config() -> Dict[str, Union[str, bool, None]]:
         "updateSelectedScriptAccessTime": False,
         "variableNames": "auto",
         "venv.name": "",
+        "windowClass": "",
         "webApp": False,
         "workingDir": "",
         "wsl": False,

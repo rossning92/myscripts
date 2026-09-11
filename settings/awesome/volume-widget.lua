@@ -15,7 +15,7 @@ function Volume:new(args)
         function(_, stdout)
             local volume = stdout:match("(%d+)%%")
             if volume then
-                text:set_text(volume .. "%")
+                text:set_text(string.format("%-3s", math.min(tonumber(volume), 99) .. "%"))
                 return
             end
         end,

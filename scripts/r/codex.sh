@@ -35,6 +35,7 @@ fi
 
 codex_args=(
     "${sandbox_args[@]}"
+    -c 'model_verbosity="low"'
     -c 'tui.terminal_title=[]'
     -c 'tui.status_line=["context-used","used-tokens","weekly-limit"]'
     -c 'tui.show_tooltips=false'

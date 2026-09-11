@@ -53,6 +53,21 @@ test("resolveTarget reports a missing ref consistently", async () => {
   assert.equal(describeTarget({ ref: "@e9" }), 'ref "@e9"');
 });
 
+test("resolveTarget resolves visible text with exact matching by default", async () => {
+  const calls = [];
+  const send = async (method, params) => {
+    calls.push({ method, params });
+    return { result: { objectId: "text-object" } };
+  };
+  assert.equal(
+    await resolveTarget(send, { text: "Start Order" }, { waitTimeoutMs: 0 }),
+    "text-object",
+  );
+  assert.equal(calls[0].method, "Runtime.evaluate");
+  assert.match(calls[0].params.expression, /"Start Order"\)$/);
+  assert.equal(describeTarget({ text: "Start Order" }), 'text "Start Order"');
+});
+
 test("captureScreenshot uses CDP and returns base64 data", async () => {
   const calls = [];
   const result = await captureScreenshot(async (method, params) => {

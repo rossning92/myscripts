@@ -39,7 +39,6 @@ local cpu_widget = require("cpu-widget")
 local gpu_widget = require("gpu-widget")
 local disk_usage_widget = require("disk-usage-widget")
 local memory_widget = require("memory-widget")
-local temperature_widget = require("temperature-widget")
 local volume_widget = require('volume-widget')
 
 local cyclefocus = require('cyclefocus')
@@ -233,9 +232,8 @@ awful.screen.connect_for_each_screen(function(s)
     for _, w in ipairs({
         cpu_widget(),
         gpu_widget() or false,
-        temperature_widget {},
         volume.widget,
-        brightness_widget {},
+        brightness_widget {} or false,
         memory_widget {},
         disk_usage_widget {},
         battery_widget {} or false,
