@@ -5,6 +5,7 @@
 pcall(require, "luarocks.loader")
 
 local max_pin_layout = require("max_pin_layout")
+local screenlayout = require("screenlayout")
 
 -- Standard awesome library
 local gears = require("gears")
@@ -145,7 +146,9 @@ end), awful.button({}, 5, function()
 end))
 
 local function set_wallpaper(s)
-    -- Wallpaper
+    -- Keep pixels outside a fake-resized Awesome screen black.
+    gears.wallpaper.set("#000000")
+
     if beautiful.wallpaper then
         local wallpaper = beautiful.wallpaper
         -- If wallpaper is a function, call it with the screen
@@ -153,14 +156,13 @@ local function set_wallpaper(s)
             wallpaper = wallpaper(s)
         end
         gears.wallpaper.maximized(wallpaper, s, true)
-    else
-        gears.wallpaper.set("#282a36")
     end
 end
 
 -- When a screen's geometry changes (e.g. different resolution)
 screen.connect_signal("property::geometry", function(s)
     set_wallpaper(s)
+    screenlayout.apply_usable_region(s)
 end)
 
 
@@ -689,3 +691,4 @@ end)
 -- }}}
 
 awful.spawn.once("fcitx5 -d")
+screenlayout.apply_usable_region()

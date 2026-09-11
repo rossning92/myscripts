@@ -542,6 +542,20 @@
       "packages": ["MSYS2.MSYS2"]
     }
   },
+  "ncdu": {
+    "apt": {
+      "packages": ["ncdu"]
+    },
+    "brew": {
+      "packages": ["ncdu"]
+    },
+    "pacman": {
+      "packages": ["ncdu"]
+    },
+    "termux": {
+      "packages": ["ncdu"]
+    }
+  },
   "neovim": {
     "brew": {
       "packages": ["neovim"]
