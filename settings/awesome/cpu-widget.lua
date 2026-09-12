@@ -1,23 +1,33 @@
 local awful = require("awful")
+local beautiful = require("beautiful")
 local gears = require("gears")
+local wibox = require("wibox")
+local dpi = require("beautiful.xresources").apply_dpi
 local status_widget = require("status-widget")
 
 local cpu_widget = {}
 
 local function worker()
     local widget, text = status_widget.new("cpu")
+    local graph = wibox.widget {
+        max_value = 100,
+        forced_width = dpi(36),
+        forced_height = dpi(12),
+        color = beautiful.border_focus,
+        background_color = beautiful.bg_focus,
+        step_width = dpi(2),
+        step_spacing = 0,
+        widget = wibox.widget.graph,
+    }
+    widget:add(wibox.container.mirror(graph, { horizontal = true }))
+
     local prev_total = 0
     local prev_idle = 0
-    local usage_text = "--%"
     local temperature_text
     local temperature_path
 
     local function update_text()
-        local value = usage_text
-        if temperature_text then
-            value = value .. " " .. temperature_text
-        end
-        text:set_text(value)
+        text:set_text(temperature_text or "")
     end
 
     local function read_file(path)
@@ -40,7 +50,7 @@ local function worker()
                 local diff_idle = idle_sum - prev_idle
                 if diff_total > 0 then
                     local usage = math.floor(((diff_total - diff_idle) / diff_total) * 100 + 0.5)
-                    usage_text = string.format("%-3s", math.min(usage, 99) .. "%")
+                    graph:add_value(usage)
                 end
                 prev_total = total
                 prev_idle = idle_sum

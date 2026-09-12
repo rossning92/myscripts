@@ -79,36 +79,86 @@ async function evaluateTarget(send, expression, description) {
       `Unable to find element with ${description}`,
     );
   }
-  return response.result.objectId;
+  return { objectId: response.result.objectId, send };
+}
+
+async function resolveRefTarget(send, ref) {
+  const wanted = String(ref).replace(/^@/, "");
+  for (const context of send.contexts || [{ send }]) {
+    await context.send("DOM.enable");
+    await context.send("DOM.getDocument", { depth: -1, pierce: true });
+    const { searchId, resultCount = 0 } = await context.send(
+      "DOM.performSearch",
+      {
+        query: `[data-agent-ref="${wanted.replaceAll('"', '\\"')}"]`,
+        includeUserAgentShadowDOM: true,
+      },
+    );
+    try {
+      if (!searchId || resultCount === 0) continue;
+      const { nodeIds = [] } = await context.send("DOM.getSearchResults", {
+        searchId,
+        fromIndex: 0,
+        toIndex: resultCount,
+      });
+      for (const nodeId of nodeIds) {
+        const { object } = await context.send("DOM.resolveNode", { nodeId });
+        if (object?.objectId) {
+          return { objectId: object.objectId, send: context.send };
+        }
+      }
+    } finally {
+      if (searchId) {
+        await context.send("DOM.discardSearchResults", { searchId })
+          .catch(() => {});
+      }
+    }
+  }
+  throw new TargetNotFoundError(
+    `Unable to find element with ref "${ref}"`,
+  );
 }
 
 async function resolveAccessibilityTarget(send, { role, name }) {
-  await send("Accessibility.enable");
-  const { root } = await send("DOM.getDocument", { depth: 0 });
-  const { nodes = [] } = await send("Accessibility.queryAXTree", {
-    nodeId: root.nodeId,
-    accessibleName: name,
-    role,
-  });
-  const node = nodes.find(
-    (item) =>
-      !item.ignored &&
-      item.backendDOMNodeId &&
-      item.role?.value === role &&
-      item.name?.value === name,
-  );
+  let node;
+  let ownerSend = send;
+  for (const context of send.contexts || [{ send }]) {
+    await context.send("Accessibility.enable");
+    const { frameTree } = await context.send("Page.getFrameTree");
+    const frameIds = [];
+    const visitFrames = (item) => {
+      if (!item?.frame?.id) return;
+      frameIds.push(item.frame.id);
+      for (const child of item.childFrames || []) visitFrames(child);
+    };
+    visitFrames(frameTree);
+    for (const frameId of frameIds) {
+      const { nodes = [] } = await context.send(
+        "Accessibility.getFullAXTree",
+        { frameId },
+      );
+      node = nodes.find((item) =>
+        !item.ignored && item.backendDOMNodeId &&
+        item.role?.value === role && item.name?.value === name);
+      if (node) {
+        ownerSend = context.send;
+        break;
+      }
+    }
+    if (node) break;
+  }
   if (!node) {
     throw new TargetNotFoundError(
       `Unable to find element with ${role} named "${name}"`,
     );
   }
-  const { object } = await send("DOM.resolveNode", {
+  const { object } = await ownerSend("DOM.resolveNode", {
     backendNodeId: node.backendDOMNodeId,
   });
   if (!object?.objectId) {
     throw new TargetNotFoundError("Unable to resolve accessibility node");
   }
-  return object.objectId;
+  return { objectId: object.objectId, send: ownerSend };
 }
 
 async function resolveTargetOnce(send, args, { focused = false } = {}) {
@@ -116,11 +166,7 @@ async function resolveTargetOnce(send, args, { focused = false } = {}) {
     return resolveAccessibilityTarget(send, args);
   }
   if (args.ref) {
-    return evaluateTarget(
-      send,
-      `(${findElementByRef.toString()})(${JSON.stringify(args.ref)})`,
-      `ref "${args.ref}"`,
-    );
+    return resolveRefTarget(send, args.ref);
   }
   if (args.text) {
     return evaluateTarget(
@@ -160,7 +206,9 @@ export async function resolveTarget(
   }
 }
 
-export async function releaseTarget(send, objectId) {
-  if (!objectId) return;
-  await send("Runtime.releaseObject", { objectId }).catch(() => {});
+export async function releaseTarget(target) {
+  if (!target?.objectId) return;
+  await target.send("Runtime.releaseObject", {
+    objectId: target.objectId,
+  }).catch(() => {});
 }

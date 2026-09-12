@@ -119,6 +119,10 @@ const commands = {
     setTimeout(() => process.exit(0), 100);
   },
 
+  async "shutdown-daemon"() {
+    setTimeout(() => process.exit(0), 100);
+  },
+
   async "get-text"() {
     return await runOnActiveBackend("get-text", {}, () =>
       withActivePageCdp((send) => evaluatePageContent(send, "get-text")),

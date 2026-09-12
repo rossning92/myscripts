@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from utils.menu import Menu
+from utils.script.path import get_my_script_root
 
 
 PRIVATE_REPOSITORY_SYMBOL = "🔒"
@@ -44,12 +45,14 @@ class GithubRepoMenu(Menu[Repository]):
         if repository is None:
             return
 
-        projects_dir = Path.home() / "Projects"
-        projects_dir.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            ["gh", "repo", "clone", repository.name],
-            cwd=projects_dir,
-            check=True,
+        repos_dir = Path(get_my_script_root()) / "repos"
+        repos_dir.mkdir(parents=True, exist_ok=True)
+        self.run_raw(
+            lambda: subprocess.run(
+                ["gh", "repo", "clone", repository.name],
+                cwd=repos_dir,
+                check=True,
+            )
         )
 
     def on_enter_pressed(self) -> None:

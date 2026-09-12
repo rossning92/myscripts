@@ -57,8 +57,8 @@ async function ensureDaemon() {
   try {
     const { startTime } = await healthCheck();
     if (getLatestMtime(__dirname) <= startTime) return;
-    console.warn("browsercli source changed; restarting browser and daemon");
-    await postCommand("close-browser").catch(() => {});
+    console.warn("browsercli source changed; restarting daemon");
+    await postCommand("shutdown-daemon");
     await waitForDaemon(false);
   } catch {}
 

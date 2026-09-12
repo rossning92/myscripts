@@ -20,7 +20,7 @@ class ContainerMenu(Menu):
             return
 
         container_id = parts[0]
-        if confirm(f"Delete container {container_id}?"):
+        if confirm(f"Delete container {container_id}?", prompt_color="red"):
             subprocess.check_output(["docker", "rm", "-f", container_id])
             self.__refresh_containers()
 

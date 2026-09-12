@@ -273,6 +273,9 @@
     }
   },
   "gh": {
+    "apt": {
+      "packages": ["gh"]
+    },
     "choco": {
       "packages": ["gh"]
     },
@@ -1086,6 +1089,14 @@
   "wget": {
     "pacman": {
       "packages": ["wget"]
+    }
+  },
+  "wireguard": {
+    "apt": {
+      "packages": ["wireguard"]
+    },
+    "pacman": {
+      "packages": ["wireguard-tools"]
     }
   },
   "wmctrl": {

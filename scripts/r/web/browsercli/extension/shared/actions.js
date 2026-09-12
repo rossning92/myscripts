@@ -1,29 +1,17 @@
 import { callFunction, cdpError, sleep } from "./cdp-utils.js";
-import { describeTarget, releaseTarget, resolveTarget } from "./target.js";
+import {
+  describeTarget,
+  releaseTarget,
+  resolveTarget,
+} from "./target.js";
 
 const SCROLL_SETTLE_MS = 500;
 const POST_CLICK_DELAY_MS = 500;
 
 async function clickObject(send, objectId, { verifyToggle = true } = {}) {
   const info = await callFunction(send, objectId, function () {
-    let target = this;
-    if (["INPUT", "SELECT", "TEXTAREA"].includes(this.tagName)) {
-      let label = null;
-      if (this.id) {
-        try {
-          label = this.getRootNode().querySelector(
-            `label[for="${CSS.escape(this.id)}"]`,
-          );
-        } catch {}
-      }
-      if (!label) label = this.closest("label");
-      if (label) {
-        const rect = label.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) target = label;
-      }
-    }
-    target.scrollIntoView({ block: "center", inline: "center" });
-    const { left, top, width, height } = target.getBoundingClientRect();
+    this.scrollIntoView({ block: "center", inline: "center" });
+    const { width, height } = this.getBoundingClientRect();
     if (width <= 0 || height <= 0) {
       throw new Error("Target element has no visible area");
     }
@@ -31,8 +19,6 @@ async function clickObject(send, objectId, { verifyToggle = true } = {}) {
       this.tagName === "INPUT" &&
       (this.type === "radio" || this.type === "checkbox");
     return {
-      x: left + width / 2,
-      y: top + height / 2,
       isToggle,
       inputType: isToggle ? this.type : null,
       wasChecked: isToggle ? Boolean(this.checked) : null,
@@ -40,17 +26,27 @@ async function clickObject(send, objectId, { verifyToggle = true } = {}) {
   });
 
   await sleep(SCROLL_SETTLE_MS);
+  // DOM box-model coordinates are relative to the top-level viewport, unlike
+  // getBoundingClientRect() inside an iframe.
+  await send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
+  const { model } = await send("DOM.getBoxModel", { objectId });
+  const quad = model?.border;
+  if (!quad || quad.length !== 8) {
+    throw new Error("Unable to determine target element position");
+  }
+  const x = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
+  const y = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
   await send("Input.dispatchMouseEvent", {
     type: "mousePressed",
-    x: info.x,
-    y: info.y,
+    x,
+    y,
     button: "left",
     clickCount: 1,
   });
   await send("Input.dispatchMouseEvent", {
     type: "mouseReleased",
-    x: info.x,
-    y: info.y,
+    x,
+    y,
     button: "left",
     clickCount: 1,
   });
@@ -74,38 +70,49 @@ async function clickObject(send, objectId, { verifyToggle = true } = {}) {
 }
 
 export async function click(send, target) {
-  const objectId = await resolveTarget(send, target);
+  const resolved = await resolveTarget(send, target);
   try {
-    const ok = await clickObject(send, objectId);
+    const ok = await clickObject(resolved.send, resolved.objectId);
     if (!ok) {
       throw new Error(
         `Clicked ${describeTarget(target)} but its state did not change`,
       );
     }
   } finally {
-    await releaseTarget(send, objectId);
+    await releaseTarget(resolved);
   }
 }
 
-async function focusAndMaybeClear(send, objectId, clear) {
+async function focusAndMaybeSelect(send, objectId, clear) {
   await callFunction(send, objectId, function (shouldClear) {
     this.focus();
     if (!shouldClear) return;
     if ("value" in this) {
+      try {
+        this.setSelectionRange(0, String(this.value).length);
+        return;
+      } catch {}
+
+      // Some value controls do not support text selection.
       this.value = "";
+      this.dispatchEvent(new Event("input", { bubbles: true }));
     } else if (this.isContentEditable) {
-      this.textContent = "";
+      const range = document.createRange();
+      range.selectNodeContents(this);
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
     }
   }, [clear]);
 }
 
 export async function typeText(send, text, target = {}, { clear = false } = {}) {
-  const objectId = await resolveTarget(send, target, { focused: !clear });
+  const resolved = await resolveTarget(send, target, { focused: !clear });
   try {
-    await focusAndMaybeClear(send, objectId, clear);
-    await send("Input.insertText", { text });
+    await focusAndMaybeSelect(resolved.send, resolved.objectId, clear);
+    await resolved.send("Input.insertText", { text });
   } finally {
-    await releaseTarget(send, objectId);
+    await releaseTarget(resolved);
   }
 }
 
@@ -207,9 +214,9 @@ async function findVisibleOption(send, value) {
 }
 
 export async function select(send, target, value) {
-  const objectId = await resolveTarget(send, target);
+  const resolved = await resolveTarget(send, target);
   try {
-    const native = await callFunction(send, objectId, function (wanted) {
+    const native = await callFunction(resolved.send, resolved.objectId, function (wanted) {
       if (this.tagName !== "SELECT") return "combobox";
       const options = Array.from(this.options);
       const lower = wanted.toLowerCase();
@@ -229,11 +236,11 @@ export async function select(send, target, value) {
       );
     }
 
-    await clickObject(send, objectId, { verifyToggle: false });
+    await clickObject(resolved.send, resolved.objectId, { verifyToggle: false });
     let optionId = null;
     for (let attempt = 0; attempt < 15 && !optionId; attempt++) {
       await sleep(150);
-      optionId = await findVisibleOption(send, value);
+      optionId = await findVisibleOption(resolved.send, value);
     }
     if (!optionId) {
       throw new Error(
@@ -241,11 +248,11 @@ export async function select(send, target, value) {
       );
     }
     try {
-      await clickObject(send, optionId, { verifyToggle: false });
+      await clickObject(resolved.send, optionId, { verifyToggle: false });
     } finally {
-      await releaseTarget(send, optionId);
+      await releaseTarget({ objectId: optionId, send: resolved.send });
     }
-    const landed = await callFunction(send, objectId, function (wanted) {
+    const landed = await callFunction(resolved.send, resolved.objectId, function (wanted) {
       const norm = (text) =>
         (text || "").replace(/\s+/g, " ").trim().toLowerCase();
       return norm(this.textContent).includes(norm(wanted));
@@ -256,7 +263,7 @@ export async function select(send, target, value) {
       );
     }
   } finally {
-    await releaseTarget(send, objectId);
+    await releaseTarget(resolved);
   }
 }
 

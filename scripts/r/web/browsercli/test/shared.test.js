@@ -59,9 +59,9 @@ test("resolveTarget resolves visible text with exact matching by default", async
     calls.push({ method, params });
     return { result: { objectId: "text-object" } };
   };
-  assert.equal(
+  assert.deepEqual(
     await resolveTarget(send, { text: "Start Order" }, { waitTimeoutMs: 0 }),
-    "text-object",
+    { objectId: "text-object", send },
   );
   assert.equal(calls[0].method, "Runtime.evaluate");
   assert.match(calls[0].params.expression, /"Start Order"\)$/);
