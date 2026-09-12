@@ -234,6 +234,7 @@ class RepoMenu(Menu[Repo]):
         self._spinner = Spinner()
         self._last_refresh_time = 0.0
         self._focused = True
+        self._git_identity_ready = False
         self.add_command(self._sync, hotkey="ctrl+s", name="sync", pinned=True)
         self.add_command(self._amend, hotkey="alt+a", name="amend", pinned=True)
         self.add_command(self._commit, hotkey="alt+c", name="commit", pinned=True)
@@ -323,6 +324,33 @@ class RepoMenu(Menu[Repo]):
         menu.exec()
         self._refresh()
 
+    def _ensure_git_identity(self) -> bool:
+        """Prompt for missing global Git identity before creating a commit."""
+        if self._git_identity_ready:
+            return True
+
+        for key in ("user.name", "user.email"):
+            current = subprocess.run(
+                ["git", "config", "--global", "--get", key],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if current.returncode not in (0, 1):
+                raise subprocess.CalledProcessError(
+                    current.returncode, current.args, current.stderr
+                )
+            if current.returncode == 0 and current.stdout.strip():
+                continue
+            value = InputMenu(prompt=f"Git {key}:", prompt_color="green").request_input()
+            if not value or not value.strip():
+                return False
+            subprocess.run(
+                ["git", "config", "--global", key, value.strip()], check=True
+            )
+        self._git_identity_ready = True
+        return True
+
     def _sync(self):
         repo = self.get_selected_item()
         if repo is None or not repo.vcs:
@@ -335,6 +363,8 @@ class RepoMenu(Menu[Repo]):
             return
         if push and repo.is_hg:
             self.set_message("amend+push is not supported for hg")
+            return
+        if repo.is_git and not self._ensure_git_identity():
             return
         self._run_cmds(*get_amend_cmds(repo.vcs, push=push))
 
@@ -369,6 +399,8 @@ class RepoMenu(Menu[Repo]):
         if message is None:
             return
         if repo.is_git:
+            if not self._ensure_git_identity():
+                return
             # If something is already staged, commit only the staged files.
             # Otherwise fall back to staging everything.
             staged = get_vcs_output(

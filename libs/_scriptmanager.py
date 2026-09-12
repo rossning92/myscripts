@@ -63,11 +63,12 @@ def _linux_hotkey_command(scripts: List[Script]) -> str:
         return chooser
 
     script = scripts[0]
+    instance_mode = script.cfg["instanceMode"] or "activate"
     start = shlex.join(
         [
             sys.executable,
             os.path.join(root, "bin", "start_script.py"),
-            "--restart-instance=auto",
+            f"--instance-mode={instance_mode}",
             script.script_path,
         ]
     )
@@ -170,6 +171,8 @@ def register_global_hotkeys_linux(scripts: List[Script]):
         register_global_hotkeys_sway(scripts)
     elif shutil.which("sxhkd"):
         register_global_hotkeys_sxhkd(scripts)
+    else:
+        logging.warning("Global hotkeys unavailable: sxhkd is not installed")
 
 
 def _to_ahk_hotkey(hotkey: str):
@@ -197,15 +200,15 @@ def _windows_hotkey_action(scripts: List[Script]) -> str:
     )
     if len(scripts) == 1:
         script = scripts[0]
-        restart_instance = "true" if script.cfg["restartInstance"] else "false"
+        instance_mode = script.cfg["instanceMode"] or "activate"
         return (
             f"StartScript({_ahk_quote(script.get_window_title())}, "
-            f"{_ahk_quote(script.script_path)}, {restart_instance})"
+            f"{_ahk_quote(script.script_path)}, {_ahk_quote(instance_mode)})"
         )
 
     entries = []
     for script in scripts:
-        restart_instance = "true" if script.cfg["restartInstance"] else "false"
+        instance_mode = script.cfg["instanceMode"] or "activate"
         entries.append(
             "["
             + ", ".join(
@@ -213,7 +216,7 @@ def _windows_hotkey_action(scripts: List[Script]) -> str:
                     _ahk_quote(os.path.basename(script.script_path)),
                     _ahk_quote(script.get_window_title()),
                     _ahk_quote(script.script_path),
-                    restart_instance,
+                    _ahk_quote(instance_mode),
                 ]
             )
             + "]"
@@ -320,7 +323,7 @@ def execute_script(
         cd=cd,
         close_on_exit=close_on_exit,
         new_window=False if run_script_and_quit else None,
-        restart_instance=True,
+        instance_mode=script.cfg["instanceMode"] or "restart",
         out_to_file=out_to_file,
         run_script_local=run_script_local,
     )
@@ -362,7 +365,8 @@ def register_global_hotkeys_mac(scripts: List[Script]):
                     "title": script.get_window_title(),
                     "command": (
                         f'"{sys.executable}" "{root}/bin/start_script.py"'
-                        f" --restart-instance=auto {script.script_path}"
+                        f" --instance-mode={script.cfg['instanceMode'] or 'activate'}"
+                        f" {script.script_path}"
                     ),
                 }
             )

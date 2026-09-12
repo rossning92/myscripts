@@ -2,7 +2,7 @@
   "commandWrapper": false,
   "globalHotkey": "win+alt+p",
   "hotkey": "alt+p",
-  "restartInstance": false,
+  "instanceMode": "activate",
   "title": "command_prompt",
   "tmuxHotkey": "p"
 }

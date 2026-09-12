@@ -16,8 +16,11 @@ if [[ -n "${CODEX_PROJECT_DIR:-}" ]]; then
     cd "$CODEX_PROJECT_DIR"
 fi
 
+codex_npm_prefix="$HOME/.npm-global"
+export PATH="$codex_npm_prefix/bin:$PATH"
+
 if ! command -v codex >/dev/null 2>&1; then
-    npm install -g @openai/codex
+    npm install -g --prefix "$codex_npm_prefix" @openai/codex
 fi
 
 is_termux_proot_distro() {

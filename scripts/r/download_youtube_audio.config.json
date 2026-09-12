@@ -1,6 +1,6 @@
 {
   "matchClipboard": "{{ include('r/video_url_regex_youtube.txt') }}",
   "packages": "yt-dlp",
-  "singleInstance": false,
+  "instanceMode": "multiple",
   "workingDir": "{HOME}/Downloads"
 }

@@ -78,7 +78,7 @@ def run_bash_script_in_remote_shell(script_path, send_prev_job_to_background=Fal
         shell=False,
     )
 
-    start_script("r/linux/remote_shell.sh", restart_instance=None)
+    start_script("r/linux/remote_shell.sh", instance_mode=None)
 
 
 def _get_user(user=None):

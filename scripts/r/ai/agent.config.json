@@ -1,6 +1,6 @@
 {
   "dynamicTitle": true,
   "globalHotkey": "win+alt+k",
-  "singleInstance": false,
+  "instanceMode": "multiple",
   "tmuxHotkey": "k"
 }

@@ -1,4 +1,4 @@
 {
   "closeOnExit": false,
-  "singleInstance": false
+  "instanceMode": "multiple"
 }

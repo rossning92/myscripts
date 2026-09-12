@@ -794,8 +794,7 @@ class Script:
         args: List[str] = [],
         new_window: Optional[bool] = None,
         minimized: Optional[bool] = None,
-        single_instance=None,
-        restart_instance=False,
+        instance_mode: Optional[str] = None,
         close_on_exit=None,
         cd=True,
         tee=None,
@@ -827,17 +826,15 @@ class Script:
 
         background = background or self.cfg["background"]
 
-        if single_instance is None:
-            single_instance = self.cfg["singleInstance"]
-
         if tee is None:
             tee = self.cfg["tee"]
 
-        restart_instance_cfg = self.cfg["restartInstance"]
-        if restart_instance_cfg is not None:
-            restart_instance = bool(restart_instance_cfg)
+        if instance_mode is None:
+            instance_mode = self.cfg["instanceMode"] or "activate"
+        if instance_mode not in ("multiple", "activate", "restart"):
+            raise ValueError(f"Invalid instanceMode: {instance_mode}")
 
-        if new_window and not restart_instance and single_instance:
+        if new_window and instance_mode == "activate":
             if self.__activate_window(run_in_tmux=run_in_tmux):
                 return True
 
@@ -1445,7 +1442,7 @@ class Script:
                 no_wait = True
 
             elif new_window:
-                if restart_instance and single_instance:
+                if instance_mode == "restart":
                     self.__close_window(run_in_tmux=run_in_tmux)
 
                 try:
@@ -1859,8 +1856,7 @@ def start_script(
     console_title=None,
     minimized: Optional[bool] = None,
     new_window=None,
-    restart_instance: Optional[bool] = True,
-    single_instance=None,
+    instance_mode: Optional[str] = None,
     tee=None,
     template=None,
     variables=None,
@@ -1886,6 +1882,11 @@ def start_script(
         raise FileNotFoundError("Cannot find script: %s" % file)
 
     script = Script(script_path)
+
+    # start_script historically restarts by default, while allowing an explicit
+    # per-script setting to override that default. A caller-supplied mode wins.
+    if instance_mode is None:
+        instance_mode = script.cfg["instanceMode"] or "restart"
 
     if console_title:
         script.console_title = console_title
@@ -1916,8 +1917,7 @@ def start_script(
         command_wrapper=command_wrapper,
         minimized=minimized,
         new_window=new_window,
-        restart_instance=restart_instance,
-        single_instance=single_instance,
+        instance_mode=instance_mode,
         tee=tee,
         run_in_tmux=run_in_tmux,
         run_script_local=run_script_local,
@@ -1939,8 +1939,7 @@ def run_script(
     file: Optional[str] = None,
     args=[],
     new_window=False,  # should not start a new window by default
-    restart_instance=False,
-    single_instance=False,
+    instance_mode="multiple",
     cd=False,
     command_wrapper=False,
     tee=False,
@@ -1952,8 +1951,7 @@ def run_script(
         cd=cd,
         command_wrapper=command_wrapper,
         new_window=new_window,
-        restart_instance=restart_instance,
-        single_instance=single_instance,
+        instance_mode=instance_mode,
         tee=tee,
         **kwargs,
     )
@@ -1993,7 +1991,7 @@ def get_default_script_config() -> Dict[str, Union[str, bool, None]]:
         "packages.pip": "",
         "packages": "",
         "reloadScriptsAfterRun": False,
-        "restartInstance": None,
+        "instanceMode": None,
         "termux.proot": False,
         "runAsAdmin": False,
         "runAtStartup": False,
@@ -2002,7 +2000,6 @@ def get_default_script_config() -> Dict[str, Union[str, bool, None]]:
         "runOverSsh": False,
         "runpy": True,
         "runRemotely": False,
-        "singleInstance": True,
         "tee": False,
         "tmuxHotkey": "",
         "template": None,

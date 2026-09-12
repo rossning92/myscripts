@@ -40,8 +40,11 @@ def _parse_args():
         usage="run_script [options] <script_path> [script_args ...]",
     )
     parser.add_argument("--new-window", action="store_true", default=False)
-    parser.add_argument("--restart-instance", action="store_true", default=False)
-    parser.add_argument("--single-instance", action="store_true", default=False)
+    parser.add_argument(
+        "--instance-mode",
+        choices=("multiple", "activate", "restart"),
+        default="multiple",
+    )
     parser.add_argument("--cd", action="store_true", default=False)
     parser.add_argument("--command-wrapper", action="store_true", default=False)
     parser.add_argument("--tee", action="store_true", default=False)
@@ -57,8 +60,7 @@ def _parse_args():
         k: v
         for k, v in {
             "new_window": args.new_window,
-            "restart_instance": args.restart_instance,
-            "single_instance": args.single_instance,
+            "instance_mode": args.instance_mode,
             "cd": args.cd,
             "command_wrapper": args.command_wrapper,
             "tee": args.tee,

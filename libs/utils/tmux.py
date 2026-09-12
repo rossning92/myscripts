@@ -38,7 +38,7 @@ def _script_command(script: object) -> str:
         [
             sys.executable,
             start_script,
-            "--restart-instance=auto",
+            "--instance-mode=activate",
             script.script_path,
         ]
     )

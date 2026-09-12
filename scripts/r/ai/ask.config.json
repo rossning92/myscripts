@@ -1,7 +1,0 @@
-{
-  "args.selectionAsFile": true,
-  "globalHotkey": "win+k a",
-  "restartInstance": true,
-  "title": "chat_menu",
-  "variableNames": "OPENAI_API_KEY SERPERDEV_API_KEY PROMPT_DIR"
-}

@@ -15,12 +15,12 @@ return
 
 #enter::RestartLastScript()
 
-StartScript(scriptTitle, scriptPath, restartInstance)
+StartScript(scriptTitle, scriptPath, instanceMode)
 {
     global LastScript
 
     titlePattern := "^" . scriptTitle . "|" . scriptTitle . "$"
-    if WinExist(titlePattern) and not restartInstance
+    if WinExist(titlePattern) and instanceMode = "activate"
     {
         if WinActive(titlePattern)
             WinActivateBottom, %titlePattern%
@@ -32,7 +32,7 @@ StartScript(scriptTitle, scriptPath, restartInstance)
     UpdateExplorerInfo()
     now := A_TickCount
     options := ""
-    Run "{{PYTHON_EXEC}}" "{{START_SCRIPT}}" --restart-instance %restartInstance% "%scriptPath%",, Hide
+    Run "{{PYTHON_EXEC}}" "{{START_SCRIPT}}" --instance-mode %instanceMode% "%scriptPath%",, Hide
 
     LastScript := scriptPath
 }
@@ -63,7 +63,7 @@ RestartLastScript()
 {
     global LastScript
     if (LastScript <> "") {
-        Run "{{PYTHON_EXEC}}" "{{START_SCRIPT}}" --restart-instance true %LastScript%,, Hide
+        Run "{{PYTHON_EXEC}}" "{{START_SCRIPT}}" --instance-mode restart %LastScript%,, Hide
     }
 }
 

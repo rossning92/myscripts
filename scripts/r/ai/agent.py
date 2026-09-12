@@ -30,7 +30,14 @@ def main() -> int:
     args = parser.parse_args()
 
     agent = get_default_agent()
-    command = ["run_script", AGENTS[agent]]
+    # A bare invocation comes from the global hotkey: activate the default
+    # agent's idle window when it exists, otherwise launch it. Invocations that
+    # carry work must still create a session to receive that work.
+    command = (
+        ["start_script", "--instance-mode=activate", AGENTS[agent]]
+        if not args.context and not args.prompt
+        else ["run_script", AGENTS[agent]]
+    )
     if args.context:
         command.extend(["--context", args.context])
     if args.prompt:

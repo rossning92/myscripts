@@ -65,4 +65,4 @@ fi
 
 selected_script=${!selected_index}
 exec "$python_executable" "$script_dir/start_script.py" \
-    --restart-instance=auto "$selected_script"
+    --instance-mode=activate "$selected_script"

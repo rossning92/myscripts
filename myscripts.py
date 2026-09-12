@@ -350,7 +350,7 @@ class _MyScriptMenu(Menu[Script]):
         script.execute(
             args=[],
             close_on_exit=True,
-            restart_instance=False,
+            instance_mode="multiple",
             new_window=False,
             background=True,
         )

@@ -1,6 +1,6 @@
 {
   "dynamicTitle": true,
-  "singleInstance": false,
+  "instanceMode": "multiple",
   "termux.proot": true,
   "title": "Codex (new)"
 }

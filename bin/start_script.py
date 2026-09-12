@@ -17,19 +17,20 @@ def str2bool(value):
         return value
     if value.lower() in ("yes", "true", "t", "y", "1"):
         return True
-    elif value.lower() in ("no", "false", "f", "n", "0"):
+    if value.lower() in ("no", "false", "f", "n", "0"):
         return False
-    elif value.lower() == "auto":
-        return None
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
+    raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("file", nargs="?")
     parser.add_argument("--cd", type=str2bool, default=True)
-    parser.add_argument("--restart-instance", type=str2bool, default=True)
+    parser.add_argument(
+        "--instance-mode",
+        choices=("multiple", "activate", "restart"),
+        default=None,
+    )
     parser.add_argument("--minimized", action="store_true")
     parser.add_argument("--background", action="store_true")
     parser.add_argument("--run-in-tmux", action="store_true")
@@ -50,6 +51,6 @@ if __name__ == "__main__":
         cd=args.cd,
         background=args.background,
         minimized=args.minimized,
-        restart_instance=args.restart_instance,
+        instance_mode=args.instance_mode,
         run_in_tmux=args.run_in_tmux,
     )

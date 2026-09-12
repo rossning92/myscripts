@@ -91,7 +91,6 @@
     }
   },
   "betterlockscreen": {
-    "post_install": ["sudo systemctl enable betterlockscreen@$(whoami)"],
     "yay": {
       "packages": ["betterlockscreen"]
     }
@@ -322,6 +321,9 @@
     }
   },
   "git-lfs": {
+    "apt": {
+      "packages": ["git-lfs"]
+    },
     "choco": {
       "packages": ["git-lfs"]
     },
@@ -560,6 +562,9 @@
     }
   },
   "neovim": {
+    "apt": {
+      "packages": ["neovim"]
+    },
     "brew": {
       "packages": ["neovim"]
     },
@@ -618,6 +623,9 @@
     }
   },
   "npm": {
+    "apt": {
+      "packages": ["npm"]
+    },
     "pacman": {
       "packages": ["npm"]
     },
@@ -784,6 +792,9 @@
     }
   },
   "remmina": {
+    "apt": {
+      "packages": ["remmina", "remmina-plugin-vnc"]
+    },
     "pacman": {
       "packages": ["remmina", "libvncserver"]
     }

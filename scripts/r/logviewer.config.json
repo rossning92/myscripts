@@ -1,4 +1,4 @@
 {
-  "singleInstance": false,
+  "instanceMode": "multiple",
   "variableNames": "LOG_PRESET_DIR"
 }

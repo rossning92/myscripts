@@ -1,7 +1,7 @@
 {
   "globalHotkey": "win+tab",
   "hotkey": "ctrl+w",
-  "restartInstance": false,
+  "instanceMode": "activate",
   "terminal": "",
   "tmuxHotkey": "w",
   "title": "win_switcher"
