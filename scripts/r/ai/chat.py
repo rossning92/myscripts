@@ -50,7 +50,13 @@ def get_tool_use_text(tool_use: ToolUse) -> str:
 
 
 def get_reasoning_text(text: str) -> str:
-    return "\033[34m… reasoning: {}\033[0m".format(truncate_text(text))
+    text = text.rstrip("\r\n")
+    lines = text.splitlines()
+    latest_line = lines[-1] if lines else ""
+    hidden_prefix = "… " if len(lines) > 1 else ""
+    return "\033[34m• reasoning: {}{}\033[0m".format(
+        hidden_prefix, truncate_text(latest_line)
+    )
 
 
 async def complete_chat(

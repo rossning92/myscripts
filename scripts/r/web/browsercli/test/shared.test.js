@@ -13,11 +13,17 @@ import {
 } from "../extension/shared/target.js";
 import { upload } from "../extension/shared/upload.js";
 import { normalizeUrl } from "../extension/shared/navigation.js";
+import { isInteractive } from "../extension/shared/snapshot.js";
 
 test("normalizeUrl preserves schemes and defaults bare hosts to HTTP", () => {
   assert.equal(normalizeUrl("example.com"), "http://example.com");
   assert.equal(normalizeUrl("https://example.com"), "https://example.com");
   assert.equal(normalizeUrl("chrome://settings"), "chrome://settings");
+});
+
+test("clickable generic nodes are interactive", () => {
+  assert.equal(isInteractive({ role: "generic", clickable: true }), true);
+  assert.equal(isInteractive({ role: "generic" }), undefined);
 });
 
 test("parseKeyChord normalizes modifiers and named keys", () => {

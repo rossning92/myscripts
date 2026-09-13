@@ -242,7 +242,7 @@ class FileMenu(Menu[_File]):
         self.add_command(self._create_new_dir, hotkey="ctrl+n")
         self.add_command(self._delete_files, hotkey="ctrl+k")
         self.add_command(self._empty_trash)
-        self.add_command(self._edit_text_file, hotkey="ctrl+e")
+        self.add_command(self._edit_text_file, hotkey="ctrl+e", override=True)
         self.add_command(self._calc_dir_size, hotkey="alt+s")
         self.add_command(self._toggle_recursive, hotkey="ctrl+l")
         self.add_command(self._move_to, hotkey="alt+m")

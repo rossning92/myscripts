@@ -330,6 +330,10 @@
     "choco": {
       "packages": ["git-lfs"]
     },
+    "dnf": {
+      "packages": ["git-lfs"]
+    },
+    "executables": ["git-lfs"],
     "pacman": {
       "packages": ["git-lfs"]
     },

@@ -22,7 +22,7 @@ _AUTO_REFRESH_INTERVAL_SECONDS = 2.0
 _PROMPT = "activate window"
 
 _STATUS_COLOR_MAPPING: Dict[WindowStatus, str] = {
-    "done": "green",
+    "success": "green",
     "error": "red",
     "running": "yellow",
 }
@@ -39,7 +39,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         )
         self.__auto_refresh_enabled = True
         self.script_status: Dict[str, str] = {}
-        self.__visited_done: Set[str] = set()
+        self.__visited_success: Set[str] = set()
         self.__pinned: Set[str] = set()
         self.add_command(self.__refresh_windows, hotkey="ctrl+r")
         self.add_command(self.__close_windows, hotkey="delete")
@@ -76,17 +76,19 @@ class WinSwitcherMenu(Menu[WindowItem]):
                 if w.title in self.__pinned
                 else (
                     1
-                    if w.get_status(self.script_status) == "done"
-                    and w.title not in self.__visited_done
-                    else 2 if w.get_status(self.script_status) == "done" else 3
+                    if w.get_status(self.script_status) == "success"
+                    and w.title not in self.__visited_success
+                    else 2 if w.get_status(self.script_status) == "success" else 3
                 ),
             )
         )
 
-        current_done_titles = {
-            w.title for w in self.items if w.get_status(self.script_status) == "done"
+        current_success_titles = {
+            w.title
+            for w in self.items
+            if w.get_status(self.script_status) == "success"
         }
-        self.__visited_done &= current_done_titles
+        self.__visited_success &= current_success_titles
 
         if message:
             self.set_message(message)
@@ -134,8 +136,8 @@ class WinSwitcherMenu(Menu[WindowItem]):
         selected = self.get_selected_item()
         if selected:
             self.__activate_window(selected.id)
-            if selected.get_status(self.script_status) == "done":
-                self.__visited_done.add(selected.title)
+            if selected.get_status(self.script_status) == "success":
+                self.__visited_success.add(selected.title)
 
     def on_focus_gained(self):
         self.__refresh_windows()
@@ -146,7 +148,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         for item in self.items:
             if item.title in self.__pinned:
                 continue
-            if item.get_status(self.script_status) == "done":
+            if item.get_status(self.script_status) == "success":
                 self.set_selected_item(item)
                 break
 
@@ -164,7 +166,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         if item.title in self.__pinned:
             return "★ " + item.title
         status = item.get_status(self.script_status)
-        if status == "done" and item.title not in self.__visited_done:
+        if status == "success" and item.title not in self.__visited_success:
             return "● " + item.title
         return item.title
 

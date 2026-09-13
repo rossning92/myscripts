@@ -28,7 +28,6 @@ rclone_wrapper() {
 
     rclone bisync "drive:$1" "$local_dir" \
         --color NEVER \
-        --verbose \
         --ignore-checksum \
         --max-lock 2m \
         --recover \

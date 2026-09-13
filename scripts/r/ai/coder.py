@@ -198,7 +198,7 @@ class CoderMenu(AgentMenu):
         return super().get_item_color(item)
 
     def item_wrap(self, item: Line) -> bool:
-        if item.type == "diff":
+        if item.type == "diff" or item.reasoning:
             return False
         return super().item_wrap(item)
 

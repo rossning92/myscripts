@@ -200,15 +200,13 @@ def _windows_hotkey_action(scripts: List[Script]) -> str:
     )
     if len(scripts) == 1:
         script = scripts[0]
-        instance_mode = script.cfg["instanceMode"] or "activate"
         return (
             f"StartScript({_ahk_quote(script.get_window_title())}, "
-            f"{_ahk_quote(script.script_path)}, {_ahk_quote(instance_mode)})"
+            f"{_ahk_quote(script.script_path)})"
         )
 
     entries = []
     for script in scripts:
-        instance_mode = script.cfg["instanceMode"] or "activate"
         entries.append(
             "["
             + ", ".join(
@@ -216,7 +214,6 @@ def _windows_hotkey_action(scripts: List[Script]) -> str:
                     _ahk_quote(os.path.basename(script.script_path)),
                     _ahk_quote(script.get_window_title()),
                     _ahk_quote(script.script_path),
-                    _ahk_quote(instance_mode),
                 ]
             )
             + "]"

@@ -16,7 +16,7 @@ from _script import (
 )
 from _shutil import quote_arg
 from utils.clip import set_clip_osc52
-from utils.editor import is_vscode_available, open_in_vscode
+from utils.editor import open_in_vscode
 from utils.jsonutil import save_json
 from utils.menu import Menu
 from utils.menu.dicteditmenu import DictEditMenu
@@ -31,7 +31,6 @@ from utils.script.path import (
     get_script_root,
 )
 from utils.template import render_template_file
-from utils.tmux import is_in_tmux
 
 SCRIPT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -89,15 +88,12 @@ def open_myscript_workspace():
 
 
 def edit_script(
-    file: str, editor: Literal["auto", "vim", "vscode"] = "auto", line: int = None
+    file: str, editor: Literal["vim", "vscode"] = "vim", line: int = None
 ):
     if os.path.splitext(file)[1] == ".link":
         file = open(file, "r", encoding="utf-8").read().strip()
 
-    use_vscode = editor == "vscode" or (
-        editor == "auto" and is_vscode_available() and not is_in_tmux()
-    )
-    if use_vscode:
+    if editor == "vscode":
         workspace_file = create_myscript_workspace()
         open_in_vscode([workspace_file, file], line_number=line)
     else:

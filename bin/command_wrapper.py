@@ -56,7 +56,7 @@ if __name__ == "__main__":
         end_time = time.time()
         has_error = code != 0
         if window_title:
-            send_notify(app=window_title, hint="error" if has_error else "done")
+            send_notify(app=window_title, hint="error" if has_error else "success")
 
         duration = end_time - start_time
         keep_terminal_on = not close_on_exit
@@ -69,3 +69,7 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         print("Ctrl-C")
+    finally:
+        # The status is only relevant while this wrapper window still exists.
+        if window_title:
+            clear_notifications(app=window_title)

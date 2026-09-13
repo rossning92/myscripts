@@ -39,6 +39,36 @@ async function assignRefs(send, node, state) {
   }
 }
 
+async function detectClickableGenerics(send, node) {
+  if (node.role === "generic" && node.backendDOMNodeId) {
+    try {
+      const { object } = await send("DOM.resolveNode", {
+        backendNodeId: node.backendDOMNodeId,
+      });
+      const { result } = await send("Runtime.callFunctionOn", {
+        objectId: object.objectId,
+        returnByValue: true,
+        functionDeclaration: `function() {
+          const rect = this.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return false;
+          if (this.onclick != null) return true;
+          const cursor = getComputedStyle(this).cursor;
+          const parentCursor = this.parentElement
+            ? getComputedStyle(this.parentElement).cursor
+            : "";
+          return cursor === "pointer" && parentCursor !== "pointer";
+        }`,
+      });
+      node.clickable = result.value === true;
+    } catch {
+      // Some accessibility nodes do not resolve to live DOM elements.
+    }
+  }
+  for (const child of node.children || []) {
+    await detectClickableGenerics(send, child);
+  }
+}
+
 export async function collectSnapshot(send, { title = "", url = "" } = {}) {
   await send("Runtime.evaluate", {
     expression:
@@ -61,14 +91,20 @@ export async function collectSnapshot(send, { title = "", url = "" } = {}) {
       ...(frame.id ? { frameId: frame.id } : {}),
     });
     const tree = buildSnapshotTree(nodes);
-    if (tree) await assignRefs(send, tree, state);
+    if (tree) {
+      await detectClickableGenerics(send, tree);
+      await assignRefs(send, tree, state);
+    }
     snapshots.push({ frame, tree, label: await getFrameLabel(send, frame) });
   }
   for (const context of (send.contexts || []).slice(1)) {
     await context.send("DOM.getDocument", { depth: -1, pierce: true });
     const { nodes = [] } = await context.send("Accessibility.getFullAXTree");
     const tree = buildSnapshotTree(nodes);
-    if (tree) await assignRefs(context.send, tree, state);
+    if (tree) {
+      await detectClickableGenerics(context.send, tree);
+      await assignRefs(context.send, tree, state);
+    }
     snapshots.push({ frame: { url: context.url }, tree });
   }
 

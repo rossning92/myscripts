@@ -456,6 +456,9 @@ class RepoMenu(Menu[Repo]):
             repos = _get_repos()
             with ThreadPoolExecutor() as pool:
                 pool.map(Repo.refresh, repos)
+            # Keep the existing repository order within each status group while
+            # putting repositories with modified working trees first.
+            repos.sort(key=lambda repo: not repo.dirty)
 
         self._refresh_thread = threading.Thread(target=worker, daemon=True)
         self._refresh_thread.start()

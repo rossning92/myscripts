@@ -21,17 +21,17 @@ TITLE_MATCH_MODE_DEFAULT = TITLE_MATCH_MODE_START_OR_END_WITH
 
 TITLE_DIVIDER = " - "
 
-WindowStatus = Literal["normal", "done", "error", "running"]
+WindowStatus = Literal["normal", "success", "error", "running"]
 
 _WINDOW_STATUS_PRIORITY: Dict[WindowStatus, int] = {
-    "done": 0,
+    "success": 0,
     "error": 1,
     "running": 2,
     "normal": 3,
 }
 
 _WINDOW_STATUS_SYMBOLS: Dict[WindowStatus, str] = {
-    "done": "✓✳",
+    "success": "✓✳",
     "running": "⧗⠂⠐",
 }
 

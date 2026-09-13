@@ -1,34 +1,15 @@
 local awful = require("awful")
-local beautiful = require("beautiful")
 local gears = require("gears")
-local wibox = require("wibox")
-local dpi = require("beautiful.xresources").apply_dpi
 local status_widget = require("status-widget")
 
 local cpu_widget = {}
 
 local function worker()
-    local widget, text = status_widget.new("cpu")
-    local graph = wibox.widget {
-        max_value = 100,
-        forced_width = dpi(36),
-        forced_height = dpi(12),
-        color = beautiful.border_focus,
-        background_color = beautiful.bg_focus,
-        step_width = dpi(2),
-        step_spacing = 0,
-        widget = wibox.widget.graph,
-    }
-    widget:add(wibox.container.mirror(graph, { horizontal = true }))
+    local widget, text, graph = status_widget.new_graph("cpu")
 
     local prev_total = 0
     local prev_idle = 0
-    local temperature_text
     local temperature_path
-
-    local function update_text()
-        text:set_text(temperature_text or "")
-    end
 
     local function read_file(path)
         local file = io.open(path, "r")
@@ -60,10 +41,8 @@ local function worker()
         local millidegrees = temperature_path and tonumber(read_file(temperature_path))
         if millidegrees then
             local temperature = math.floor(millidegrees / 1000 + 0.5)
-            local temperature_value = tostring(math.min(temperature, 99))
-            temperature_text = temperature_value .. "°C" .. string.rep(" ", 2 - #temperature_value)
+            text:set_text(string.format("%d°C", math.min(temperature, 99)))
         end
-        update_text()
     end
 
     -- Resolve the CPU sensor once; hwmon numbers can change between boots.

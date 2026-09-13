@@ -48,6 +48,7 @@ from utils.menu.inputmenu import InputMenu
 from utils.menu.jsoneditmenu import JsonEditMenu
 from utils.menu.listeditmenu import ListEditMenu
 from utils.menu.textmenu import TextMenu
+from utils.menu.valueeditmenu import ValueEditMenu
 from utils.platform import is_termux
 from utils.script.path import get_data_dir
 from utils.shutil import shell_open
@@ -282,6 +283,7 @@ class ChatMenu(Menu[Line]):
         self.__spinner = Spinner()
         self.__last_spinner_update = 0.0
         self.__last_copied_line: Optional[Line] = None
+        self.__streaming_reasoning_line: Optional[Line] = None
         self.__lines: List[Line] = []
         self.__prompt = prompt
         self.__prompt_file = prompt_file
@@ -336,6 +338,7 @@ class ChatMenu(Menu[Line]):
         self.add_command(self.__edit_context)
         self.add_command(self.__edit_image_urls, hotkey="alt+i")
         self.add_command(self.__edit_message, hotkey="alt+e")
+        self.add_command(self.__select_model, hotkey="alt+m")
         self.add_command(self.__edit_prompt, hotkey="alt+p")
         self.add_command(self.__edit_settings, hotkey="alt+s")
         self.add_command(self.__go_prev_message, hotkey="left")
@@ -505,6 +508,9 @@ class ChatMenu(Menu[Line]):
         self.__update_prompt()
 
     def __edit_message(self, msg_index=-1):
+        if self.__is_running:
+            return
+
         if msg_index < 0:
             selected = self.get_selected_item()
             if selected:
@@ -540,6 +546,16 @@ class ChatMenu(Menu[Line]):
         self.__settings_menu.exec()
         if generate_title != self.get_settings()["generate_title"]:
             self.__refresh_session_title()
+
+    def __select_model(self):
+        menu = ValueEditMenu(
+            type={"type": "string", "enum": MODEL_IDS},
+            value=self.get_settings()["model"],
+            prompt="model",
+        )
+        menu.exec()
+        if not menu.is_cancelled:
+            self.set_setting("model", menu.value)
 
     def __navigate_message(self, direction: Literal["next", "prev"]):
         i = self.get_selected_index()
@@ -674,6 +690,9 @@ class ChatMenu(Menu[Line]):
                 return
 
     def revert_messages(self, from_msg_index: int) -> List[Message]:
+        if self.__is_running:
+            return []
+
         removed_messages: List[Message] = []
         messages = self.get_messages()
 
@@ -1053,17 +1072,19 @@ class ChatMenu(Menu[Line]):
     def on_tool_use(self, tool_use: ToolUse):
         pass
 
-    def on_reasoning(self, reasoning: str):
-        msg_index, subindex = self.get_message_index_and_subindex()
-        line = Line(
-            role="assistant",
-            text=get_reasoning_text(reasoning),
-            msg_index=msg_index,
-            subindex=subindex,
-            reasoning=reasoning,
-        )
-        self.append_item(line)
-        self.process_events()
+    def on_reasoning(self, delta: str):
+        if self.__streaming_reasoning_line is None:
+            msg_index, subindex = self.get_message_index_and_subindex()
+            self.__streaming_reasoning_line = Line(
+                role="assistant",
+                msg_index=msg_index,
+                subindex=subindex,
+                reasoning=delta,
+            )
+            self.append_item(self.__streaming_reasoning_line)
+        else:
+            self.__streaming_reasoning_line.reasoning += delta
+            self.update_screen()
 
     def on_image(self, image_url: str):
         msg_index, subindex = self.get_message_index_and_subindex()
@@ -1081,6 +1102,7 @@ class ChatMenu(Menu[Line]):
         status: Optional[str] = None,
         retry_delay_sec: float = 0.0,
     ):
+        self.__streaming_reasoning_line = None
         selected_model = get_model(self.get_settings()["model"])
         if (
             selected_model.provider == "llama_cpp"
@@ -1336,6 +1358,9 @@ class ChatMenu(Menu[Line]):
         self.update_screen()
 
     def load_session(self, file: str):
+        if self.__is_running:
+            return
+
         if not os.path.exists(file):
             self.set_message(f"session file does not exist: {file}")
             return
@@ -1361,6 +1386,9 @@ class ChatMenu(Menu[Line]):
         self.update_screen()
 
     def new_session(self):
+        if self.__is_running:
+            return
+
         self.clear_messages()
 
         self.set_input("")
@@ -1404,14 +1432,15 @@ class ChatMenu(Menu[Line]):
 
     def get_status_text(self) -> str:
         parts = []
-        if self.__is_running:
-            parts.append(self.__spinner.frame)
         model = str(self.get_settings().get("model", "")).split("/")[-1]
         if model:
             parts.append(model)
         if self.__usage.total_tokens or self.__usage.input_tokens:
             parts.append(f"{self.__usage}")
-        return " ".join(parts) + "\n" + super().get_status_text()
+        status = " · ".join(parts)
+        if self.__is_running:
+            status = " ".join(part for part in (self.__spinner.frame, status) if part)
+        return status + "\n" + super().get_status_text()
 
     def _is_agent_running(self) -> bool:
         return self.__is_running

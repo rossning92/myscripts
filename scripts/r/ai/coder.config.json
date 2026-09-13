@@ -1,6 +1,6 @@
 {
   "dynamicTitle": true,
-  "matchClipboard": "[^\\\\]*\\.(jpg|jpeg|png|txt)$",
   "instanceMode": "multiple",
+  "matchClipboard": "[^\\\\]*\\.(jpg|jpeg|png|txt)$",
   "title": "coder"
 }

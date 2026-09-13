@@ -464,9 +464,10 @@ class AgentMenu(ChatMenu):
         self.set_message(f"Tools {'on' if enabled else 'off'}")
 
     def get_status_text(self) -> str:
-        s = f"cwd={os.getcwd()}"
-
-        return s + "\n" + super().get_status_text()
+        status = super().get_status_text()
+        first_line, separator, remaining_lines = status.partition("\n")
+        first_line = " · ".join(part for part in (first_line, os.getcwd()) if part)
+        return first_line + separator + remaining_lines
 
     def on_close(self):
         for c in self.__mcp_clients:

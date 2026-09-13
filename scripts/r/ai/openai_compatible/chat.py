@@ -141,8 +141,6 @@ async def complete_chat(
             def flush_reasoning():
                 nonlocal pending_reasoning
                 if pending_reasoning:
-                    if on_reasoning:
-                        on_reasoning(pending_reasoning)
                     out_message.setdefault("reasoning", []).append(pending_reasoning)
                     pending_reasoning = ""
 
@@ -198,12 +196,17 @@ async def complete_chat(
                         assert isinstance(reasoning_details, list)
                         for reasoning_detail in reasoning_details:
                             if reasoning_detail["type"] == "reasoning.text":
-                                pending_reasoning += reasoning_detail["text"]
+                                text = reasoning_detail["text"]
+                                pending_reasoning += text
+                                if on_reasoning:
+                                    on_reasoning(text)
                         out_message.setdefault("reasoning_details", []).extend(
                             reasoning_details
                         )
                     elif reasoning_content:
                         pending_reasoning += reasoning_content
+                        if on_reasoning:
+                            on_reasoning(reasoning_content)
 
                     # Accumulate tool call deltas
                     tool_calls = delta.get("tool_calls")

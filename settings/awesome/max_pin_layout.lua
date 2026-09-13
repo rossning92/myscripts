@@ -4,6 +4,7 @@ local awful = require("awful")
 local M = {}
 
 local PINNED_PANE_RATIO = 1 / 2
+local STANDARD_ASPECT_RATIO = 16 / 9
 
 local pin_state = nil
 
@@ -46,16 +47,24 @@ end
 function M.layout.arrange(p)
     local area = p.workarea
     local pinned = pin_state and pin_state.client or nil
+    local sixteen_nine_width = math.floor(p.geometry.height * STANDARD_ASPECT_RATIO + 0.5)
+    local standard_width = math.min(area.width, sixteen_nine_width)
 
     if not pinned or not pinned.valid or not is_layout_client(p, pinned) then
+        local geometry = {
+            x = area.x,
+            y = area.y,
+            width = standard_width,
+            height = area.height,
+        }
         for _, c in ipairs(p.clients) do
-            set_geometry(p, c, area)
+            set_geometry(p, c, geometry)
         end
         return
     end
 
-    local pinned_width = math.floor(area.width * PINNED_PANE_RATIO + 0.5)
-    local main_width = area.width - pinned_width
+    local main_width = math.floor(area.width * (1 - PINNED_PANE_RATIO) + 0.5)
+    local pinned_width = area.width - main_width
     local main_geometry = {
         x = area.x,
         y = area.y,
@@ -74,7 +83,7 @@ function M.layout.arrange(p)
     end
 end
 
-local function unpin()
+local function unpin(focus_client)
     local state = pin_state
     if not state then return end
     pin_state = nil
@@ -84,8 +93,10 @@ local function unpin()
         c.fullscreen = state.fullscreen
         c.maximized = state.maximized
         c.floating = state.floating
-        c:emit_signal("request::activate", "max_pin_layout.unpin", { raise = true })
         awful.layout.arrange(c.screen)
+    end
+    if focus_client and focus_client.valid then
+        focus_client:emit_signal("request::activate", "max_pin_layout.unpin", { raise = true })
     end
 end
 
@@ -94,7 +105,7 @@ end
 function M.toggle_pin(c)
     if pin_state then
         if pin_state.client and pin_state.client.valid then
-            unpin()
+            unpin(c)
             return
         end
         pin_state = nil

@@ -44,4 +44,42 @@ function status_widget.new(icon_name)
     return widget, text, icon
 end
 
+function status_widget.new_graph(icon_name, color)
+    local widget, text
+    if icon_name then
+        widget, text = status_widget.new(icon_name)
+    else
+        text = wibox.widget.textbox()
+    end
+
+    local graph = wibox.widget {
+        max_value = 100,
+        color = color or beautiful.border_focus,
+        background_color = beautiful.bg_focus,
+        step_width = dpi(2),
+        step_spacing = 0,
+        widget = wibox.widget.graph,
+    }
+    text.font = "sans 7"
+    local display = wibox.widget {
+        wibox.container.mirror(graph, { horizontal = true }),
+        {
+            text,
+            halign = "left",
+            valign = "top",
+            widget = wibox.container.place,
+        },
+        forced_width = dpi(36),
+        forced_height = dpi(12),
+        layout = wibox.layout.stack,
+    }
+
+    if icon_name then
+        widget:set(2, display)
+        display = widget
+    end
+
+    return display, text, graph
+end
+
 return status_widget

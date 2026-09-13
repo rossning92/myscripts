@@ -11,7 +11,7 @@ const STRUCTURAL_ROLES = new Set([
 ]);
 
 export function isInteractive(node) {
-  return INTERACTIVE_ROLES.has(node.role) || node.focusable;
+  return INTERACTIVE_ROLES.has(node.role) || node.focusable || node.clickable;
 }
 
 export function buildSnapshotTree(nodes) {

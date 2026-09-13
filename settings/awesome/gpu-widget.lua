@@ -1,7 +1,4 @@
 local awful = require("awful")
-local beautiful = require("beautiful")
-local wibox = require("wibox")
-local dpi = require("beautiful.xresources").apply_dpi
 local status_widget = require("status-widget")
 
 local gpu_widget = {}
@@ -11,25 +8,27 @@ local function worker()
         return nil
     end
 
-    local widget = status_widget.new("expansion-card")
-    local graph = wibox.widget {
-        max_value = 100,
-        forced_width = dpi(36),
-        forced_height = dpi(12),
-        color = beautiful.border_focus,
-        background_color = beautiful.bg_focus,
-        step_width = dpi(2),
-        step_spacing = 0,
-        widget = wibox.widget.graph,
-    }
-    widget:add(wibox.container.mirror(graph, { horizontal = true }))
+    local widget, text, graph = status_widget.new_graph("expansion-card")
+    local vram_display, vram_text, vram_graph = status_widget.new_graph(nil, "#6272a4")
+    widget:add(vram_display)
 
     -- `-l 1` reports GPU data every 1 second
-    awful.spawn.with_line_callback('nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits -l 1', {
+    awful.spawn.with_line_callback('nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total --format=csv,noheader,nounits -l 1', {
         stdout = function(line)
-            local utilization = tonumber(line:match("(%d+)"))
+            local utilization, temperature, memory_used, memory_total =
+                line:match("(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)")
+            utilization = tonumber(utilization)
             if utilization then
                 graph:add_value(utilization)
+            end
+            memory_used = tonumber(memory_used)
+            memory_total = tonumber(memory_total)
+            if memory_used and memory_total and memory_total > 0 then
+                vram_graph:add_value(memory_used / memory_total * 100)
+                vram_text:set_text(string.format("%.1fG", memory_used / 1024))
+            end
+            if temperature then
+                text:set_text(temperature .. "°C")
             end
         end
     })
