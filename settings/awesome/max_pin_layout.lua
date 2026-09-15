@@ -3,7 +3,9 @@ local awful = require("awful")
 
 local M = {}
 
-local PINNED_PANE_RATIO = 1 / 2
+-- Fractions of the work area assigned to the main (left-hand) pane.
+-- Pinning cycles through 1:1 and 2:1 (main:pinned), then turns off.
+local MAIN_PANE_RATIOS = { 1 / 2, 2 / 3 }
 local STANDARD_ASPECT_RATIO = 16 / 9
 
 local pin_state = nil
@@ -63,7 +65,8 @@ function M.layout.arrange(p)
         return
     end
 
-    local main_width = math.floor(area.width * (1 - PINNED_PANE_RATIO) + 0.5)
+    local main_pane_ratio = MAIN_PANE_RATIOS[pin_state.split_index]
+    local main_width = math.floor(area.width * main_pane_ratio + 0.5)
     local pinned_width = area.width - main_width
     local main_geometry = {
         x = area.x,
@@ -100,12 +103,17 @@ local function unpin(focus_client)
     end
 end
 
--- Pin the focused client on the right. Invoking this again restores the
--- client's previous state and the normal full-width max layout.
-function M.toggle_pin(c)
+-- Pin the focused client on the right. Further invocations cycle through the
+-- configured pane ratios, then restore the normal max layout.
+function M.cycle_pin(c)
     if pin_state then
         if pin_state.client and pin_state.client.valid then
-            unpin(c)
+            if pin_state.split_index < #MAIN_PANE_RATIOS then
+                pin_state.split_index = pin_state.split_index + 1
+                awful.layout.arrange(pin_state.client.screen)
+            else
+                unpin(c)
+            end
             return
         end
         pin_state = nil
@@ -119,6 +127,7 @@ function M.toggle_pin(c)
         floating = c.floating,
         fullscreen = c.fullscreen,
         maximized = c.maximized,
+        split_index = 1,
     }
 
     c.fullscreen = false

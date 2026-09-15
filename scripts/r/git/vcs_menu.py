@@ -66,6 +66,16 @@ class VcsDiffMenu(Menu):
     def _init_extra_commands(self) -> None:
         pass
 
+    def _is_readonly(self) -> bool:
+        # True when the listed files are not the ones a mutating command would touch.
+        return False
+
+    def __reject_if_readonly(self) -> bool:
+        if self._is_readonly():
+            self.set_message("read-only while viewing a past commit")
+            return True
+        return False
+
     def _get_status_items(self) -> Tuple[List[str], bool]:
         raise NotImplementedError
 
@@ -187,6 +197,8 @@ class VcsDiffMenu(Menu):
         start_script("ext/filemgr.py", args=[filename])
 
     def __commit(self, sync: bool = False) -> None:
+        if self.__reject_if_readonly():
+            return
         items = list(self.get_selected_items())
         if not items:
             return
@@ -214,6 +226,8 @@ class VcsDiffMenu(Menu):
         ShellCmdMenu(shell_cmd).exec()
 
     def __amend(self, push: bool = False) -> None:
+        if self.__reject_if_readonly():
+            return
         if push and self._vcs == "hg":
             self.set_message("amend+push is not supported for hg")
             return
@@ -227,6 +241,8 @@ class VcsDiffMenu(Menu):
         self.__amend(push=True)
 
     def __discard(self) -> None:
+        if self.__reject_if_readonly():
+            return
         items = list(self.get_selected_items())
         if not items:
             return

@@ -44,6 +44,16 @@ vim.keymap.set('i', '<down>', '<C-o>gj', { silent = true })
 vim.keymap.set("n", "<C-u>", "5<C-y>5kzz", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-d>", "5<C-e>5jzz", { noremap = true, silent = true })
 
+-- Page with a full-window CTRL-D/CTRL-U instead of CTRL-F/CTRL-B: they stop at
+-- the first and last line rather than scrolling past them.
+local function page(key)
+  return function() return math.max(vim.fn.winheight(0) - 2, 1) .. key end
+end
+vim.keymap.set({ "n", "x" }, "<PageDown>", page("<C-d>"), { expr = true, silent = true })
+vim.keymap.set({ "n", "x" }, "<PageUp>", page("<C-u>"), { expr = true, silent = true })
+vim.keymap.set({ "n", "x" }, "<C-f>", page("<C-d>"), { expr = true, silent = true })
+vim.keymap.set({ "n", "x" }, "<C-b>", page("<C-u>"), { expr = true, silent = true })
+
 -- Copy current file path to clipboard
 vim.keymap.set("n", "<leader>yp", function()
   vim.fn.setreg("+", vim.fn.expand("%:p"))

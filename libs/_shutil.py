@@ -433,13 +433,11 @@ def remove(files: Union[str, List[str]]):
         files = [files]
 
     for file in files:
-        if os.path.isdir(file):
+        if os.path.isdir(file) and not os.path.islink(file):
             shutil.rmtree(file)
-            print("Deleted: %s" % file)
         else:
             for match in glob.glob(file):
                 os.remove(match)
-                print("Deleted: %s" % match)
 
 
 def rename(src: str, dst: str, dry_run=False):

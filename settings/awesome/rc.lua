@@ -388,9 +388,9 @@ local globalkeys = gears.table.join(
     --     group = "awesome"
     -- }),
     awful.key({ modkey }, "p", function()
-        max_pin_layout.toggle_pin(client.focus)
+        max_pin_layout.cycle_pin(client.focus)
     end, {
-        description = "pin/unpin focused window on the right",
+        description = "cycle right pin: off, 1:1, 2:1",
         group = "layouts"
     }),
 

@@ -18,9 +18,11 @@ export async function captureScreenshot(send, args = {}) {
       }
       const xs = [quad[0], quad[2], quad[4], quad[6]];
       const ys = [quad[1], quad[3], quad[5], quad[7]];
+      const metrics = await resolved.send("Page.getLayoutMetrics");
+      const viewport = metrics.cssVisualViewport || metrics.visualViewport;
       const rect = {
-        x: Math.min(...xs),
-        y: Math.min(...ys),
+        x: Math.min(...xs) - (viewport?.pageX || 0),
+        y: Math.min(...ys) - (viewport?.pageY || 0),
         width: Math.max(...xs) - Math.min(...xs),
         height: Math.max(...ys) - Math.min(...ys),
       };

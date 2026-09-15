@@ -2,6 +2,7 @@ import os
 import subprocess
 
 from utils.menu.diffmenu import DiffMenu
+from utils.menu.menu import Menu
 
 from git.vcs import get_hg_recent_commits, run_vcs
 from git.vcs_menu import VcsDiffMenu
@@ -30,15 +31,29 @@ def build_hg_diff_cmd(*extra_args):
 
 class HgMenu(VcsDiffMenu):
     _vcs = "hg"
+    _rev = "."
+
+    def _is_readonly(self):
+        return self._rev != "."
+
+    def _commit_choices(self):
+        commits = get_hg_recent_commits()
+        if not commits:
+            return []
+        return [(".", "(working copy)")] + [(c.split()[0], c) for c in commits]
 
     def _get_recent_commits(self):
-        return get_hg_recent_commits()
+        return [
+            f"{'* ' if rev == self._rev else '  '}{label}"
+            for rev, label in self._commit_choices()
+        ]
 
     def _get_status_items(self):
-        status = _hg("status")
-        if status:
-            return status.splitlines(), False
-        files = _hg("log", "-r", ".", "--template", "{files % '{file}\\n'}")
+        if self._rev == ".":
+            status = _hg("status")
+            if status:
+                return status.splitlines(), False
+        files = _hg("log", "-r", self._rev, "--template", "{files % '{file}\\n'}")
         items = [f"   {f}" for f in files.splitlines() if f.strip()]
         return items, True
 
@@ -47,8 +62,23 @@ class HgMenu(VcsDiffMenu):
         bookmark = _hg("log", "-r", ".", "--template", "{activebookmark}")
         if not bookmark:
             bookmark = _hg("log", "-r", ".", "--template", "{branch}") or "?"
+        if self._rev != ".":
+            return f"{repo_name} ({bookmark}) [{self._rev}]"
         dirty_marker = "" if is_clean else " *"
         return f"{repo_name} ({bookmark}{dirty_marker})"
+
+    def _select_commit(self):
+        choices = self._commit_choices()
+        idx = Menu(
+            items=[label for _, label in choices],
+            prompt="select commit",
+            quick_select=True,
+        ).exec()
+        if idx < 0:
+            return
+        self._rev = choices[idx][0]
+        self.set_selected_row(0)
+        self._refresh()
 
     def get_item_color(self, item):
         status = item[:2]
@@ -88,6 +118,9 @@ class HgMenu(VcsDiffMenu):
 
     def _init_extra_commands(self):
         self.add_command(self._diff_incl_head)
+        self.add_command(
+            self._select_commit, hotkey="alt+s", name="select commit", pinned=True
+        )
 
     def _diff_incl_head(self):
         # Diff from the parent of the current commit through the working tree,
@@ -99,7 +132,7 @@ class HgMenu(VcsDiffMenu):
 
     def _diff_all(self):
         if self._is_clean:
-            diff_cmd = self.__build_diff_cmd("-c", ".")
+            diff_cmd = self.__build_diff_cmd("-c", self._rev)
         else:
             diff_cmd = self.__build_diff_cmd()
         DiffMenu(root=os.getcwd(), diff_cmd=diff_cmd, prompt_prefix=self.get_prompt()).exec()
@@ -107,7 +140,7 @@ class HgMenu(VcsDiffMenu):
     def on_item_selected(self, item):
         filename = self._get_filename(item)
         if self._is_clean:
-            diff_cmd = self.__build_diff_cmd("-c", ".", "--", filename)
+            diff_cmd = self.__build_diff_cmd("-c", self._rev, "--", filename)
         elif item.startswith("?"):
             diff_cmd = [
                 "git",

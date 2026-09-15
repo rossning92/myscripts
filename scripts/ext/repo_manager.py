@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Tuple
 
 from _script import start_script
+from _shutil import remove
 from utils.fileutils import get_display_path
 from utils.jsonutil import load_json
 from utils.menu.confirmmenu import confirm
@@ -240,6 +241,7 @@ class RepoMenu(Menu[Repo]):
         self.add_command(self._commit, hotkey="alt+c", name="commit", pinned=True)
         self.add_command(self._push, hotkey="alt+p", name="push", pinned=True)
         self.add_command(self._discard, hotkey="ctrl+d", name="discard", pinned=True)
+        self.add_command(self._delete, hotkey="ctrl+k", name="delete", pinned=True)
         self.add_command(self._amend_and_push, hotkey="alt+a", name="amend+push")
         self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
         self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
@@ -386,6 +388,30 @@ class RepoMenu(Menu[Repo]):
         ):
             return
         discard_all_changes(repo.path, repo.vcs)
+        self._refresh()
+
+    def _delete(self):
+        repo = self.get_selected_item()
+        if repo is None:
+            return
+
+        if os.path.realpath(repo.path) == os.path.realpath(get_my_script_root()):
+            self.set_message("Cannot delete the myscripts repository")
+            return
+
+        if not confirm(
+            f'Permanently delete "{repo.display_path}" and all its files? '
+            "This cannot be undone.",
+            prompt_color="red",
+        ):
+            return
+
+        try:
+            remove(repo.path)
+        except OSError as error:
+            self.set_message(str(error))
+            return
+
         self._refresh()
 
     def _amend_and_push(self):
