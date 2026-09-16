@@ -62,6 +62,16 @@ class WinSwitcherMenu(Menu[WindowItem]):
             self.set_message("pinned")
         self.__refresh_windows()
 
+    def __get_sort_key(self, w: WindowItem) -> int:
+        if w.title in self.__pinned:
+            return 0
+        status = w.get_status(self.script_status)
+        if status == "success":
+            return 1 if w.title not in self.__visited_success else 2
+        if status == "running":
+            return 3
+        return 4
+
     def __refresh_windows(self, message: Optional[str] = None):
         notifications = get_notifications()
         self.script_status = {
@@ -70,18 +80,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
             if isinstance(n, dict) and isinstance(n.get("app"), str)
         }
         self.items = get_windows(script_status=self.script_status)
-        self.items.sort(
-            key=lambda w: (
-                0
-                if w.title in self.__pinned
-                else (
-                    1
-                    if w.get_status(self.script_status) == "success"
-                    and w.title not in self.__visited_success
-                    else 2 if w.get_status(self.script_status) == "success" else 3
-                ),
-            )
-        )
+        self.items.sort(key=self.__get_sort_key)
 
         current_success_titles = {
             w.title

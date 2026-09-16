@@ -2,6 +2,7 @@ return {
     -- Fuzzy finder
     'nvim-telescope/telescope.nvim',
     keys = {
+        { '<leader><leader>', desc = 'Find open buffers' },
         { '<leader>sh', desc = '[S]earch [H]elp' },
         { '<leader>sk', desc = '[S]earch [K]eymaps' },
         { '<leader>sf', desc = '[S]earch [F]iles' },
@@ -55,6 +56,7 @@ return {
 
         -- See `:help telescope.builtin`
         local builtin = require 'telescope.builtin'
+        vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = 'Find open buffers' })
         vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
         vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
         vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })

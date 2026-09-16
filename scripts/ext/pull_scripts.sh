@@ -12,5 +12,17 @@ else
 fi
 
 ROOT_DIR="$(realpath "$(dirname "$0")/../../")"
-echo "Pulling: $ROOT_DIR"
-(cd "$ROOT_DIR" && "$GIT" pull --rebase) || true
+
+pull_repo() {
+    echo "Pulling: $1"
+    (cd "$1" && "$GIT" pull --rebase) || true
+}
+
+pull_repo "$ROOT_DIR"
+
+for dir in $(run_script ext/get_script_dirs.py); do
+    dir="${dir%$'\r'}"
+    if [[ -d "$dir/.git" && "$(realpath "$dir")" != "$ROOT_DIR" ]]; then
+        pull_repo "$dir"
+    fi
+done
