@@ -1,10 +1,7 @@
-import os
 from itertools import islice
 from typing import Any, Dict
 
-from utils.encode_image_base64 import encode_image_base64
-
-_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+from ai.utils.tools.view_image import is_image_file
 
 
 def get_tool_use_preview(args: Dict[str, Any]) -> str:
@@ -18,19 +15,16 @@ def get_tool_use_preview(args: Dict[str, Any]) -> str:
     return f"{file} ({', '.join(options)})" if options else file
 
 
-def _is_image_file(file: str) -> bool:
-    return os.path.splitext(file)[1].lower() in _IMAGE_EXTENSIONS
-
-
 def read(file: str, offset: int = 0, limit: int = 2000) -> str:
     """
-    Read up to `limit` lines from `file`, starting at `offset` (0-based). This tool can also read image files (PNG, JPG, etc.) - the image content will be visible to you directly.
+    Read up to `limit` lines from a text file, starting at `offset` (0-based).
 
-    - You should always use `read` tool instead of `cat` command.
+    - You should always use `read` instead of the `cat` command.
+    - Image files are not supported by this tool.
     """
 
-    if _is_image_file(file):
-        return encode_image_base64(file)
+    if is_image_file(file):
+        return "ERROR: read only supports text files."
 
     if limit <= 0:
         return f"ERROR: limit must be > 0 (got {limit})"

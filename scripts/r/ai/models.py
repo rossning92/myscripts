@@ -32,6 +32,7 @@ class Model:
     base_url: Optional[str] = None
     api_key: Optional[str] = None
     reasoning_effort: Optional[ReasoningEffort] = None
+    supports_image_input: bool = True
 
     @property
     def id(self) -> str:
@@ -127,6 +128,7 @@ MODELS: List[Model] = [
             "LLAMA_CPP_ENDPOINT", "http://127.0.0.1:8080/v1"
         ),
         api_key=os.environ.get("LLAMA_CPP_API_KEY", "no-key"),
+        supports_image_input=False,
     ),
     Model(
         "llama_cpp",
@@ -136,6 +138,7 @@ MODELS: List[Model] = [
             "LLAMA_CPP_ENDPOINT", "http://127.0.0.1:8080/v1"
         ),
         api_key=os.environ.get("LLAMA_CPP_API_KEY", "no-key"),
+        supports_image_input=False,
     ),
     Model(
         "llama_cpp",
@@ -145,6 +148,7 @@ MODELS: List[Model] = [
             "LLAMA_CPP_ENDPOINT", "http://127.0.0.1:8080/v1"
         ),
         api_key=os.environ.get("LLAMA_CPP_API_KEY", "no-key"),
+        supports_image_input=False,
     ),
     Model(
         "openrouter",

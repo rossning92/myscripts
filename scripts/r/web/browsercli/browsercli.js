@@ -128,7 +128,11 @@ function printSuccess(message) {
 program
   .name("browsercli")
   .description("CLI to control a browser via CDP")
-  .version("1.0.0");
+  .version("1.0.0")
+  .addHelpText(
+    "after",
+    "\nNavigation: Prefer back/forward for browser history; do not use open to return to a previous page.",
+  );
 
 program
   .command("open")

@@ -13,6 +13,7 @@ import ai.openai_image.chat
 import ai.utils.tools.bash
 import ai.utils.tools.edit
 import ai.utils.tools.read
+import ai.utils.tools.view_image
 import ai.utils.tools.web_fetch
 import ai.utils.tools.web_search
 from ai.models import get_model
@@ -41,6 +42,7 @@ def get_tool_use_text(tool_use: ToolUse) -> str:
         "bash": ai.utils.tools.bash.get_tool_use_preview,
         "edit": ai.utils.tools.edit.get_tool_use_preview,
         "read": ai.utils.tools.read.get_tool_use_preview,
+        "view_image": ai.utils.tools.view_image.get_tool_use_preview,
         "web_fetch": ai.utils.tools.web_fetch.get_tool_use_preview,
         "web_search": ai.utils.tools.web_search.get_tool_use_preview,
     }

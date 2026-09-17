@@ -13,9 +13,11 @@ import ai.utils.tools.bash
 import ai.utils.tools.edit
 import ai.utils.tools.powershell
 import ai.utils.tools.read
+import ai.utils.tools.view_image
 import ai.utils.tools.web_fetch
 import ai.utils.tools.web_search
 from ai.chat_menu import ChatMenu, Line
+from ai.models import get_model
 from ai.utils.tools.bash import SandboxPermissionError, _run_bash
 from ai.utils.checkpoint import Checkpoint
 from ai.utils.mcp import MCPClient
@@ -158,6 +160,7 @@ class AgentMenu(ChatMenu):
                 if self.get_settings()["skill"]
                 else ai.utils.tools.read.read
             ),
+            ai.utils.tools.view_image.view_image,
             ai.utils.tools.edit.edit,
             (
                 ai.utils.tools.powershell.powershell
@@ -261,7 +264,11 @@ class AgentMenu(ChatMenu):
         if client:
             return self.__run_blocking(lambda: client.call_tool(tool_use))
 
-        subagent = next(a for a in self.__subagents if a["name"] == tool_name)
+        subagent = next(
+            (a for a in self.__subagents if a["name"] == tool_name), None
+        )
+        if subagent is None:
+            return f"ERROR: Tool is not available: {tool_name}"
         menu = AgentMenu(
             system_prompt=subagent["system_prompt"],
             prompt=f"subagent={tool_name}",
@@ -319,7 +326,14 @@ class AgentMenu(ChatMenu):
         ]
 
     def get_tools_callable(self) -> List[Callable]:
-        return self.__tools_callable
+        supports_image_input = get_model(
+            self.get_settings()["model"]
+        ).supports_image_input
+        return [
+            tool
+            for tool in self.__tools_callable
+            if tool.__name__ != "view_image" or supports_image_input
+        ]
 
     def get_tools(self) -> List[ToolDefinition]:
         if not self.get_settings()["enable_tools"]:

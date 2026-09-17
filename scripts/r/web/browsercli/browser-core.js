@@ -52,6 +52,7 @@ async function launchDetachedChrome(headed = false) {
     `--remote-debugging-port=${DEBUG_PORT}`,
     `--user-data-dir=${USER_DATA_DIR}`,
     "--remote-allow-origins=*",
+    "--no-first-run",
     `--window-size=${WINDOW_WIDTH},${WINDOW_HEIGHT}`,
     "--disable-blink-features=AutomationControlled",
   ];

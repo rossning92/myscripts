@@ -1,16 +1,25 @@
 import os
+import re
 import signal
 import subprocess
 
 from _shutil import cd, get_cur_time_str
-from _video import ffmpeg
 from r.video.to_gif import convert_to_gif
 from utils.android import get_active_pkg_and_activity
 
 
-def screen_record(out_file=None, max_secs=10, bit_rate="40M"):
+def get_scaled_size(width=1280):
+    out = subprocess.check_output(
+        ["adb", "shell", "wm", "size"], universal_newlines=True
+    )
+    w, h = (int(x) for x in re.search(r"Physical size: (\d+)x(\d+)", out).groups())
+    # Keep the native aspect ratio, otherwise a stereo (side-by-side) panel gets squashed.
+    return "%dx%d" % (width, round(width * h / w / 2) * 2)
+
+
+def screen_record(out_file=None, max_secs=10, bit_rate="2M", size=None):
     """
-    adb shell screenrecord /sdcard/screenrecord.mp4 --time-limit 5 --bit-rate 40M
+    adb shell screenrecord /sdcard/screenrecord.mp4 --time-limit 5 --bit-rate 2M --size 1280x608
     """
 
     TMP_RECORD_FILE = "/data/local/tmp/screenrecord.mp4"
@@ -26,6 +35,7 @@ def screen_record(out_file=None, max_secs=10, bit_rate="40M"):
 
     args = ["adb", "shell", "screenrecord", TMP_RECORD_FILE]
     args += ["--time-limit", "{}".format(max_secs), "--bit-rate", "{}".format(bit_rate)]
+    args += ["--size", size if size else get_scaled_size()]
     subprocess.call(args, shell=True)
 
     subprocess.check_call(["adb", "pull", TMP_RECORD_FILE, out_file])
@@ -38,15 +48,9 @@ if __name__ == "__main__":
 
     out_file = screen_record(
         max_secs=int(os.environ["_MAX_SECS"]) if os.environ.get("_MAX_SECS") else 10,
-        bit_rate=os.environ["_BIT_RATE"] if os.environ.get("_BIT_RATE") else "20M",
+        bit_rate=os.environ["_BIT_RATE"] if os.environ.get("_BIT_RATE") else "2M",
+        size=os.environ.get("_SIZE"),
     )
-
-    if os.environ.get("_RESIZE_H"):
-        extra_args = ["-r", "60"]
-        extra_args += ["-vf", "scale=-2:" + os.environ["_RESIZE_H"]]
-        out_file = ffmpeg(
-            out_file, out_file=out_file, extra_args=extra_args, nvenc=False
-        )
 
     if os.environ.get("_TO_GIF"):
         convert_to_gif(out_file, out_file=os.path.splitext(out_file)[0] + ".gif")
