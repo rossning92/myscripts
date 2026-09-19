@@ -3,14 +3,14 @@ import { collectSnapshot } from "./shared/snapshot-cdp.js";
 import {
   click,
   pressKey,
-  scrollToBottom,
+  scroll,
   select,
   typeText,
 } from "./shared/actions.js";
 import { captureScreenshot } from "./shared/screenshot.js";
 import { upload } from "./shared/upload.js";
 import {
-  goBack,
+  goBackOrRestore,
   goForward,
   normalizeUrl,
   reload,
@@ -123,12 +123,27 @@ async function pageCommand(command, args = {}) {
     }
     if (command === "press") return pressKey(send, args.key);
     if (command === "select") return select(send, args, args.value);
-    if (command === "scroll-bottom") return scrollToBottom(send);
-    if (command === "back") return goBack(send);
+    if (command === "scroll") return scroll(send, args);
     if (command === "forward") return goForward(send);
     if (command === "reload") return reload(send);
     if (command === "upload") return upload(send, args, args.filePath);
     throw new Error(`Unsupported extension command: ${command}`);
+  });
+}
+
+async function back() {
+  return withActiveDebuggee(async (target, activeTab) => {
+    const send = (method, params) => sendDebuggeeCommand(target, method, params);
+    return goBackOrRestore(send, async () => {
+      if (activeTab.openerTabId == null) return false;
+      try {
+        await chrome.tabs.update(activeTab.openerTabId, { active: true });
+        await chrome.tabs.remove(activeTab.id);
+        return true;
+      } catch {
+        return false;
+      }
+    });
   });
 }
 
@@ -199,8 +214,10 @@ async function run() {
           result = await snapshot();
         } else if (command.command === "screenshot") {
           result = await screenshot(command.args);
+        } else if (command.command === "back") {
+          result = await back();
         } else if ([
-          "get-text", "get-html", "get-markdown", "scroll-bottom", "back",
+          "get-text", "get-html", "get-markdown", "scroll",
           "forward", "reload", "click", "type", "fill", "press", "select",
           "upload",
         ].includes(command.command)) {

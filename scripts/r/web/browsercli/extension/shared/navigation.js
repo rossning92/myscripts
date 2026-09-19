@@ -16,6 +16,12 @@ export async function goBack(send) {
   return navigateHistory(send, -1);
 }
 
+export async function goBackOrRestore(send, restorePreviousPage) {
+  if (await goBack(send)) return "history";
+  if (await restorePreviousPage()) return "previous-page";
+  return false;
+}
+
 export async function goForward(send) {
   return navigateHistory(send, 1);
 }

@@ -443,6 +443,9 @@
     "apt": {
       "packages": ["openjdk-17-jdk"]
     },
+    "dnf": {
+      "packages": ["java-17-openjdk-devel"]
+    },
     "pacman": {
       "packages": ["jdk17-openjdk"]
     }

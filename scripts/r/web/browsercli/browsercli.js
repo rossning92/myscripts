@@ -125,13 +125,34 @@ function printSuccess(message) {
   console.error(`[browsercli] ${message}`);
 }
 
+function parsePixels(value) {
+  const pixels = Number(value);
+  if (!Number.isFinite(pixels) || pixels <= 0) {
+    throw new Error("Pixels must be a positive number");
+  }
+  return pixels;
+}
+
 program
   .name("browsercli")
-  .description("CLI to control a browser via CDP")
+  .description("Control a browser from the command line")
   .version("1.0.0")
   .addHelpText(
     "after",
-    "\nNavigation: Prefer back/forward for browser history; do not use open to return to a previous page.",
+    `
+Agent workflow:
+  $ browsercli open https://example.com
+  $ browsercli snapshot
+  $ browsercli click --ref @e0
+  $ browsercli fill --ref @e1 "search terms"
+  $ browsercli press Enter
+  $ browsercli snapshot
+
+Use snapshot refs for actions, then snapshot again after the page changes.
+Prefer clicking links found in the current page over opening their URLs directly.
+Use open for the initial page or when the destination has no clickable link.
+Use back/forward for history; open starts a new navigation.
+Run browsercli help COMMAND for command options.`,
   );
 
 program
@@ -225,11 +246,16 @@ program
   });
 
 program
-  .command("scroll-bottom")
-  .description("Scroll to the bottom of the page")
-  .action(async () => {
-    await sendCommand("scroll-bottom");
-    printSuccess("scrolled to bottom");
+  .command("scroll")
+  .description("Scroll the active page up or down")
+  .argument("[direction]", "Direction: up or down", "down")
+  .argument("[pixels]", "Distance in pixels", parsePixels, 500)
+  .action(async (direction, pixels) => {
+    if (direction !== "up" && direction !== "down") {
+      throw new Error('Direction must be "up" or "down"');
+    }
+    await sendCommand("scroll", { direction, pixels });
+    printSuccess(`scrolled ${direction} ${pixels}px`);
   });
 
 program

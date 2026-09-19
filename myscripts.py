@@ -589,6 +589,7 @@ class _MyScriptMenu(Menu[Script]):
         if script_path:
             script = Script(script_path)
             self.script_manager.scripts.insert(0, script)
+            self.run_raw(lambda: edit_script(os.path.realpath(script_path)))
         self.clear_input()
 
     def _new_script(self):

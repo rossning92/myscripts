@@ -267,29 +267,17 @@ export async function select(send, target, value) {
   }
 }
 
-export async function scrollToBottom(send) {
+export async function scroll(send, { direction = "down", pixels = 500 } = {}) {
+  if (direction !== "up" && direction !== "down") {
+    throw new Error('Direction must be "up" or "down"');
+  }
+  if (!Number.isFinite(pixels) || pixels <= 0) {
+    throw new Error("Pixels must be a positive number");
+  }
+
+  const delta = direction === "down" ? pixels : -pixels;
   const response = await send("Runtime.evaluate", {
-    expression: `(${async function () {
-      await new Promise((resolve) => {
-        const distance = 200;
-        const interval = 100;
-        const timeout = 2000;
-        let lastScrollY = window.scrollY;
-        let lastChange = Date.now();
-        const timer = setInterval(() => {
-          window.scrollBy(0, distance);
-          if (window.scrollY > lastScrollY) {
-            lastScrollY = window.scrollY;
-            lastChange = Date.now();
-          }
-          if (Date.now() - lastChange >= timeout) {
-            clearInterval(timer);
-            resolve();
-          }
-        }, interval);
-      });
-    }.toString()})()`,
-    awaitPromise: true,
+    expression: `window.scrollBy({ top: ${JSON.stringify(delta)}, behavior: "instant" })`,
     returnByValue: true,
   });
   cdpError(response, "Unable to scroll page");
