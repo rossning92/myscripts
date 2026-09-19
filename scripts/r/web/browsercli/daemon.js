@@ -10,6 +10,7 @@ import {
   getBrowser,
   getOrOpenPage,
   getStatus,
+  restoreOpenerPage,
   withActivePage,
 } from "./browser-core.js";
 import { withActivePageCdp } from "./browser-cdp.js";
@@ -17,7 +18,7 @@ import { DAEMON_PORT, DEBUG_PORT } from "./config.js";
 import {
   click as clickCdp,
   pressKey as pressKeyCdp,
-  scrollToBottom as scrollToBottomCdp,
+  scroll as scrollCdp,
   select as selectCdp,
   typeText as typeTextCdp,
 } from "./extension/shared/actions.js";
@@ -30,7 +31,11 @@ import { screencast } from "./screencast.js";
 import { extensionBridge } from "./extension-bridge.js";
 import { getExtensionSourceVersion } from "./extension-source.js";
 import { getViewport, parseViewport, setViewport } from "./viewport.js";
-import { goBack, goForward, reload } from "./extension/shared/navigation.js";
+import {
+  goBackOrRestore,
+  goForward,
+  reload,
+} from "./extension/shared/navigation.js";
 
 const publicDir = resolve(fileURLToPath(new URL("public/", import.meta.url)));
 const extensionDir = resolve(fileURLToPath(new URL("extension/", import.meta.url)));
@@ -144,15 +149,22 @@ const commands = {
     return await runOnActiveBackend("snapshot", {}, snapshot);
   },
 
-  async "scroll-bottom"() {
-    return await runOnActiveBackend("scroll-bottom", {}, () =>
-      withActivePageCdp(scrollToBottomCdp),
+  async scroll({ direction, pixels }) {
+    const args = { direction, pixels };
+    return await runOnActiveBackend("scroll", args, () =>
+      withActivePageCdp((send) => scrollCdp(send, args)),
     );
   },
 
   async back() {
     return await runOnActiveBackend("back", {}, () =>
-      withActivePageCdp(goBack),
+      withActivePage(async (page, browser) => {
+        const session = await page.createCDPSession();
+        return goBackOrRestore(
+          session.send.bind(session),
+          () => restoreOpenerPage(page, browser),
+        );
+      }),
     );
   },
 

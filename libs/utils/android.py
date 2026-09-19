@@ -509,7 +509,12 @@ def setup_jdk(jdk_version=None, env=None, proot_distro=None):
     def find_jdk(patterns, jdk_version=None):
         jdk_paths = []
         for pattern in patterns:
-            paths = glob.glob(pattern)
+            # Exclude JRE-only installs, which have no compiler.
+            paths = [
+                p
+                for p in glob.glob(pattern)
+                if glob.glob(os.path.join(p, "bin", "javac*"))
+            ]
             if len(paths) == 0:
                 continue
             if jdk_version:

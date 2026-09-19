@@ -301,7 +301,6 @@ def create_new_script(
             with open(dest_script, "w") as _:
                 pass
 
-    edit_script(os.path.realpath(dest_script))
     return dest_script
 
 

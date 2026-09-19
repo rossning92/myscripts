@@ -293,6 +293,7 @@
         <button type="button" role="menuitemradio" data-viewport="390x844">Phone 390×844</button>
         <button type="button" role="menuitemradio" data-viewport="768x1024">Tablet 768×1024</button>
         <button type="button" role="menuitemradio" data-viewport="1024x768">Desktop 1024×768</button>
+        <button type="button" role="menuitemradio" data-viewport="1920x1080">PC 1920×1080</button>
       </div>
       <button
         id="shareBtn"
@@ -848,11 +849,29 @@
       // The local input is a keyboard/IME proxy for the focused element in the
       // remote page. Keep composition text local until the IME commits it, then
       // insert the complete Unicode string instead of guessing it from keydown.
-      hiddenInput.addEventListener("input", (e) => {
-        if (e.isComposing) return;
+      let isComposing = false;
+
+      function flushRemoteInput() {
         const text = hiddenInput.value;
         if (text) send("Input.insertText", { text });
         hiddenInput.value = "";
+      }
+
+      hiddenInput.addEventListener("compositionstart", () => {
+        isComposing = true;
+      });
+
+      hiddenInput.addEventListener("compositionend", () => {
+        isComposing = false;
+        // Some desktop IMEs emit their final input event before compositionend,
+        // while others emit it just after. Delay the fallback so either ordering
+        // forwards the committed value exactly once.
+        setTimeout(flushRemoteInput, 0);
+      });
+
+      hiddenInput.addEventListener("input", (e) => {
+        if (isComposing || e.isComposing) return;
+        flushRemoteInput();
       });
 
       hiddenInput.addEventListener("keydown", (e) => {

@@ -214,6 +214,19 @@ export async function withActivePage(handler, { url } = {}) {
   return await handler(page, browser);
 }
 
+export async function restoreOpenerPage(page, browser) {
+  const openerId = page.targetInfo.openerId;
+  if (!openerId) return false;
+
+  const pages = await browser.pages();
+  const opener = pages.find(({ targetInfo }) => targetInfo.targetId === openerId);
+  if (!opener) return false;
+
+  await opener.send("Page.bringToFront");
+  await page.close();
+  return true;
+}
+
 export function refToSelector(ref) {
   if (!ref) return null;
   // Normalize: strip leading "@" if present, then ensure it starts with "e"

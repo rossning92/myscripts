@@ -130,6 +130,8 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.set_multi_select(False)
         self.set_selected_row(first_row)
         self.__refresh_windows(message=error)
+        if self.get_input() and self.get_row_count() == 0:
+            self.clear_input()
 
     def on_enter_pressed(self):
         selected = self.get_selected_item()
