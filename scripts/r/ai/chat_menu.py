@@ -182,17 +182,24 @@ class _SessionItem:
         return self.text
 
 
-class _EditImageUrlsMenu(ListEditMenu):
-    def __init__(self, items: List[str]) -> None:
-        super().__init__(items=items, prompt="image urls")
-        self.add_command(self.__insert_image, hotkey="alt+i")
+class _Attachment:
+    def __init__(self, name: str, kind: Literal["image", "text"], content: str):
+        self.name = name
+        self.kind = kind
+        self.content = content
 
-    def __insert_image(self) -> None:
-        menu = FileMenu()
-        image_file = menu.select_file()
-        if image_file:
-            encoded = encode_image_base64(image_file)
-            self.items.append(encoded)
+    def __str__(self) -> str:
+        return f"{self.name} ({self.kind})"
+
+
+class _EditAttachmentsMenu(ListEditMenu[_Attachment]):
+    def __init__(
+        self,
+        items: List[_Attachment],
+        add_attachment: Callable[[], None],
+    ) -> None:
+        super().__init__(items=items, prompt="attachments")
+        self.add_command(add_attachment, hotkey="alt+a")
 
 
 class _SelectSessionMenu(Menu[_SessionItem]):
@@ -274,11 +281,24 @@ class ChatMenu(Menu[Line]):
         self.__copy = copy
         self.__headless = headless
         self.__first_message = message
+        self.__attachments: List[_Attachment] = []
         if context and is_text_file(context):
+            context_file = context
             with open(context, "r", encoding="utf-8") as f:
                 context = f.read()
-        self.__context: Optional[str] = context
-        self.__image_urls: List[str] = image_urls if image_urls else []
+            self.__attachments.append(
+                _Attachment(name=context_file, kind="text", content=context)
+            )
+        elif context:
+            self.__attachments.append(
+                _Attachment(name="context", kind="text", content=context)
+            )
+        for index, image_url in enumerate(image_urls or [], start=1):
+            self.__attachments.append(
+                _Attachment(
+                    name=f"image {index}", kind="image", content=image_url
+                )
+            )
         self.__is_running = False
         self.__spinner = Spinner()
         self.__last_spinner_update = 0.0
@@ -332,11 +352,11 @@ class ChatMenu(Menu[Line]):
             **kwargs,
         )
 
-        self.add_command(self.__add_file, hotkey="alt+f")
+        self.add_command(self.__add_file, hotkey="alt+a")
         if is_termux():
-            self.add_command(self.__add_file_native, hotkey="alt+f")
+            self.add_command(self.__add_file_native, hotkey="alt+a")
         self.add_command(self.__edit_context)
-        self.add_command(self.__edit_image_urls, hotkey="alt+i")
+        self.add_command(self.__edit_attachments, hotkey="alt+c")
         self.add_command(self.__edit_message, hotkey="alt+e")
         self.add_command(self.__select_model, hotkey="alt+m")
         self.add_command(self.__edit_prompt, hotkey="alt+p")
@@ -432,14 +452,26 @@ class ChatMenu(Menu[Line]):
             if image_mime_type:
                 with open(file, "rb") as f:
                     encoded = base64.b64encode(f.read()).decode("utf-8")
-                self.__image_urls.append(
-                    f"data:{image_mime_type};base64,{encoded}"
+                self.__attachments.append(
+                    _Attachment(
+                        name=file,
+                        kind="image",
+                        content=f"data:{image_mime_type};base64,{encoded}",
+                    )
                 )
             elif _is_image_file(file):
-                self.__image_urls.append(encode_image_base64(file))
+                self.__attachments.append(
+                    _Attachment(
+                        name=file,
+                        kind="image",
+                        content=encode_image_base64(file),
+                    )
+                )
             else:
                 with open(file, "r", encoding="utf-8") as f:
-                    self.__context = f.read()
+                    self.__attachments.append(
+                        _Attachment(name=file, kind="text", content=f.read())
+                    )
         except (OSError, UnicodeError, ValueError) as e:
             self.set_message(f"failed to add file: {e}")
             return
@@ -494,17 +526,34 @@ class ChatMenu(Menu[Line]):
         )
 
     def __edit_context(self):
-        if self.__context is None:
-            self.__context = ""
-        self.__context = self.run_raw(
-            lambda: edit_text(self.__context, tmp_file_ext=".md")
+        context_attachment = next(
+            (
+                attachment
+                for attachment in self.__attachments
+                if attachment.kind == "text" and attachment.name == "context"
+            ),
+            None,
         )
-        if not self.__context.strip():
-            self.__context = None
+        old_context = context_attachment.content if context_attachment else ""
+        new_context = self.run_raw(
+            lambda: edit_text(old_context, tmp_file_ext=".md")
+        )
+        if new_context.strip():
+            if context_attachment:
+                context_attachment.content = new_context
+            else:
+                self.__attachments.append(
+                    _Attachment(name="context", kind="text", content=new_context)
+                )
+        elif context_attachment:
+            self.__attachments.remove(context_attachment)
         self.__update_prompt()
 
-    def __edit_image_urls(self):
-        _EditImageUrlsMenu(items=self.__image_urls).exec()
+    def __edit_attachments(self):
+        _EditAttachmentsMenu(
+            items=self.__attachments,
+            add_attachment=self.__add_file,
+        ).exec()
         self.__update_prompt()
 
     def __edit_message(self, msg_index=-1):
@@ -677,8 +726,7 @@ class ChatMenu(Menu[Line]):
             self.set_message(f"failed to take photo: {e}")
             return
 
-        # TODO: use self.__image_urls instead
-        # self.__context = tmp_photo
+        self.__add_file_path(tmp_photo)
         self.__update_prompt()
 
     def __revert_messages(self):
@@ -710,8 +758,22 @@ class ChatMenu(Menu[Line]):
         oldest_removed = removed_messages[0]
         if oldest_removed["role"] == "user":
             self.set_input(oldest_removed["text"])
-            self.__image_urls[:] = oldest_removed.get("image_urls", [])
-            self.__context = oldest_removed.get("context")
+            self.__attachments.clear()
+            context = oldest_removed.get("context")
+            if context:
+                self.__attachments.append(
+                    _Attachment(name="context", kind="text", content=context)
+                )
+            for index, image_url in enumerate(
+                oldest_removed.get("image_urls", []), start=1
+            ):
+                self.__attachments.append(
+                    _Attachment(
+                        name=f"image {index}",
+                        kind="image",
+                        content=image_url,
+                    )
+                )
         else:
             self.clear_input()
 
@@ -724,10 +786,8 @@ class ChatMenu(Menu[Line]):
 
     def __update_prompt(self):
         prompt = f"{self.__prompt}"
-        if self.__context:
-            prompt += " (context)"
-        if self.__image_urls:
-            prompt += f" ({len(self.__image_urls)} images)"
+        if self.__attachments:
+            prompt += f" ({len(self.__attachments)} files !c)"
         if self.__message_queue:
             prompt += f" (queued: {len(self.__message_queue)})"
         self.set_prompt(prompt)
@@ -911,10 +971,10 @@ class ChatMenu(Menu[Line]):
                             else ""
                         ),
                     }
-                    if i == 0 and "context" in message
+                    if "context" in message
                     else message
                 )
-                for i, message in enumerate(self.__messages)
+                for message in self.__messages
             ]
         else:
             return self.__messages
@@ -955,7 +1015,7 @@ class ChatMenu(Menu[Line]):
             if last_line_index >= 0:
                 self.set_selection(last_line_index, last_line_index)
 
-        self.__context = None
+        self.__attachments.clear()
         self.__retry_count = 0
         self.__update_prompt()
 
@@ -1002,21 +1062,35 @@ class ChatMenu(Menu[Line]):
             )
             subindex += 1
 
-        if self.__context:
-            message["context"] = self.__context
+        text_attachments = [
+            attachment
+            for attachment in self.__attachments
+            if attachment.kind == "text"
+        ]
+        if text_attachments:
+            context = "\n\n".join(
+                f"## Attachment: {attachment.name}\n\n{attachment.content}"
+                for attachment in text_attachments
+            )
+            message["context"] = context
             self.append_item(
                 Line(
                     role="user",
                     msg_index=msg_index,
                     subindex=subindex,
-                    context=self.__context,
+                    context=context,
                 )
             )
             subindex += 1
 
-        if self.__image_urls:
-            message["image_urls"] = self.__image_urls.copy()
-            for image_url in self.__image_urls:
+        image_urls = [
+            attachment.content
+            for attachment in self.__attachments
+            if attachment.kind == "image"
+        ]
+        if image_urls:
+            message["image_urls"] = image_urls
+            for image_url in image_urls:
                 self.append_item(
                     Line(
                         role="user",
@@ -1026,7 +1100,8 @@ class ChatMenu(Menu[Line]):
                     )
                 )
                 subindex += 1
-            self.__image_urls.clear()
+
+        self.__attachments.clear()
 
         if tool_results:
             message["tool_result"] = tool_results
@@ -1392,8 +1467,7 @@ class ChatMenu(Menu[Line]):
         self.clear_messages()
 
         self.set_input("")
-        self.__context = None
-        self.__image_urls.clear()
+        self.__attachments.clear()
         self.__update_prompt()
         self.__update_terminal_title(state="idle")
 
@@ -1494,7 +1568,13 @@ class ChatMenu(Menu[Line]):
                 os.close(fd)
                 try:
                     im.save(temp_path)
-                    self.__image_urls.append(encode_image_base64(temp_path))
+                    self.__attachments.append(
+                        _Attachment(
+                            name="clipboard.png",
+                            kind="image",
+                            content=encode_image_base64(temp_path),
+                        )
+                    )
                     self.__update_prompt()
                     return True
                 finally:

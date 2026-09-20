@@ -92,9 +92,10 @@ function navigateAndWaitForLoad(tabId, url) {
 async function open(url) {
   if (!url) return;
   const normalizedUrl = normalizeUrl(url);
-  let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) tab = await chrome.tabs.create({ url: "about:blank" });
+  const tab = await chrome.tabs.create({ url: "about:blank", active: false });
   await navigateAndWaitForLoad(tab.id, normalizedUrl);
+  // Select the loaded tab without focusing the Chrome window during creation.
+  await chrome.tabs.update(tab.id, { active: true });
 }
 
 async function withActiveDebuggee(callback) {

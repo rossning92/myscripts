@@ -32,6 +32,10 @@ import { extensionBridge } from "./extension-bridge.js";
 import { getExtensionSourceVersion } from "./extension-source.js";
 import { getViewport, parseViewport, setViewport } from "./viewport.js";
 import {
+  loadBackendPreference,
+  saveBackendPreference,
+} from "./backend-preference.js";
+import {
   goBackOrRestore,
   goForward,
   reload,
@@ -46,7 +50,7 @@ const contentTypes = {
   ".svg": "image/svg+xml",
 };
 
-let activeBackend = "browser";
+let activeBackend = await loadBackendPreference();
 const screencastUploadDir = resolve(tmpdir(), "browsercli-screencast-uploads");
 
 async function runOnActiveBackend(command, args, browserHandler) {
@@ -80,6 +84,7 @@ const commands = {
     if (extension) {
       await extensionBridge.send("open", { url });
       activeBackend = "extension";
+      await saveBackendPreference(activeBackend);
       return { mode: "extension", backend: activeBackend };
     }
     if (activeBackend === "extension") {
@@ -115,6 +120,7 @@ const commands = {
       await getBrowser({ headed });
     }
     activeBackend = backend;
+    await saveBackendPreference(activeBackend);
     return { backend };
   },
 

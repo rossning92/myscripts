@@ -158,10 +158,14 @@ def setup_env_var(env):
     root = get_my_script_root()
 
     paths = [os.path.join(root, "bin")]
-
-    winget_links_dir = os.path.expanduser(r"%LOCALAPPDATA%\Microsoft\WinGet\Links")
-    if os.path.exists(winget_links_dir):
-        paths.append(winget_links_dir)
+    if sys.platform == "win32":
+        winget_links_dir = os.path.expanduser(
+            r"%LOCALAPPDATA%\Microsoft\WinGet\Links"
+        )
+        if os.path.exists(winget_links_dir):
+            paths.append(winget_links_dir)
+    else:
+        paths.append(os.path.expanduser("~/.local/bin"))
 
     prepend_to_path(paths, env=env)
 

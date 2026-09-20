@@ -161,7 +161,7 @@ program
   .argument("<url>", "URL to open")
   .option(
     "--extension",
-    "Open in the active tab of Chrome running the browsercli extension"
+    "Open in a new tab of Chrome running the browsercli extension"
   )
   .action(async (url, options) => {
     const status = await sendCommand("open", {
@@ -171,7 +171,7 @@ program
     if (status) {
       if (status.mode === "extension") {
         printSuccess(
-          `opened ${JSON.stringify(url)} in the extension active tab`,
+          `opened ${JSON.stringify(url)} in a new tab using the Chrome extension`,
         );
       } else {
         printSuccess(
