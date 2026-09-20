@@ -40,12 +40,6 @@ if [[ -z "$current_branch" ]]; then
     exit 1
 fi
 
-read -r -p "Create private GitHub repo '$repo_name' and push '$current_branch'? [y/N]: " confirm
-if [[ "${confirm,,}" != "y" && "${confirm,,}" != "yes" ]]; then
-    echo "Cancelled."
-    exit 0
-fi
-
 gh repo create "$repo_name" --private --source=. --remote=origin --push
 
 gh repo view --json nameWithOwner,visibility,url --jq '"Created and pushed: \(.nameWithOwner) [\(.visibility)]\n\(.url)"'

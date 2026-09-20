@@ -1,5 +1,7 @@
 import os
 import subprocess
+from dataclasses import dataclass
+from typing import List, Optional
 
 from utils.menu.diffmenu import DiffMenu
 
@@ -18,6 +20,54 @@ def _git_output(*args, **kwargs):
     )
 
 
+@dataclass(frozen=True)
+class GitStatusItem:
+    status: str
+    path: str
+    old_path: Optional[str] = None
+
+    def __str__(self):
+        name = f"{self.old_path} -> {self.path}" if self.old_path else self.path
+        return f"{self.status:<2} {name}"
+
+
+def _parse_porcelain_status(output: str) -> List[GitStatusItem]:
+    """Parse `git status --porcelain=v1 -z` without reparsing display text."""
+    records = output.split("\0")
+    items = []
+    index = 0
+    while index < len(records) and records[index]:
+        record = records[index]
+        status, path = record[:2], record[3:]
+        old_path = None
+        if "R" in status or "C" in status:
+            index += 1
+            old_path = records[index]
+        items.append(GitStatusItem(status=status, path=path, old_path=old_path))
+        index += 1
+    return items
+
+
+def _parse_name_status(output: str) -> List[GitStatusItem]:
+    """Parse `git show --name-status -z`, including scored renames/copies."""
+    records = output.split("\0")
+    items = []
+    index = 0
+    while index < len(records) and records[index]:
+        raw_status = records[index]
+        index += 1
+        old_path = None
+        if raw_status[:1] in ("R", "C"):
+            old_path = records[index]
+            index += 1
+        path = records[index]
+        index += 1
+        items.append(
+            GitStatusItem(status=raw_status[:1], path=path, old_path=old_path)
+        )
+    return items
+
+
 class GitMenu(VcsDiffMenu):
     _vcs = "git"
 
@@ -31,27 +81,20 @@ class GitMenu(VcsDiffMenu):
     def _get_status_items(self):
         try:
             status = _git_output(
-                "status", "--short", "-u", universal_newlines=True
+                "status", "--porcelain=v1", "-z", "-u", text=True
             )
-            if status.strip():
-                return status.splitlines(), False
+            if status:
+                return _parse_porcelain_status(status), False
             else:
                 show_output = _git_output(
                     "show",
                     "--name-status",
+                    "-z",
                     "--format=",
                     "HEAD",
-                    universal_newlines=True,
+                    text=True,
                 )
-                items = []
-                for line in show_output.splitlines():
-                    if line.strip():
-                        parts = line.split("\t", 1)
-                        if len(parts) == 2:
-                            items.append(f"{parts[0]:<2} {parts[1]}")
-                        else:
-                            items.append(line)
-                return items, True
+                return _parse_name_status(show_output), True
         except subprocess.CalledProcessError:
             return [], False
 
@@ -73,7 +116,7 @@ class GitMenu(VcsDiffMenu):
     def get_item_color(self, item):
         if self._is_clean:
             return super().get_item_color(item)
-        status = item[:2]
+        status = item.status
         if "D" in status:
             return "red"
         if "?" in status:
@@ -85,13 +128,10 @@ class GitMenu(VcsDiffMenu):
         return "white"
 
     def _get_filename(self, item):
-        name = item[3:]
-        if " -> " in name:
-            name = name.split(" -> ")[-1].strip('"')
-        return name
+        return item.path
 
     def _discard_file(self, item, filename):
-        status = item[:2]
+        status = item.status
         if "?" in status:
             path = os.path.join(os.getcwd(), filename)
             if os.path.isdir(path):
@@ -135,7 +175,7 @@ class GitMenu(VcsDiffMenu):
         filename = self._get_filename(item)
         if self._is_clean:
             git_args = ["HEAD~1", "HEAD", filename]
-        elif item.startswith("??"):
+        elif item.status == "??":
             DiffMenu(
                 untracked_file=filename, prompt_prefix=self.get_prompt()
             ).exec()
