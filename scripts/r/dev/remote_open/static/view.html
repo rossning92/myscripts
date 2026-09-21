@@ -70,6 +70,9 @@ body {
     max-height: 100%;
     object-fit: contain;
 }
+#viewer.zoomable { overflow: hidden; touch-action: none; }
+#viewer.zoomed { cursor: grab; }
+#viewer.grabbing { cursor: grabbing; }
 #viewer iframe {
     width: 100%;
     height: 100%;
@@ -262,11 +265,67 @@ if (path) {
         requestAnimationFrame(function () { apply(); requestAnimationFrame(apply); });
     }
 
+    var zoom = { s: 1, tx: 0, ty: 0 };
+
+    function setupZoom(img) {
+        function apply() {
+            img.style.transform =
+                "translate(" + zoom.tx + "px," + zoom.ty + "px) scale(" + zoom.s + ")";
+            v.classList.toggle("zoomed", zoom.s > 1);
+        }
+        v.classList.add("zoomable");
+        apply();
+
+        v.onwheel = function (ev) {
+            ev.preventDefault();
+            var r = img.getBoundingClientRect();
+            var ns = Math.min(40, Math.max(1, zoom.s * Math.exp(-ev.deltaY * 0.002)));
+            var k = ns / zoom.s;
+            zoom.s = ns;
+            if (ns === 1) {
+                zoom.tx = zoom.ty = 0;
+            } else {
+                zoom.tx += (ev.clientX - r.left - r.width / 2) * (1 - k);
+                zoom.ty += (ev.clientY - r.top - r.height / 2) * (1 - k);
+            }
+            apply();
+        };
+
+        v.onpointerdown = function (ev) {
+            if (zoom.s === 1) return;
+            v.setPointerCapture(ev.pointerId);
+            v.classList.add("grabbing");
+            var x0 = ev.clientX, y0 = ev.clientY, tx0 = zoom.tx, ty0 = zoom.ty;
+            v.onpointermove = function (e2) {
+                zoom.tx = tx0 + e2.clientX - x0;
+                zoom.ty = ty0 + e2.clientY - y0;
+                apply();
+            };
+            v.onpointerup = v.onpointercancel = function () {
+                v.onpointermove = null;
+                v.classList.remove("grabbing");
+            };
+        };
+
+        v.ondblclick = function () {
+            zoom.s = 1;
+            zoom.tx = zoom.ty = 0;
+            apply();
+        };
+    }
+
+    function teardownZoom() {
+        v.classList.remove("zoomable", "zoomed", "grabbing");
+        v.onwheel = v.onpointerdown = v.onpointermove = v.ondblclick = null;
+    }
+
     function render(bust) {
         var src = fileUrl + (bust ? "?t=" + bust : "");
         var scroll = bust ? snapshotScroll() : null;
+        teardownZoom();
         if (IMG.indexOf(e) >= 0) {
             v.innerHTML = '<img src="' + src + '">';
+            setupZoom(v.querySelector("img"));
             restoreScroll(scroll);
             if (window.Annotator) Annotator.disable();
         } else if (VID.indexOf(e) >= 0) {

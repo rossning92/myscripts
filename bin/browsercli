@@ -1,2 +1,3 @@
 #!/usr/bin/env bash
-run_script r/web/browsercli/browsercli.js "$@"
+# System node is v16, which has no global fetch; jellyfish ships v24.
+PATH="/usr/local/jellyfish:$PATH" run_script r/web/browsercli/browsercli.js "$@"
