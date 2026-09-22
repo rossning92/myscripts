@@ -74,6 +74,12 @@ class TodoMenu(ListEditMenu[TodoItem]):
         self,
         data_file: str,
     ):
+        if not data_file:
+            raise ValueError("TODO_DATA_FILE is unset and --data-file was not given")
+        data_dir = os.path.dirname(os.path.abspath(data_file))
+        if not os.path.isdir(data_dir):
+            raise ValueError(f"Directory of the todo data file does not exist: {data_dir}")
+
         super().__init__(
             prompt="todo",
             json_file=data_file,
