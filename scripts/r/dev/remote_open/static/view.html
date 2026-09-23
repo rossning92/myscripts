@@ -26,7 +26,7 @@ body {
 }
 #path {
     flex: 0 0 auto;
-    padding: 8px 220px 8px 12px;
+    padding: 8px 330px 8px 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
     color: var(--muted);
@@ -54,7 +54,8 @@ body {
 }
 .tbtn:hover { background: #383838; color: var(--fg); }
 .tbtn .key { opacity: .6; margin-left: 4px; }
-#copybtn { display: none; }
+a.tbtn { text-decoration: none; display: inline-block; }
+#copybtn, #dlbtn { display: none; }
 #viewer {
     flex: 1 1 auto;
     min-height: 0;
@@ -92,7 +93,7 @@ body {
 </style>
 </head>
 <body>
-<div id="toolbar"><button id="copypathbtn" class="tbtn"></button><button id="copybtn" class="tbtn"></button></div>
+<div id="toolbar"><button id="copypathbtn" class="tbtn"></button><button id="copybtn" class="tbtn"></button><a id="dlbtn" class="tbtn"></a></div>
 <div id="path"></div>
 <div id="viewer"></div>
 <script src="/annotate.js"></script>
@@ -151,10 +152,12 @@ var isMac = /Mac/i.test(navigator.platform || "");
 var ALT = isMac ? "⌥" : "Alt+";
 var copyBtn = document.getElementById("copybtn");
 var copyPathBtn = document.getElementById("copypathbtn");
+var dlBtn = document.getElementById("dlbtn");
 var COPY_LABEL = 'Copy text<span class="key">' + ALT + 'C</span>';
 var PATH_LABEL = 'Copy path<span class="key">' + ALT + 'P</span>';
 copyBtn.innerHTML = COPY_LABEL;
 copyPathBtn.innerHTML = PATH_LABEL;
+dlBtn.innerHTML = 'Download<span class="key">' + ALT + 'D</span>';
 
 function flashBtn(btn, label, ok) {
     btn.textContent = ok ? "Copied" : "Failed";
@@ -225,6 +228,9 @@ document.addEventListener("keydown", function (e) {
     } else if (e.code === "KeyP") {
         e.preventDefault();
         copyPath();
+    } else if (e.code === "KeyD") {
+        e.preventDefault();
+        dlBtn.click();
     }
 });
 
@@ -248,6 +254,10 @@ if (path) {
     var encPath = path.split("/").map(encodeURIComponent).join("/");
     var fileUrl = "/api/file" + encPath;
     var statUrl = "/api/stat" + encPath;
+
+    dlBtn.href = fileUrl;
+    dlBtn.setAttribute("download", name);
+    dlBtn.style.display = "inline-block";
 
     function snapshotScroll() {
         var pre = v.querySelector("pre");

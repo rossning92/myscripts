@@ -309,6 +309,17 @@
         </svg>
       </button>
       <button
+        id="copyBtn"
+        title="Copy image"
+        aria-label="Copy current screencast image"
+        disabled
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="8" y="8" width="11" height="11" rx="2" />
+          <path d="M16 8V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1" />
+        </svg>
+      </button>
+      <button
         id="pipBtn"
         title="Picture in picture"
         aria-label="Open picture in picture"
@@ -417,6 +428,7 @@
       const virtualKeys = document.getElementById("virtualKeys");
       const keyboardBtn = document.getElementById("keyboardBtn");
       const shareBtn = document.getElementById("shareBtn");
+      const copyBtn = document.getElementById("copyBtn");
       const pipBtn = document.getElementById("pipBtn");
       const stage = document.getElementById("stage");
       const zoomOutBtn = document.getElementById("zoomOutBtn");
@@ -465,6 +477,34 @@
         });
       } else {
         shareBtn.hidden = true;
+      }
+
+      const canCopyImages =
+        navigator.clipboard?.write &&
+        typeof ClipboardItem === "function" &&
+        typeof canvas.toBlob === "function";
+      if (canCopyImages) {
+        copyBtn.addEventListener("click", async () => {
+          try {
+            const blob = await new Promise((resolve, reject) => {
+              canvas.toBlob(
+                (value) => value ? resolve(value) : reject(new Error("Could not encode image")),
+                "image/png",
+              );
+            });
+            await navigator.clipboard.write([
+              new ClipboardItem({ "image/png": blob }),
+            ]);
+            copyBtn.title = "Copied";
+            setTimeout(() => {
+              copyBtn.title = "Copy image";
+            }, 1500);
+          } catch (error) {
+            console.error(error);
+          }
+        });
+      } else {
+        copyBtn.hidden = true;
       }
 
       const fileUpload = setupFileUpload({
@@ -715,6 +755,7 @@
               canvas.height = img.height;
               ctx.drawImage(img, 0, 0);
               shareBtn.disabled = false;
+              copyBtn.disabled = false;
               pictureInPicture.refreshVideo();
             };
             img.src = "data:image/jpeg;base64," + msg.params.data;

@@ -17,6 +17,7 @@ local beautiful = require("beautiful")
 local dpi = require("beautiful.xresources").apply_dpi
 -- Notification library
 local naughty = require("naughty")
+naughty.config.defaults.timeout = 10
 local menubar = require("menubar")
 local hotkeys_popup = require("awful.hotkeys_popup")
 

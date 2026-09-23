@@ -327,6 +327,9 @@
     "apt": {
       "packages": ["git-lfs"]
     },
+    "brew": {
+      "packages": ["git-lfs"]
+    },
     "choco": {
       "packages": ["git-lfs"]
     },
