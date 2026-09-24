@@ -14,7 +14,7 @@ import {
   withActivePage,
 } from "./browser-core.js";
 import { withActivePageCdp } from "./browser-cdp.js";
-import { DAEMON_PORT, DEBUG_PORT } from "./config.js";
+import { DAEMON_PORT, DEBUG_PORT, SESSION } from "./config.js";
 import {
   click as clickCdp,
   pressKey as pressKeyCdp,
@@ -50,7 +50,7 @@ const contentTypes = {
   ".svg": "image/svg+xml",
 };
 
-let activeBackend = await loadBackendPreference();
+let activeBackend = SESSION ? "browser" : await loadBackendPreference();
 const screencastUploadDir = resolve(tmpdir(), "browsercli-screencast-uploads");
 
 async function runOnActiveBackend(command, args, browserHandler) {
@@ -82,6 +82,11 @@ async function serveStatic(pathname, res) {
 const commands = {
   async open({ url, headed, extension }) {
     if (extension) {
+      if (SESSION) {
+        throw new Error(
+          "Named sessions are only supported by the managed browser backend",
+        );
+      }
       await extensionBridge.send("open", { url });
       activeBackend = "extension";
       await saveBackendPreference(activeBackend);
@@ -114,13 +119,18 @@ const commands = {
     if (backend !== "browser" && backend !== "extension") {
       throw new Error('Backend must be "browser" or "extension"');
     }
+    if (SESSION && backend === "extension") {
+      throw new Error(
+        "Named sessions are only supported by the managed browser backend",
+      );
+    }
     if (backend === "extension") {
       await extensionBridge.send("ping", {});
     } else {
       await getBrowser({ headed });
     }
     activeBackend = backend;
-    await saveBackendPreference(activeBackend);
+    if (!SESSION) await saveBackendPreference(activeBackend);
     return { backend };
   },
 

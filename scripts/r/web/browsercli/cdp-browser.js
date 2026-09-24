@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import { connectToBrowser } from "./cdp-client.js";
+import { getViewport } from "./viewport.js";
 
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
@@ -240,6 +241,9 @@ export class CdpBrowser extends EventEmitter {
     const page = new CdpPage(this, targetInfo, sessionId);
     this.pageCache.set(targetInfo.targetId, page);
     await page.send("Page.enable");
+    // Device metrics overrides are per-target, so popups and target=_blank tabs
+    // would otherwise render at the real window size until the next command.
+    await page.setViewport({ ...getViewport(), deviceScaleFactor: 1 });
     return page;
   }
 }

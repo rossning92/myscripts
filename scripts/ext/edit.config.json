@@ -2,5 +2,6 @@
   "commandWrapper": false,
   "hotkey": "ctrl+e",
   "matchClipboard": "([A-Za-z]:\\\\|/)?[A-Za-z0-9._\\-\\\\/]+?\\.(c|cpp|cc|h|hpp|py|js|ts|java|go|rs|php|rb|swift|kt|txt|md)",
-  "title": "edt"
+  "title": "edt",
+  "tmuxHotkey": "e"
 }

@@ -334,7 +334,7 @@ if (path) {
         var scroll = bust ? snapshotScroll() : null;
         teardownZoom();
         if (IMG.indexOf(e) >= 0) {
-            v.innerHTML = '<img src="' + src + '">';
+            v.innerHTML = '<img draggable="false" src="' + src + '">';
             setupZoom(v.querySelector("img"));
             restoreScroll(scroll);
             if (window.Annotator) Annotator.disable();

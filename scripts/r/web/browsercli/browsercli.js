@@ -148,6 +148,11 @@ Agent workflow:
   $ browsercli press Enter
   $ browsercli snapshot
 
+Isolated browser session:
+  $ export BROWSERCLI_SESSION=session-1
+  $ browsercli open https://example.com
+  $ browsercli snapshot
+
 Use snapshot refs for actions, then snapshot again after the page changes.
 Prefer clicking links found in the current page over opening their URLs directly.
 Use open for the initial page or when the destination has no clickable link.
