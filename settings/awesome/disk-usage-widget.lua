@@ -7,7 +7,7 @@ local function worker()
     local widget, text = status_widget.new("stacked-disk")
     local _, timer = awful.widget.watch(
         "df --output=pcent /",
-        30,
+        5,
         function(_, stdout)
             local percentage = stdout:match("\n%s*(%d+)%%")
             if percentage then

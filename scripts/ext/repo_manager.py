@@ -18,31 +18,18 @@ from utils.spinner import Spinner
 from utils.script.path import get_my_script_root, get_script_dirs_config_file
 
 from git.vcs import (
-    DEFAULT_COMMIT_MESSAGE,
-    commit_message_or_default,
     discard_all_changes,
     get_amend_cmds,
+    get_commit_all_cmds,
     get_git_recent_commits,
     get_hg_recent_commits,
     get_sync_cmds,
     get_vcs_output,
     prepend_recent_commits,
+    prompt_commit_message,
 )
 
 _MODULE_NAME = "repos"
-
-
-def _prompt_commit_message() -> Optional[str]:
-    # Prompt for a commit message. Returns None if cancelled, or the default
-    # message when the input is left empty.
-    menu = InputMenu(
-        prompt=f'Commit message (empty="{DEFAULT_COMMIT_MESSAGE}"):',
-        prompt_color="green",
-    )
-    message = menu.request_input()
-    if message is None:
-        return None
-    return commit_message_or_default(message)
 
 
 class Repo:
@@ -259,6 +246,8 @@ class RepoMenu(Menu[Repo]):
     def get_item_text(self, item: Repo) -> str:
         vcs_info = item.vcs_info
         if vcs_info:
+            if item.is_git and item.branch == "(detached)":
+                vcs_info = f"\x1b[1;35m{vcs_info}\x1b[0m"
             status_width = self._max_status_width()
             path_width = self._max_path_width()
             status_padding = " " * (status_width - len(item.status_text))
@@ -421,23 +410,12 @@ class RepoMenu(Menu[Repo]):
         repo = self.get_selected_item()
         if repo is None or not repo.vcs:
             return
-        message = _prompt_commit_message()
+        message = prompt_commit_message()
         if message is None:
             return
-        if repo.is_git:
-            if not self._ensure_git_identity():
-                return
-            # If something is already staged, commit only the staged files.
-            # Otherwise fall back to staging everything.
-            staged = get_vcs_output(
-                "git", "diff", "--cached", "--name-only", cwd=repo.path
-            )
-            cmds = [] if staged else [["git", "add", "-A"]]
-            cmds += [["git", "commit", "-m", message]]
-        elif repo.is_hg:
-            cmds = [["hg", "addremove"], ["hg", "commit", "-m", message]]
-        else:
+        if repo.is_git and not self._ensure_git_identity():
             return
+        cmds = get_commit_all_cmds(repo.vcs, message, cwd=repo.path)
         if sync:
             cmds += get_sync_cmds(repo.vcs)
         self._run_cmds(*cmds)

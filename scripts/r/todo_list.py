@@ -426,7 +426,9 @@ def _main():
 
     add_parser = subparsers.add_parser("add", help="Add a new todo item")
     add_parser.add_argument(
-        "--desc", required=True, help="Description of the todo item"
+        "--desc",
+        required=True,
+        help="Description of the todo item (multiline text is supported)",
     )
     add_parser.add_argument("--due", help="Due date/time")
 

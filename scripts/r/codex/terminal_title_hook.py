@@ -2,6 +2,7 @@
 
 import base64
 import json
+import os
 import re
 import sys
 import tempfile
@@ -46,10 +47,10 @@ except OSError:
         title = state_file.read_text()
 
 try:
-    with open("/dev/tty", "w") as tty:
+    with open(os.environ.get("CODEX_TERMINAL_TTY") or "/dev/tty", "w") as tty:
         tty.write(f"\033]0;Codex {status} {title}\007")
 except OSError:
-    # Some non-interactive terminals do not expose /dev/tty.
+    # Non-interactive launches may not have a terminal, or it may have closed.
     pass
 
 # Hooks should not add their output to the model context.

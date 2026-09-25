@@ -7,18 +7,39 @@ from typing import List, Optional, Tuple
 from _script import start_script
 from utils.fileutils import get_display_path
 from utils.menu.confirmmenu import confirm
-from utils.menu.inputmenu import InputMenu
+from utils.menu.diffmenu import DiffMenu
 from utils.menu.menu import Menu
 from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.spinner import Spinner
 
 from git.vcs import (
-    DEFAULT_COMMIT_MESSAGE,
-    commit_message_or_default,
     get_amend_cmds,
+    get_commit_all_cmds,
     get_sync_cmds,
     prepend_recent_commits,
+    prompt_commit_message,
 )
+
+
+def _run_shell_cmds(cmds: List[List[str]]) -> None:
+    shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in cmds)
+    ShellCmdMenu(shell_cmd).exec()
+
+
+class VcsDiffView(DiffMenu):
+    """Diff view that can also commit every pending change."""
+
+    def __init__(self, vcs: str, **kwargs):
+        super().__init__(**kwargs)
+        self.__vcs = vcs
+        self.add_command(self.__commit, hotkey="alt+c", name="commit")
+
+    def __commit(self) -> None:
+        message = prompt_commit_message()
+        if message is None:
+            return
+        _run_shell_cmds(get_commit_all_cmds(self.__vcs, message))
+        self._refresh()
 
 
 class VcsDiffMenu(Menu):
@@ -114,7 +135,7 @@ class VcsDiffMenu(Menu):
         cmds = self._get_commit_cmds(filenames, message, stage=stage)
         if sync:
             cmds += get_sync_cmds(self._vcs)
-        self._run_shell_cmds(cmds)
+        _run_shell_cmds(cmds)
 
     def _resolve_commit_files(
         self, selected_filenames: List[str]
@@ -126,6 +147,15 @@ class VcsDiffMenu(Menu):
 
     def _diff_all(self) -> None:
         raise NotImplementedError
+
+    def _open_diff(self, **kwargs) -> None:
+        # A past commit has no pending changes, so it gets the plain viewer.
+        kwargs["prompt_prefix"] = self.get_prompt()
+        if self._is_readonly():
+            DiffMenu(**kwargs).exec()
+        else:
+            VcsDiffView(self._vcs, **kwargs).exec()
+        self._refresh()
 
     def set_prompt(self, prompt: str) -> None:
         if self.__prompt_prefix:
@@ -206,24 +236,14 @@ class VcsDiffMenu(Menu):
         filenames, source, stage = self._resolve_commit_files(selected)
         if not filenames:
             return
-        label = (
-            f"Commit {len(filenames)} {source} file(s) "
-            f'(empty="{DEFAULT_COMMIT_MESSAGE}")'
-        )
-        menu = InputMenu(prompt=label, prompt_color="green")
-        message = menu.request_input()
+        message = prompt_commit_message(f"Commit {len(filenames)} {source} file(s)")
         if message is None:
             return
-        message = commit_message_or_default(message)
         self._commit_files(filenames, message, stage=stage, sync=sync)
         self._after_action()
 
     def __commit_and_sync(self) -> None:
         self.__commit(sync=True)
-
-    def _run_shell_cmds(self, cmds: List[List[str]]) -> None:
-        shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in cmds)
-        ShellCmdMenu(shell_cmd).exec()
 
     def __amend(self, push: bool = False) -> None:
         if self.__reject_if_readonly():
@@ -234,7 +254,7 @@ class VcsDiffMenu(Menu):
         cmds = get_amend_cmds(self._vcs, push=push)
         if not cmds:
             return
-        self._run_shell_cmds(cmds)
+        _run_shell_cmds(cmds)
         self._after_action()
 
     def __amend_and_push(self) -> None:

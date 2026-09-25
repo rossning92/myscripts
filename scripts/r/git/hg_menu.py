@@ -1,7 +1,6 @@
 import os
 import subprocess
 
-from utils.menu.diffmenu import DiffMenu
 from utils.menu.menu import Menu
 
 from git.vcs import get_hg_recent_commits, run_vcs
@@ -126,16 +125,14 @@ class HgMenu(VcsDiffMenu):
         # Diff from the parent of the current commit through the working tree,
         # i.e. the current commit's own changes plus any uncommitted edits.
         diff_cmd = self.__build_diff_cmd("-r", ".^")
-        DiffMenu(
-            root=os.getcwd(), diff_cmd=diff_cmd, prompt_prefix=self.get_prompt()
-        ).exec()
+        self._open_diff(root=os.getcwd(), diff_cmd=diff_cmd)
 
     def _diff_all(self):
         if self._is_clean:
             diff_cmd = self.__build_diff_cmd("-c", self._rev)
         else:
             diff_cmd = self.__build_diff_cmd()
-        DiffMenu(root=os.getcwd(), diff_cmd=diff_cmd, prompt_prefix=self.get_prompt()).exec()
+        self._open_diff(root=os.getcwd(), diff_cmd=diff_cmd)
 
     def on_item_selected(self, item):
         filename = self._get_filename(item)
@@ -153,7 +150,7 @@ class HgMenu(VcsDiffMenu):
             ]
         else:
             diff_cmd = self.__build_diff_cmd("--", filename)
-        DiffMenu(root=os.getcwd(), diff_cmd=diff_cmd, prompt_prefix=self.get_prompt()).exec()
+        self._open_diff(root=os.getcwd(), diff_cmd=diff_cmd)
 
 
 if __name__ == "__main__":

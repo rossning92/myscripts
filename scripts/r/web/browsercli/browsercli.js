@@ -62,7 +62,7 @@ async function ensureDaemon() {
     await waitForDaemon(false);
   } catch {}
 
-  const child = spawn("node", [path.join(__dirname, "daemon.js")], {
+  const child = spawn(process.execPath, [path.join(__dirname, "daemon.js")], {
     detached: true,
     stdio: "ignore",
     env: process.env,

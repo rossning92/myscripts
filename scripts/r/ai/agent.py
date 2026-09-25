@@ -8,7 +8,7 @@ from utils.script.path import get_data_dir
 
 AGENTS = {
     "coder": "r/ai/coder.py",
-    "codex": "r/codex.sh",
+    "codex": "r/codex/codex.sh",
 }
 PROMPT_OPTIONS = {
     "coder": ["--prompt"],

@@ -210,7 +210,7 @@ class DiffMenu(TextMenu):
         self.add_command(self.__edit_file, hotkey="ctrl+e", override=True)
         self.add_command(self.__stage_lines, hotkey="ctrl+s")
         self.add_command(self.__discard_lines, hotkey="ctrl+d")
-        self.add_command(self.__refresh, hotkey="ctrl+r")
+        self.add_command(self._refresh, hotkey="ctrl+r")
 
     def __generate_diff_lines(self) -> List[str]:
         if self.__diff_cmd:
@@ -240,7 +240,7 @@ class DiffMenu(TextMenu):
 
         return lines
 
-    def __refresh(self):
+    def _refresh(self):
         if self.__refresh_thread is not None:
             return
         self.__last_refresh_time = time.monotonic()
@@ -267,7 +267,7 @@ class DiffMenu(TextMenu):
         if self.__refresh_thread is not None:
             return
         if time.monotonic() - self.__last_refresh_time >= 5:
-            self.__refresh()
+            self._refresh()
 
     def __apply_patch(self, action: str, extra_args: List[str]) -> None:
         if not _supports_patch_action(
@@ -305,7 +305,7 @@ class DiffMenu(TextMenu):
             # compared with the index rather than /dev/null.
             self.__git_args = [self.__untracked_file]
             self.__untracked_file = None
-        self.__refresh()
+        self._refresh()
 
     def __stage_lines(self):
         self.__apply_patch("stage", ["--cached"])

@@ -2,15 +2,9 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-title_hook_path="$script_dir/codex_terminal_title_hook.py"
+title_hook_path="$script_dir/terminal_title_hook.py"
 
-# Sessions launched before the hook was split out still call this entry point.
-if [[ "${1:-}" == "--terminal-title-hook" ]]; then
-    shift
-    exec python "$title_hook_path" "$@"
-fi
-
-cd "$script_dir/../.."
+cd "$script_dir/../../.."
 
 if [[ -n "${CODEX_PROJECT_DIR:-}" ]]; then
     cd "$CODEX_PROJECT_DIR"
@@ -39,12 +33,18 @@ fi
 codex_args=(
     "${sandbox_args[@]}"
     -c 'model_verbosity="low"'
+    -c 'tui.alternate_screen="never"'
+    -c 'tui.fullscreen_transcript=false'
     -c 'tui.terminal_title=[]'
     -c 'tui.status_line=["context-used","used-tokens","weekly-limit"]'
     -c 'tui.show_tooltips=false'
     -c 'tui.keymap.global.open_transcript=["ctrl-t","page-up"]'
     -c 'check_for_update_on_startup=false'
 )
+
+# Hooks run without a controlling terminal; save its device before launching Codex.
+CODEX_TERMINAL_TTY="$(tty 2>/dev/null)" || CODEX_TERMINAL_TTY=""
+export CODEX_TERMINAL_TTY
 
 hook_command_toml() {
     python -c 'import json, shlex, sys; print(json.dumps(shlex.join(sys.argv[1:])))' \

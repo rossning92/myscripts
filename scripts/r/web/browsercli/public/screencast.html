@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content"
     />
-    <title>Screencast</title>
+    <title>browsercli screencast</title>
     <link rel="icon" href="/static/screencast.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/static/virtual-keys.css" />
     <style>
@@ -707,7 +707,7 @@
           ws.close();
         }
         currentWsUrl = wsUrl;
-        document.title = "Screencast";
+        document.title = "browsercli screencast";
         ws = new WebSocket(wsUrl);
 
         ws.onopen = async () => {

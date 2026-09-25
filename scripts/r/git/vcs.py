@@ -1,12 +1,26 @@
 import subprocess
 from typing import List, Optional
 
+from utils.menu.inputmenu import InputMenu
+
 _RECENT_COMMIT_COUNT = 5
 DEFAULT_COMMIT_MESSAGE = "commit with no message"
 
 
 def commit_message_or_default(message: str) -> str:
     return message if message.strip() else DEFAULT_COMMIT_MESSAGE
+
+
+def prompt_commit_message(label: str = "Commit message") -> Optional[str]:
+    # Prompt for a commit message. Returns None if cancelled, or the default
+    # message when the input is left empty.
+    message = InputMenu(
+        prompt=f'{label} (empty="{DEFAULT_COMMIT_MESSAGE}"):',
+        prompt_color="green",
+    ).request_input()
+    if message is None:
+        return None
+    return commit_message_or_default(message)
 
 
 def run_vcs(cmd: str, *args: str, cwd: Optional[str] = None):
@@ -65,6 +79,20 @@ def get_amend_cmds(vcs: str, *, push: bool = False) -> List[List[str]]:
         return cmds
     if vcs == "hg":
         return [["hg", "amend"]]
+    return []
+
+
+def get_commit_all_cmds(
+    vcs: str, message: str, cwd: Optional[str] = None
+) -> List[List[str]]:
+    if vcs == "git":
+        # If something is already staged, commit only the staged files.
+        # Otherwise fall back to staging everything.
+        staged = get_vcs_output("git", "diff", "--cached", "--name-only", cwd=cwd)
+        cmds = [] if staged else [["git", "add", "-A"]]
+        return cmds + [["git", "commit", "-m", message]]
+    if vcs == "hg":
+        return [["hg", "addremove"], ["hg", "commit", "-m", message]]
     return []
 
 

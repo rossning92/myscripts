@@ -3,8 +3,6 @@ import subprocess
 from dataclasses import dataclass
 from typing import List, Optional
 
-from utils.menu.diffmenu import DiffMenu
-
 from git.vcs import get_git_recent_commits, run_vcs
 from git.vcs_menu import VcsDiffMenu
 
@@ -169,20 +167,18 @@ class GitMenu(VcsDiffMenu):
             git_args = ["HEAD~1", "HEAD"]
         else:
             git_args = []
-        DiffMenu(git_args=git_args, prompt_prefix=self.get_prompt()).exec()
+        self._open_diff(git_args=git_args)
 
     def on_item_selected(self, item):
         filename = self._get_filename(item)
         if self._is_clean:
             git_args = ["HEAD~1", "HEAD", filename]
         elif item.status == "??":
-            DiffMenu(
-                untracked_file=filename, prompt_prefix=self.get_prompt()
-            ).exec()
+            self._open_diff(untracked_file=filename)
             return
         else:
             git_args = [filename]
-        DiffMenu(git_args=git_args, prompt_prefix=self.get_prompt()).exec()
+        self._open_diff(git_args=git_args)
 
 
 if __name__ == "__main__":
