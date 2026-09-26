@@ -1,2 +1,3 @@
-"$(dirname "$0")/install_google_chrome.sh"
-nohup google-chrome-stable --user-data-dir="$HOME/.ChromeData2" >/dev/null 2>&1 &
+if [[ -x "$(command -v chromium)" ]]; then
+    nohup chromium --force-dark-mode --user-data-dir="$HOME/.config/chromium-2" >/dev/null 2>&1 &
+fi

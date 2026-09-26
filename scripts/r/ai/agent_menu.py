@@ -136,6 +136,7 @@ class AgentMenu(ChatMenu):
     ):
         self.__yes_always = yes_always
         self.__subagents = subagents if subagents else []
+        self.__bash_running = False
 
         super().__init__(
             settings_menu_class=settings_menu_class,
@@ -235,20 +236,35 @@ class AgentMenu(ChatMenu):
                     allowed_commands=ALLOWED_COMMANDS,
                     save_path=str(ALLOWED_COMMANDS_FILE),
                 )
-            if tool_name == "bash" and Settings.sandbox:
+            if tool_name == "bash":
+                command = tool_use["args"]["command"]
+                process_events = functools.partial(
+                    self.process_events,
+                    timeout_sec=PROCESS_EVENT_INTERVAL_SEC,
+                    raise_keyboard_interrupt=True,
+                )
+                self.__bash_running = True
                 try:
-                    return self.__run_blocking(lambda: tool(**tool_use["args"]))
-                except SandboxPermissionError as ex:
-                    menu = ConfirmMenu(
-                        "Sandbox blocked this command. Retry outside the sandbox?"
-                    )
-                    menu.exec()
-                    if not menu.is_confirmed():
-                        return ex.output
-                    command = tool_use["args"]["command"]
-                    return self.__run_blocking(
-                        lambda: _run_bash(command, sandbox=False)
-                    )
+                    try:
+                        return _run_bash(
+                            command,
+                            sandbox=Settings.sandbox,
+                            process_events=process_events,
+                        )
+                    except SandboxPermissionError as ex:
+                        menu = ConfirmMenu(
+                            "Sandbox blocked this command. Retry outside the sandbox?"
+                        )
+                        menu.exec()
+                        if not menu.is_confirmed():
+                            return ex.output
+                        return _run_bash(
+                            command,
+                            sandbox=False,
+                            process_events=process_events,
+                        )
+                finally:
+                    self.__bash_running = False
             return self.__run_blocking(lambda: tool(**tool_use["args"]))
 
         client = self.__run_blocking(
@@ -289,6 +305,11 @@ class AgentMenu(ChatMenu):
 
     def on_message(self, content: str):
         self.__handle_response()
+
+    def on_escape_pressed(self):
+        if self.__bash_running:
+            raise KeyboardInterrupt
+        super().on_escape_pressed()
 
     def on_enter_pressed(self):
         if self._is_agent_running():

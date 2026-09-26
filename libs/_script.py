@@ -1312,7 +1312,13 @@ class Script:
 
             fallback_to_shell_open = True
             if self.cfg["webApp"]:
-                chrome_executables = ["google-chrome-stable", "google-chrome", "chrome"]
+                chrome_executables = [
+                    "google-chrome-stable",
+                    "google-chrome",
+                    "chrome",
+                    "chromium",
+                    "chromium-browser",
+                ]
                 if sys.platform == "win32":
                     chrome_executables.insert(
                         0, r"C:\Program Files\Google\Chrome\Application\chrome.exe"

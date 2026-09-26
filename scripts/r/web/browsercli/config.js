@@ -1,5 +1,4 @@
-import os from "os";
-import path from "path";
+import { getProfileDir } from "./app-paths.js";
 
 function validateSessionName(session) {
   if (session == null) return null;
@@ -21,9 +20,7 @@ function hashSession(session) {
 }
 
 export const SESSION = validateSessionName(process.env.BROWSERCLI_SESSION);
-export const USER_DATA_DIR = SESSION
-  ? path.join(os.homedir(), ".browsercli-sessions", SESSION)
-  : path.join(os.homedir(), ".browsercli-user-data");
+export const USER_DATA_DIR = getProfileDir(SESSION);
 // Keep the original ports for the default session. Named sessions get a stable
 // pair of ports, allowing their daemons and Chrome profiles to run concurrently.
 export const DEBUG_PORT = SESSION

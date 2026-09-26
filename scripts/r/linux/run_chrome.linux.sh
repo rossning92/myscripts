@@ -1,7 +1,11 @@
-"$(dirname "$0")/install_google_chrome.sh"
+if [[ -x "$(command -v chromium)" ]]; then
+    policy_source="$(dirname "${BASH_SOURCE[0]}")/run_chrome.keepassxc-policy.json"
+    policy_target="/etc/chromium/policies/managed/keepassxc-browser.json"
 
-if [[ -x "$(command -v google-chrome)" ]]; then
-    nohup google-chrome >/dev/null 2>&1 &
-elif [[ -x "$(command -v google-chrome-stable)" ]]; then
-    nohup google-chrome-stable >/dev/null 2>&1 &
+    if ! cmp -s "$policy_source" "$policy_target"; then
+        echo "Installing Chromium policy for KeePassXC-Browser..."
+        sudo install -D -o root -g root -m 0644 "$policy_source" "$policy_target"
+    fi
+
+    nohup chromium --force-dark-mode >/dev/null 2>&1 &
 fi

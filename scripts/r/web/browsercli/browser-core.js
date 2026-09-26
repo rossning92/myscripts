@@ -67,29 +67,28 @@ async function launchDetachedChrome(headed = false) {
     !headed &&
     (process.platform === "linux" || process.platform === "android")
   ) {
-    const chromeProcess = spawn(
-      "xvfb-run",
-      [
-        "--auto-servernum",
-        `--server-args=-screen 0 ${WINDOW_WIDTH}x${WINDOW_HEIGHT}x24`,
-        executablePath,
-        ...chromeArgs,
-      ],
-      {
-        detached: true,
-        stdio: "ignore",
-      }
-    );
-    chromeProcess.on("error", () => {
-      const fallbackProcess = spawn(
-        executablePath,
-        [...chromeArgs, "--headless=new"],
+    const chromeProcess = await new Promise((resolve, reject) => {
+      const child = spawn(
+        "xvfb-run",
+        [
+          "--auto-servernum",
+          `--server-args=-screen 0 ${WINDOW_WIDTH}x${WINDOW_HEIGHT}x24`,
+          executablePath,
+          ...chromeArgs,
+        ],
         {
           detached: true,
           stdio: "ignore",
         }
       );
-      fallbackProcess.unref();
+      child.once("spawn", () => resolve(child));
+      child.once("error", (error) => {
+        reject(
+          new Error(`Failed to start xvfb-run: ${error.message}`, {
+            cause: error,
+          })
+        );
+      });
     });
     chromeProcess.unref();
   } else {

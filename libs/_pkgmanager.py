@@ -89,9 +89,12 @@ def get_all_available_packages() -> List[str]:
     return [name for name in packages.keys()]
 
 
-def has_executable(executables: List[str]) -> bool:
+def has_executable(
+    executables: List[str], env: Optional[Dict[str, str]] = None
+) -> bool:
+    search_path = env.get("PATH") if env is not None else None
     for executable in executables:
-        if shutil.which(executable):
+        if shutil.which(executable, path=search_path):
             return True
     return False
 
@@ -122,10 +125,14 @@ def require_package(
     if pkg in packages:
         # Whether or not a package has just been installed.
         newly_installed = False
+        for path in packages[pkg].get("paths", []):
+            prepend_to_path(
+                os.path.expanduser(os.path.expandvars(path)), env=env
+            )
         if (
             proot_distro is None
             and "executables" in packages[pkg]
-            and has_executable(packages[pkg]["executables"])
+            and has_executable(packages[pkg]["executables"], env=env)
         ):
             package_matched = True
 
@@ -186,16 +193,20 @@ def require_package(
         elif "apt" in packages[pkg] and (
             shutil.which("apt") or wsl or proot_distro
         ):
+            apt_config = packages[pkg]["apt"]
             wsl_cmd = ["wsl"] if wsl else []
             command_prefix = proot_cmd or wsl_cmd
             sudo = [] if proot_distro else (["sudo"] if wsl else _sudo_prefix())
-            for p in packages[pkg]["apt"]["packages"]:
+            for cmd in apt_config.get("commands", []):
+                subprocess.check_call(command_prefix + ["sh", "-c", cmd])
+                newly_installed = True
+            for p in apt_config.get("packages", []):
                 if (
                     not _call_without_output(command_prefix + ["dpkg", "-s", p])
                     or force_install
                 ):
-                    if "ppa" in packages[pkg]["apt"]:
-                        ppa = packages[pkg]["apt"]["ppa"]
+                    if "ppa" in apt_config:
+                        ppa = apt_config["ppa"]
                         assert isinstance(ppa, str)
                         subprocess.check_call(
                             command_prefix
@@ -211,6 +222,9 @@ def require_package(
                         command_prefix + sudo + ["apt", "install", "-y", p]
                     )
                     newly_installed = True
+            if newly_installed:
+                for cmd in apt_config.get("post_install", []):
+                    subprocess.check_call(command_prefix + ["sh", "-c", cmd])
             package_matched = True
 
         elif (
@@ -303,10 +317,15 @@ def require_package(
                     package_matched = True
                     break
 
-        if newly_installed and "post_install" in packages[pkg]:
-            post_install = packages[pkg]["post_install"]
-            for cmd in post_install:
-                subprocess.check_call(cmd, shell=True)
+        if newly_installed:
+            for path in packages[pkg].get("paths", []):
+                prepend_to_path(
+                    os.path.expanduser(os.path.expandvars(path)), env=env
+                )
+            if "post_install" in packages[pkg]:
+                post_install = packages[pkg]["post_install"]
+                for cmd in post_install:
+                    subprocess.check_call(cmd, shell=True)
 
         if sys.platform == "linux" and "flatpak" in packages[pkg]:
             _flatpak_install(pkg, force_install=force_install, upgrade=upgrade)
@@ -400,6 +419,16 @@ def _flatpak_is_package_installed(pkg: str):
 
 def _flatpak_install(pkg: str, upgrade=False, force_install=True):
     require_package("flatpak")
+    subprocess.check_call(
+        _sudo_prefix()
+        + [
+            "flatpak",
+            "remote-add",
+            "--if-not-exists",
+            "flathub",
+            "https://dl.flathub.org/repo/flathub.flatpakrepo",
+        ]
+    )
     packages = get_packages()
     for p in packages[pkg]["flatpak"]["packages"]:
         is_installed = _flatpak_is_package_installed(p)
@@ -416,5 +445,6 @@ def _flatpak_install(pkg: str, upgrade=False, force_install=True):
                 args.append("--or-update")
             elif force_install and is_installed:
                 args.append("--reinstall")
+            args.append("flathub")
             args.append(p)
             subprocess.check_call(args)

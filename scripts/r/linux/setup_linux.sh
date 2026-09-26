@@ -17,6 +17,32 @@ append_line_dedup() {
     fi
 }
 
+install_debian_nvidia_driver() {
+    . /etc/os-release
+    if [[ ${ID:-} != debian || -z ${VERSION_ID:-} ]]; then
+        echo 'Automatic NVIDIA driver installation is only supported on Debian.' >&2
+        return 1
+    fi
+    if [[ $(dpkg --print-architecture) != amd64 ]]; then
+        echo 'Automatic NVIDIA driver installation is only supported on Debian amd64.' >&2
+        return 1
+    fi
+
+    local debian_major=${VERSION_ID%%.*}
+    local nvidia_repository="debian${debian_major}"
+    local nvidia_keyring_deb
+    nvidia_keyring_deb=$(mktemp --suffix=.deb)
+
+    curl --fail --location --proto '=https' --tlsv1.2 \
+        --output "$nvidia_keyring_deb" \
+        "https://developer.download.nvidia.com/compute/cuda/repos/${nvidia_repository}/x86_64/cuda-keyring_1.1-1_all.deb"
+    sudo dpkg -i "$nvidia_keyring_deb"
+    rm -f "$nvidia_keyring_deb"
+
+    sudo apt-get update
+    sudo apt-get install -y nvidia-open
+}
+
 gpu_info=''
 if command -v lspci >/dev/null 2>&1; then
     gpu_info=$(lspci -k)
@@ -31,6 +57,14 @@ fi
 if [[ $gpu_info == *'Intel Corporation UHD Graphics 615'* || $gpu_info == *'Intel Corporation UHD Graphics 630'* ]]; then
     has_intel_gpu=true
 fi
+has_intel_wifi=false
+for pci_device in /sys/bus/pci/devices/*; do
+    if [[ -f $pci_device/vendor && -f $pci_device/class ]] &&
+        [[ $(<"$pci_device/vendor") == 0x8086 && $(<"$pci_device/class") == 0x0280* ]]; then
+        has_intel_wifi=true
+        break
+    fi
+done
 has_unifying_receiver=false
 if grep -ql 'Unifying Receiver' /sys/bus/usb/devices/*/product 2>/dev/null; then
     has_unifying_receiver=true
@@ -64,8 +98,14 @@ else
         blueman pulseaudio-module-bluetooth network-manager-gnome
         fcitx5-frontend-qt5 fcitx5-frontend-gtk3 fcitx5-config-qt
         xorg xinit clipit zathura-pdf-poppler)
+    if [[ $has_intel_wifi == true ]]; then
+        packages+=(firmware-iwlwifi)
+    fi
     if [[ $has_intel_gpu == true ]]; then
         packages+=(xserver-xorg-video-intel)
+    fi
+    if [[ $has_nvidia_gpu == true ]]; then
+        packages+=("linux-headers-$(uname -r)" linux-headers-amd64)
     fi
 fi
 if [[ $has_unifying_receiver == true ]]; then
@@ -79,14 +119,17 @@ if [[ $distro == arch ]]; then
     sudo pacman -S --noconfirm --needed "${packages[@]}"
     run_script r/linux/arch/install_yay.sh
     sudo systemctl enable --now systemd-resolved.service earlyoom.service
-    run_script r/linux/arch/setup_keyd.sh
 else
-    # TODO: Install the Debian NVIDIA driver and firmware when an NVIDIA GPU is detected.
-    # This requires contrib, non-free, and non-free-firmware APT components.
+    sudo apt-get update
     sudo apt-get install -y "${packages[@]}"
+    if [[ $has_nvidia_gpu == true ]]; then
+        install_debian_nvidia_driver
+    fi
     # TODO: Decide whether Debian needs equivalents for the Arch-only
-    # systemd-resolved, earlyoom, and keyd setup.
+    # systemd-resolved and earlyoom setup.
 fi
+
+run_script r/linux/setup_keyd.sh
 
 if [[ $has_nvidia_gpu == true ]]; then
     if command -v nvidia-xconfig >/dev/null 2>&1; then

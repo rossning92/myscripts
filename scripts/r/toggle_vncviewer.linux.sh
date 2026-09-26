@@ -27,9 +27,5 @@ if ((${#window_ids[@]})); then
     # No Remmina window is active, so start the cycle at the first one.
     wmctrl -i -a "${window_ids[0]}"
 else
-    if [[ "$class_name" == "org.remmina.Remmina" ]]; then
-        run_script r/vncviewer_remmina.sh
-    else
-        run_script r/vncviewer_realvnc.sh
-    fi
+	run_script r/vncviewer.sh
 fi

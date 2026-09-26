@@ -26,5 +26,14 @@ volumes:
   cache:
 EOF
 
-docker compose -f "$dir/compose.yml" up -d
+if docker compose version >/dev/null 2>&1; then
+    compose=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+    compose=(docker-compose)
+else
+    echo "Docker Compose is required but is not installed." >&2
+    exit 1
+fi
+
+"${compose[@]}" -f "$dir/compose.yml" up -d
 echo "ntfy is available at http://$ip:$port"

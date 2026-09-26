@@ -9,6 +9,7 @@ fi
 if [[ -f "$HOME/.config/remmina/remmina.pref" ]]; then
 	sed -i 's/shortcutkey_disconnect=[0-9][0-9]*/shortcutkey_disconnect=99/g' "$HOME/.config/remmina/remmina.pref"
 	sed -i 's/always_show_tab=true/always_show_tab=false/g' "$HOME/.config/remmina/remmina.pref"
+	sed -i 's/hide_connection_toolbar=false/hide_connection_toolbar=true/g' "$HOME/.config/remmina/remmina.pref"
 fi
 
 mkdir -p "$HOME/.local/share/remmina"

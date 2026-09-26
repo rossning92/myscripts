@@ -1,16 +1,10 @@
-import { homedir } from "os";
-import { dirname, join } from "path";
+import { dirname } from "path";
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
+import { getBackendPreferencePath } from "./app-paths.js";
+
+export { getBackendPreferencePath } from "./app-paths.js";
 
 const VALID_BACKENDS = new Set(["browser", "extension"]);
-
-export function getBackendPreferencePath(env = process.env) {
-  const configRoot =
-    env.XDG_CONFIG_HOME ||
-    env.APPDATA ||
-    join(homedir(), ".config");
-  return join(configRoot, "browsercli", "backend");
-}
 
 export async function loadBackendPreference(filePath = getBackendPreferencePath()) {
   try {

@@ -1,5 +1,8 @@
 {
   "7z": {
+    "apt": {
+      "packages": ["7zip"]
+    },
     "choco": {
       "packages": ["7zip"]
     },
@@ -15,6 +18,9 @@
     }
   },
   "7zfm": {
+    "apt": {
+      "packages": ["7zip"]
+    },
     "choco": {
       "packages": ["7zip"]
     },
@@ -24,6 +30,9 @@
     }
   },
   "7zip": {
+    "apt": {
+      "packages": ["7zip"]
+    },
     "choco": {
       "packages": ["7zip"]
     },
@@ -32,6 +41,9 @@
     }
   },
   "alacritty": {
+    "apt": {
+      "packages": ["alacritty"]
+    },
     "choco": {
       "packages": ["alacritty"]
     },
@@ -55,16 +67,25 @@
     }
   },
   "android-tools": {
+    "apt": {
+      "packages": ["adb", "fastboot"]
+    },
     "pacman": {
       "packages": ["android-tools"]
     }
   },
   "apktool": {
+    "apt": {
+      "packages": ["apktool"]
+    },
     "choco": {
       "packages": ["apktool"]
     }
   },
   "audacity": {
+    "apt": {
+      "packages": ["audacity"]
+    },
     "choco": {
       "packages": ["audacity"]
     },
@@ -102,7 +123,7 @@
   },
   "chromium": {
     "apt": {
-      "packages": ["chromium-browser"]
+      "packages": ["chromium"]
     },
     "choco": {
       "packages": ["chromium"]
@@ -118,6 +139,9 @@
     }
   },
   "cmake": {
+    "apt": {
+      "packages": ["cmake"]
+    },
     "choco": {
       "packages": ["cmake"]
     },
@@ -129,6 +153,9 @@
     }
   },
   "ctags": {
+    "apt": {
+      "packages": ["universal-ctags"]
+    },
     "choco": {
       "packages": ["universal-ctags"]
     },
@@ -138,13 +165,16 @@
   },
   "dmenu": {
     "apt": {
-      "packages": ["dmenu"]
+      "packages": ["suckless-tools"]
     },
     "pacman": {
       "packages": ["dmenu"]
     }
   },
   "docker": {
+    "apt": {
+      "packages": ["docker.io"]
+    },
     "pacman": {
       "packages": ["docker"]
     },
@@ -153,6 +183,14 @@
       "sudo groupadd docker || true",
       "sudo usermod -aG docker $(whoami)"
     ]
+  },
+  "docker-compose": {
+    "apt": {
+      "packages": ["docker-compose"]
+    },
+    "pacman": {
+      "packages": ["docker-compose"]
+    }
   },
   "dotnet": {
     "choco": {
@@ -215,12 +253,18 @@
     }
   },
   "f3d": {
+    "apt": {
+      "packages": ["f3d"]
+    },
     "executables": ["C:\\Program Files\\F3D\\bin\\f3d.exe"],
     "winget": {
       "packages": ["f3d-app.f3d"]
     }
   },
   "ffmpeg": {
+    "apt": {
+      "packages": ["ffmpeg"]
+    },
     "choco": {
       "packages": ["ffmpeg"]
     },
@@ -253,11 +297,17 @@
     }
   },
   "flatpak": {
+    "apt": {
+      "packages": ["flatpak"]
+    },
     "pacman": {
       "packages": ["flatpak"]
     }
   },
   "fzf": {
+    "apt": {
+      "packages": ["fzf"]
+    },
     "choco": {
       "packages": ["fzf"]
     },
@@ -290,6 +340,9 @@
     }
   },
   "ghostscript": {
+    "apt": {
+      "packages": ["ghostscript"]
+    },
     "choco": {
       "packages": ["ghostscript"]
     },
@@ -301,6 +354,9 @@
     }
   },
   "git": {
+    "apt": {
+      "packages": ["git"]
+    },
     "choco": {
       "packages": ["git"]
     },
@@ -348,6 +404,9 @@
     }
   },
   "golang": {
+    "apt": {
+      "packages": ["golang-go"]
+    },
     "choco": {
       "packages": ["golang"]
     },
@@ -376,6 +435,9 @@
     }
   },
   "gradle": {
+    "apt": {
+      "packages": ["gradle"]
+    },
     "choco": {
       "packages": ["gradle"]
     },
@@ -384,6 +446,9 @@
     }
   },
   "graphviz": {
+    "apt": {
+      "packages": ["graphviz"]
+    },
     "choco": {
       "packages": ["graphviz"]
     },
@@ -422,6 +487,9 @@
     }
   },
   "imagemagick": {
+    "apt": {
+      "packages": ["imagemagick"]
+    },
     "choco": {
       "packages": ["imagemagick"]
     },
@@ -454,11 +522,17 @@
     }
   },
   "jq": {
+    "apt": {
+      "packages": ["jq"]
+    },
     "winget": {
       "packages": ["jqlang.jq"]
     }
   },
   "keepassxc": {
+    "apt": {
+      "packages": ["keepassxc"]
+    },
     "pacman": {
       "packages": ["keepassxc"]
     }
@@ -491,6 +565,9 @@
     }
   },
   "libreoffice": {
+    "apt": {
+      "packages": ["libreoffice"]
+    },
     "pacman": {
       "packages": ["libreoffice-still"]
     },
@@ -542,6 +619,9 @@
     }
   },
   "mpv": {
+    "apt": {
+      "packages": ["mpv"]
+    },
     "choco": {
       "packages": ["mpv"]
     },
@@ -576,7 +656,8 @@
   },
   "neovim": {
     "apt": {
-      "packages": ["neovim"]
+      "commands": ["run_script r/linux/install_neovim.sh"],
+      "reason": "The Neovim version in stable Apt repositories is too old."
     },
     "brew": {
       "packages": ["neovim"]
@@ -596,11 +677,17 @@
     }
   },
   "netstat": {
+    "apt": {
+      "packages": ["net-tools"]
+    },
     "pacman": {
       "packages": ["net-tools"]
     }
   },
   "ninja": {
+    "apt": {
+      "packages": ["ninja-build"]
+    },
     "choco": {
       "packages": ["ninja"]
     },
@@ -609,6 +696,9 @@
     }
   },
   "nmap": {
+    "apt": {
+      "packages": ["nmap"]
+    },
     "choco": {
       "packages": ["nmap"]
     },
@@ -617,6 +707,9 @@
     }
   },
   "node": {
+    "apt": {
+      "packages": ["nodejs"]
+    },
     "choco": {
       "packages": ["nodejs-lts"]
     },
@@ -662,11 +755,17 @@
     }
   },
   "ocrmypdf": {
+    "apt": {
+      "packages": ["ocrmypdf"]
+    },
     "pip": {
       "packages": ["ocrmypdf"]
     }
   },
   "openscad": {
+    "apt": {
+      "packages": ["openscad"]
+    },
     "pacman": {
       "packages": ["openscad"]
     }
@@ -689,6 +788,9 @@
     }
   },
   "pandoc": {
+    "apt": {
+      "packages": ["pandoc"]
+    },
     "choco": {
       "packages": ["pandoc"]
     },
@@ -700,11 +802,17 @@
     }
   },
   "pdfarranger": {
+    "apt": {
+      "packages": ["pdfarranger"]
+    },
     "pacman": {
       "packages": ["pdfarranger"]
     }
   },
   "pdftk": {
+    "apt": {
+      "packages": ["pdftk-java"]
+    },
     "choco": {
       "packages": ["pdftk"]
     },
@@ -733,16 +841,25 @@
     }
   },
   "protoc": {
+    "apt": {
+      "packages": ["protobuf-compiler"]
+    },
     "choco": {
       "packages": ["protoc"]
     }
   },
   "prusaslicer": {
+    "apt": {
+      "packages": ["prusa-slicer"]
+    },
     "choco": {
       "packages": ["prusaslicer"]
     }
   },
   "pulseaudio": {
+    "apt": {
+      "packages": ["pulseaudio"]
+    },
     "termux": {
       "packages": ["pulseaudio"]
     }
@@ -770,6 +887,9 @@
     }
   },
   "PyMuPDF": {
+    "apt": {
+      "packages": ["python3-pymupdf"]
+    },
     "pip": {
       "packages": ["PyMuPDF"]
     }
@@ -791,6 +911,9 @@
     }
   },
   "rclone": {
+    "apt": {
+      "packages": ["rclone"]
+    },
     "choco": {
       "packages": ["rclone"]
     },
@@ -820,7 +943,18 @@
       "packages": ["BaldurKarlsson.RenderDoc"]
     }
   },
+  "restic": {
+    "apt": {
+      "packages": ["restic"]
+    },
+    "pacman": {
+      "packages": ["restic"]
+    }
+  },
   "ripgrep": {
+    "apt": {
+      "packages": ["ripgrep"]
+    },
     "choco": {
       "packages": ["ripgrep"]
     },
@@ -839,6 +973,9 @@
     }
   },
   "rofi": {
+    "apt": {
+      "packages": ["rofi"]
+    },
     "pacman": {
       "packages": ["rofi"]
     },
@@ -853,6 +990,9 @@
     }
   },
   "sane": {
+    "apt": {
+      "packages": ["sane-utils"]
+    },
     "pacman": {
       "packages": ["sane"]
     }
@@ -894,11 +1034,17 @@
     }
   },
   "socat": {
+    "apt": {
+      "packages": ["socat"]
+    },
     "pacman": {
       "packages": ["socat"]
     }
   },
   "sox": {
+    "apt": {
+      "packages": ["sox"]
+    },
     "choco": {
       "packages": ["sox.portable"]
     },
@@ -913,17 +1059,26 @@
     }
   },
   "speedtest-cli": {
+    "apt": {
+      "packages": ["speedtest-cli"]
+    },
     "pacman": {
       "packages": ["speedtest-cli"]
     }
   },
   "sqlite": {
+    "apt": {
+      "packages": ["sqlite3"]
+    },
     "executables": ["sqlite3"],
     "pacman": {
       "packages": ["sqlite"]
     }
   },
   "sqlitebrowser": {
+    "apt": {
+      "packages": ["sqlitebrowser"]
+    },
     "pacman": {
       "packages": ["sqlitebrowser"]
     }
@@ -940,6 +1095,9 @@
     }
   },
   "sshuttle": {
+    "apt": {
+      "packages": ["sshuttle"]
+    },
     "pacman": {
       "packages": ["sshuttle"]
     }
@@ -976,6 +1134,9 @@
     }
   },
   "syncthing": {
+    "apt": {
+      "packages": ["syncthing"]
+    },
     "brew": {
       "packages": ["syncthing"]
     },
@@ -990,6 +1151,9 @@
     }
   },
   "tesseract": {
+    "apt": {
+      "packages": ["tesseract-ocr", "tesseract-ocr-eng"]
+    },
     "pacman": {
       "packages": ["tesseract", "tesseract-data-eng"]
     }
@@ -1020,6 +1184,11 @@
     }
   },
   "uv": {
+    "apt": {
+      "commands": ["curl -LsSf https://astral.sh/uv/install.sh | sh"]
+    },
+    "executables": ["uv"],
+    "paths": ["$HOME/.local/bin"],
     "pacman": {
       "packages": ["uv"]
     },
@@ -1028,10 +1197,18 @@
     }
   },
   "veracrypt": {
+    "apt": {
+      "commands": [
+        "wget -O /tmp/veracrypt-1.26.29-Debian-13-amd64.deb https://github.com/veracrypt/VeraCrypt/releases/download/VeraCrypt_1.26.29/veracrypt-1.26.29-Debian-13-amd64.deb && sudo apt install -y /tmp/veracrypt-1.26.29-Debian-13-amd64.deb"
+      ]
+    },
     "choco": {
       "packages": ["veracrypt"]
     },
-    "executables": ["C:\\Program Files\\VeraCrypt\\VeraCrypt.exe"],
+    "executables": [
+      "C:\\Program Files\\VeraCrypt\\VeraCrypt.exe",
+      "veracrypt"
+    ],
     "pacman": {
       "packages": ["veracrypt"]
     },
@@ -1097,6 +1274,9 @@
     }
   },
   "wget": {
+    "apt": {
+      "packages": ["wget"]
+    },
     "pacman": {
       "packages": ["wget"]
     }
@@ -1127,6 +1307,9 @@
     }
   },
   "xdotool": {
+    "apt": {
+      "packages": ["xdotool"]
+    },
     "pacman": {
       "packages": ["xdotool"]
     }
@@ -1146,11 +1329,21 @@
     }
   },
   "xxd": {
+    "apt": {
+      "packages": ["xxd"]
+    },
     "pacman": {
       "packages": ["tinyxxd"]
     }
   },
   "yarn": {
+    "apt": {
+      "packages": ["node-corepack"],
+      "post_install": [
+        "sudo corepack enable",
+        "corepack install --global yarn@stable"
+      ]
+    },
     "choco": {
       "packages": ["yarn"]
     },
@@ -1162,6 +1355,9 @@
     }
   },
   "yt-dlp": {
+    "apt": {
+      "packages": ["yt-dlp"]
+    },
     "pip": {
       "packages": ["yt-dlp"]
     }

@@ -28,7 +28,7 @@ def ensure_uv_available(
     env: Optional[Dict[str, str]] = None,
     proot_distro: Optional[str] = None,
 ) -> bool:
-    """Install uv through the configured platform package manager if needed."""
+    """Ensure uv is available through the configured package installer."""
     return require_package("uv", wsl=wsl, env=env, proot_distro=proot_distro)
 
 
