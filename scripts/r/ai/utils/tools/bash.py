@@ -1,7 +1,9 @@
 import os
 import shutil
+import signal
 import subprocess
 import sys
+from collections.abc import Callable
 from typing import Any, Dict
 
 from ai.utils.tools import Settings
@@ -53,19 +55,48 @@ def _build_sandbox_command(command: str) -> list[str]:
     return args + ["--setenv", "TMPDIR", "/tmp", "--chdir", cwd, shell, "-c", command]
 
 
-def _run_bash(command: str, *, sandbox: bool) -> str:
+def _run_bash(
+    command: str,
+    *,
+    sandbox: bool,
+    process_events: Callable[[], None] | None = None,
+) -> str:
     args: str | list[str] = _build_sandbox_command(command) if sandbox else command
-
-    result = subprocess.run(
+    kwargs = {"start_new_session": True} if os.name != "nt" else {}
+    process = subprocess.Popen(
         args,
         shell=not sandbox,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         errors="replace",
+        **kwargs,
     )
-    output = result.stdout.strip()
-    if sandbox and result.returncode != 0 and any(
+    try:
+        while True:
+            try:
+                output = process.communicate(timeout=0.1)[0].strip()
+                break
+            except subprocess.TimeoutExpired:
+                if process_events:
+                    process_events()
+    except KeyboardInterrupt:
+        if process.poll() is None:
+            if os.name == "nt":
+                process.terminate()
+            else:
+                os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                if os.name == "nt":
+                    process.kill()
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        raise
+
+    if sandbox and process.returncode != 0 and any(
         marker in output.lower() for marker in _PERMISSION_ERROR_MARKERS
     ):
         raise SandboxPermissionError(output)
