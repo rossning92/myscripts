@@ -30,6 +30,7 @@ from utils.clamp import clamp
 from utils.clip import get_clip, set_clip, set_clip_osc52
 from utils.editor import edit_text
 from utils.jsonutil import load_json, save_json
+from utils.script.path import get_bin_dir
 from utils.slugify import slugify
 from utils.strutil import strip_ansi
 from utils.term import enable_windows_vt
@@ -2268,7 +2269,15 @@ class Menu(Generic[T]):
         context_parts = ["<selected_items>", *formatted_items, "</selected_items>"]
         context = "\n".join(context_parts)
         # TODO: Use a non-argv transport if selected context can exceed command-line limits.
-        args = ["start_script", "r/ai/agent.py", "--context", context]
+        # Windows command shims pass through cmd.exe, which interprets context
+        # containing newlines and shell metacharacters. Use the Python launcher.
+        args = [
+            sys.executable,
+            os.path.join(get_bin_dir(), "start_script.py"),
+            "r/ai/agent.py",
+            "--context",
+            context,
+        ]
         self.run_raw(lambda: subprocess.run(args))
         self.update_screen()
 

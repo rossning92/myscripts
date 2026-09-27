@@ -17,6 +17,18 @@ append_line_dedup() {
     fi
 }
 
+replace_managed_block() {
+    local file=$1
+    local name=$2
+    touch "$file"
+    sed -i "/^# BEGIN ${name}$/,/^# END ${name}$/d" "$file"
+    printf '# BEGIN %s\n' "$name" >>"$file"
+    while IFS= read -r line; do
+        printf '%s\n' "$line" >>"$file"
+    done
+    printf '# END %s\n' "$name" >>"$file"
+}
+
 install_debian_nvidia_driver() {
     . /etc/os-release
     if [[ ${ID:-} != debian || -z ${VERSION_ID:-} ]]; then
@@ -74,16 +86,16 @@ if [[ -d /sys/class/backlight ]]; then
     has_backlight=true
 fi
 
-common_packages=(acpi alacritty curl fzf git less neovim playerctl unzip usbutils wmctrl xclip zip
+common_packages=(acpi alacritty autocutsel curl fzf git less neovim playerctl unzip usbutils wmctrl xclip zip
     bluez pulseaudio pavucontrol alsa-utils udisks2 udiskie
-    fcitx5 fcitx5-chinese-addons pqiv awesome sxhkd zathura flameshot i3lock xss-lock)
+    fcitx5 fcitx5-chinese-addons pqiv awesome sxhkd zathura flameshot xsecurelock xss-lock)
 
 if [[ $distro == arch ]]; then
     packages=("${common_packages[@]}" inetutils openssh
         ttf-jetbrains-mono base-devel
         bluez-utils bluez-tools pulseaudio-bluetooth network-manager-applet earlyoom
         fcitx5-qt fcitx5-gtk fcitx5-configtool
-        xorg-server xorg-xinit parcellite zathura-pdf-mupdf)
+        xorg-server xorg-xinit zathura-pdf-mupdf)
     mapfile -t noto_fonts < <(pacman -Ssq 'noto-fonts-*')
     packages+=("${noto_fonts[@]}")
     if [[ $has_nvidia_gpu == true ]]; then
@@ -97,7 +109,7 @@ else
         fonts-jetbrains-mono fonts-noto-core fonts-noto-cjk
         blueman pulseaudio-module-bluetooth network-manager-gnome
         fcitx5-frontend-qt5 fcitx5-frontend-gtk3 fcitx5-config-qt
-        xorg xinit clipit zathura-pdf-poppler)
+        xorg xinit zathura-pdf-poppler)
     if [[ $has_intel_wifi == true ]]; then
         packages+=(firmware-iwlwifi)
     fi
@@ -221,11 +233,6 @@ fcitx5-remote -r &>/dev/null || true
 if [[ ${has_unifying_receiver:-false} == true ]]; then
     append_line_dedup "$HOME/.xinitrc" 'solaar --window hide &'
 fi
-if [[ $distro == arch ]]; then
-    append_line_dedup "$HOME/.xinitrc" 'parcellite &'
-else
-    append_line_dedup "$HOME/.xinitrc" 'clipit &'
-fi
 
 sudo mkdir -p /etc/X11/xorg.conf.d
 sudo tee /etc/X11/xorg.conf.d/70-synaptics.conf >/dev/null <<'XORG'
@@ -256,7 +263,14 @@ done < <(sed -n 's/^MimeType=//p' /usr/share/applications/pqiv.desktop | tr ';' 
 xdg-mime default org.pwmt.zathura.desktop application/pdf
 
 append_line_dedup "$HOME/.xinitrc" 'flameshot &'
-append_line_dedup "$HOME/.xinitrc" 'xss-lock --transfer-sleep-lock -- i3lock --nofork -c 000000 &'
+replace_managed_block "$HOME/.xinitrc" xsecurelock <<'XSECURELOCK'
+export XSECURELOCK_SHOW_DATETIME=1
+export XSECURELOCK_DATETIME_FORMAT='%m-%d  %H:%M'
+export XSECURELOCK_SHOW_KEYBOARD_LAYOUT=0
+export XSECURELOCK_SHOW_HOSTNAME=0
+export XSECURELOCK_SHOW_USERNAME=0
+xss-lock -l -- xsecurelock &
+XSECURELOCK
 mkdir -p "$HOME/.config"
 ln -sf "{{MYSCRIPT_ROOT}}/settings/awesome" "$HOME/.config/"
 dpi_value=120

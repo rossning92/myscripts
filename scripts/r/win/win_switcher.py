@@ -169,7 +169,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         status = item.get_status(self.script_status)
         if status == "success" and item.title not in self.__visited_success:
             return "● " + item.title
-        return item.title
+        return "  " + item.title
 
     def get_item_color(self, item: WindowItem) -> str:
         if item.title in self.__pinned:

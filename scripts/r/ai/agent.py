@@ -1,14 +1,15 @@
 import argparse
 import os
 import subprocess
+import sys
 
 from utils.jsonutil import load_json
-from utils.script.path import get_data_dir
+from utils.script.path import get_bin_dir, get_data_dir
 
 
 AGENTS = {
     "coder": "r/ai/coder.py",
-    "codex": "r/codex/codex.sh",
+    "codex": "r/codex/codex.py",
 }
 PROMPT_OPTIONS = {
     "coder": ["--prompt"],
@@ -36,7 +37,7 @@ def main() -> int:
     command = (
         ["start_script", "--instance-mode=activate", AGENTS[agent]]
         if not args.context and not args.prompt
-        else ["run_script", AGENTS[agent]]
+        else [sys.executable, os.path.join(get_bin_dir(), "run_script.py"), AGENTS[agent]]
     )
     if args.context:
         command.extend(["--context", args.context])

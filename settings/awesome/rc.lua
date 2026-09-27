@@ -452,7 +452,7 @@ local globalkeys = gears.table.join(
 
     -- Lock screen
     awful.key({ modkey }, "l", function()
-        awful.spawn("i3lock -c 000000")
+        awful.spawn("xset s activate")
     end, {
         description = "lock screen",
         group = "system"
@@ -569,7 +569,6 @@ awful.rules.rules = { -- All clients will match this rule.
     {
         rule_any = {
             instance = { "DTA",                                                     -- Firefox addon DownThemAll.
-                "copyq",                                                            -- Includes session name in class.
                 "pinentry" },
             class = { "Arandr", "Blueman-manager", "Gpick", "Kruler", "MessageWin", -- kalarm.
                 "Sxiv",
@@ -687,3 +686,4 @@ end)
 -- }}}
 
 awful.spawn.once("fcitx5 -d")
+awful.spawn.once("autocutsel -selection CLIPBOARD")

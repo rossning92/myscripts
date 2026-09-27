@@ -29,7 +29,7 @@ state_file = state_dir / encoded_session_id
 state_dir.mkdir(parents=True, exist_ok=True)
 
 try:
-    title = state_file.read_text()
+    title = state_file.read_text(encoding="utf-8")
 except OSError:
     prompt = hook_input.get("prompt")
     if not isinstance(prompt, str):
@@ -41,14 +41,22 @@ except OSError:
         raise SystemExit(0)
 
     try:
-        with state_file.open("x") as file:
+        with state_file.open("x", encoding="utf-8") as file:
             file.write(title)
     except FileExistsError:
-        title = state_file.read_text()
+        title = state_file.read_text(encoding="utf-8")
+
+terminal_title = f"Codex {status} {title}"
+if "--print-title" in sys.argv[2:]:
+    # Keep the transport ASCII so Windows pipe encodings preserve Unicode.
+    sys.stdout.write(json.dumps({"terminal_title": terminal_title}))
+    raise SystemExit(0)
 
 try:
-    with open(os.environ.get("CODEX_TERMINAL_TTY") or "/dev/tty", "w") as tty:
-        tty.write(f"\033]0;Codex {status} {title}\007")
+    with open(
+        os.environ.get("CODEX_TERMINAL_TTY") or "/dev/tty", "w", encoding="utf-8"
+    ) as tty:
+        tty.write(f"\033]0;{terminal_title}\007")
 except OSError:
     # Non-interactive launches may not have a terminal, or it may have closed.
     pass

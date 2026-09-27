@@ -20,14 +20,13 @@ class Repository:
     visibility: str
     stargazerCount: int
 
-    def __str__(self) -> str:
-        if self.visibility == "PRIVATE":
-            return f"{self.name} {PRIVATE_REPOSITORY_SYMBOL} ★{self.stargazerCount}"
-        return f"{self.name} ★{self.stargazerCount}"
-
 
 class GithubRepoMenu(Menu[Repository]):
     def __init__(self, repositories: list[Repository]) -> None:
+        self._name_width = max((len(repo.name) for repo in repositories), default=0)
+        self._stars_width = max(
+            (len(str(repo.stargazerCount)) for repo in repositories), default=1
+        )
         super().__init__(
             items=repositories,
             prompt="repository",
@@ -38,6 +37,14 @@ class GithubRepoMenu(Menu[Repository]):
             hotkey="alt+c",
             name="clone",
             pinned=True,
+        )
+
+    def get_item_text(self, item: Repository) -> str:
+        # The lock occupies two terminal cells; reserve them for public repos too.
+        visibility = PRIVATE_REPOSITORY_SYMBOL if item.visibility == "PRIVATE" else "  "
+        return (
+            f"{item.name:<{self._name_width}}  {visibility}  "
+            f"{item.stargazerCount:>{self._stars_width}}"
         )
 
     def __clone(self) -> None:

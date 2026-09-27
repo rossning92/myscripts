@@ -191,7 +191,7 @@ def require_package(
             package_matched = True
 
         elif "apt" in packages[pkg] and (
-            shutil.which("apt") or wsl or proot_distro
+            wsl or proot_distro or (not is_in_termux() and shutil.which("apt"))
         ):
             apt_config = packages[pkg]["apt"]
             wsl_cmd = ["wsl"] if wsl else []

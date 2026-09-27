@@ -3,14 +3,12 @@ import os
 import sys
 from typing import List
 
-DEFAULT_TERMINAL_FONT_SIZE = 9
 WINDOWS_TERMINAL_EXECUTABLE = (
     os.environ["LOCALAPPDATA"] + "\\Microsoft\\WindowsApps\\wt.exe"
 )
 
 
 def setup_windows_terminal(
-    font_size=DEFAULT_TERMINAL_FONT_SIZE,
     opacity=1.0,
 ):
     if sys.platform != "win32":
@@ -19,6 +17,10 @@ def setup_windows_terminal(
     CONFIG_FILE = os.path.expandvars(
         r"%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
     )
+
+    # Windows Terminal creates its settings file on first launch.
+    if not os.path.exists(CONFIG_FILE):
+        return
 
     with open(CONFIG_FILE, "r") as f:
         lines = f.read().splitlines()
@@ -38,11 +40,9 @@ def setup_windows_terminal(
             data[k] = v
             updated = True
 
-    # Default font size and color scheme
-    default_profile = {
-        "colorScheme": "Dracula",
-        "font": {"face": "Consolas", "size": font_size},
-    }
+    # Preserve the user's font and other profile preferences.
+    default_profile = data["profiles"]["defaults"].copy()
+    default_profile["colorScheme"] = "Dracula"
 
     if opacity < 1.0:
         default_profile["useAcrylic"] = True
@@ -89,17 +89,12 @@ def setup_windows_terminal(
 def wrap_args_wt(
     args,
     title=None,
-    font_size=DEFAULT_TERMINAL_FONT_SIZE,
-    opacity=1.0,
     **kwargs,
 ) -> List[str]:
     if sys.platform != "win32":
         raise OSError(f"{sys.platform} is not supported")
 
-    setup_windows_terminal(font_size=font_size, opacity=opacity)
-
     if title:
         return [WINDOWS_TERMINAL_EXECUTABLE, "--title", title] + args
     else:
         return [WINDOWS_TERMINAL_EXECUTABLE] + args
-

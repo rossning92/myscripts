@@ -10,7 +10,9 @@ def get_export_file() -> str:
     return os.path.join(get_data_dir(), "winget_export.json")
 
 
-_WINGET_EXEC = r"C:\Users\rossning92\AppData\Local\Microsoft\WindowsApps\winget.exe"
+_WINGET_EXEC = os.path.join(
+    os.path.expandvars("$LOCALAPPDATA"), "Microsoft", "WindowsApps", "winget.exe"
+)
 
 
 def export_packages():

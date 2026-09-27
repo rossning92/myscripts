@@ -264,15 +264,15 @@ def wrap_bash_win(
         env["MSYS2_PATH_TYPE"] = "inherit"
 
     bash_executables = []
-    if git_bash:
-        bash_executables += [
-            rf"C:\Program Files\Git\bin\{shell}.exe",
-        ]
     if msys2:
         bash_executables += [
             rf"C:\tools\msys64\usr\bin\{shell}.exe",
             rf"C:\msys64\usr\bin\{shell}.exe",
         ]
+    bash_executables.insert(
+        0 if git_bash else len(bash_executables),
+        rf"C:\Program Files\Git\bin\{shell}.exe",
+    )
     sh = None
     for f in bash_executables:
         if os.path.exists(f):
@@ -1199,6 +1199,9 @@ class Script:
             else:
                 python_exec = get_uv_python_executable(uv_project, sys.executable)
 
+            if proot_distro:
+                python_exec = "python3"
+
             if template and ext == ".py":
                 python_file = write_temp_file(
                     self.render(variables=variables),
@@ -1500,6 +1503,10 @@ class Script:
                             wrap_args_wt,
                         )
 
+                        terminal = self.__get_terminal()
+                        if terminal == "alacritty" and not is_alacritty_installed():
+                            terminal = "wt"
+
                         # Open in specified terminal (e.g. Windows Terminal)
                         if minimized:
                             popen_extra_args["creationflags"] = (
@@ -1512,11 +1519,11 @@ class Script:
                             popen_extra_args["startupinfo"] = startupinfo
                             no_wait = True
                             open_in_terminal = True
-                        elif self.__get_terminal() in [
+                        elif terminal in (
                             "wt",
                             "wsl",
                             "windowsTerminal",
-                        ] and os.path.exists(WINDOWS_TERMINAL_EXECUTABLE):
+                        ) and os.path.exists(WINDOWS_TERMINAL_EXECUTABLE):
                             arg_list = wrap_args_wt(
                                 arg_list,
                                 cwd=cwd,
@@ -1526,7 +1533,7 @@ class Script:
                             no_wait = True
                             open_in_terminal = True
 
-                        elif self.__get_terminal() == "wezterm" and shutil.which(
+                        elif terminal == "wezterm" and shutil.which(
                             WEZTERM_EXECUTABLE
                         ):
                             arg_list = wrap_args_wezterm(
@@ -1542,7 +1549,7 @@ class Script:
                             no_wait = True
                             open_in_terminal = True
 
-                        elif self.__get_terminal() == "alacritty" and shutil.which(
+                        elif terminal == "alacritty" and shutil.which(
                             "alacritty"
                         ):
                             arg_list = wrap_args_alacritty(
