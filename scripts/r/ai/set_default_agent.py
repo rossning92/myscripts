@@ -1,11 +1,12 @@
-from ai.agent import AGENTS, DEFAULT_AGENT_FILE, get_default_agent
+from _script import get_agents
+from ai.agent import DEFAULT_AGENT_FILE, get_default_agent
 from utils.jsonutil import save_json
 from utils.menu import Menu
 
 
 def main() -> int:
-    agents = list(AGENTS)
-    current_agent = get_default_agent()
+    agents = list(get_agents())
+    current_agent = get_default_agent(agents)
     menu = Menu(
         prompt="select default agent",
         items=agents,

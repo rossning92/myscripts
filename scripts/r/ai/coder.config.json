@@ -1,4 +1,5 @@
 {
+  "agent": true,
   "dynamicTitle": true,
   "instanceMode": "multiple",
   "matchClipboard": "[^\\\\]*\\.(jpg|jpeg|png|txt)$",

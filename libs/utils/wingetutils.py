@@ -37,7 +37,7 @@ def is_package_installed(pkg: str):
     matched_packages = list(
         filter(lambda p: p["PackageIdentifier"] == pkg, data["Sources"][0]["Packages"])
     )
-    return matched_packages != 0
+    return bool(matched_packages)
 
 
 def install_package(pkg: str, upgrade=False):

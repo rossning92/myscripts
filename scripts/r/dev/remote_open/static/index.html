@@ -90,7 +90,7 @@ function esc(s) {
 }
 
 function itemUrl(it) {
-    return it.type === "url" ? it.path : "/view.html?path=" + encodeURIComponent(it.path);
+    return it.type === "url" ? it.path : it.path.split("/").map(encodeURIComponent).join("/");
 }
 
 function fmtTime(iso) {

@@ -21,9 +21,6 @@ SetTimer, AutoResizeVNC, 1000
 
 return
 
-*CapsLock::Send {LWin Down}{LCtrl Down}
-*CapsLock Up::Send {LWin Up}{LCtrl Up}
-
 ~LButton & WheelUp::
     Suspend, Permit
     SoundSet +2

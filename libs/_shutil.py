@@ -966,8 +966,10 @@ def shell_execute(args):
 def setup_nodejs(install=True):
     if sys.platform == "win32":
         NODE_JS_PATH = r"C:\Program Files\nodejs"
-        if install and not os.path.exists(NODE_JS_PATH):
-            run_elevated("choco install nodejs -y")
+        if install:
+            from _pkgmanager import require_package
+
+            require_package("node")
 
         if os.path.exists(NODE_JS_PATH):
             logging.info("Node.js: install path: %s" % NODE_JS_PATH)

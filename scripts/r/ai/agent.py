@@ -2,26 +2,23 @@ import argparse
 import os
 import subprocess
 import sys
+from typing import Collection
 
+from _script import get_agents
 from utils.jsonutil import load_json
 from utils.script.path import get_bin_dir, get_data_dir
 
 
-AGENTS = {
-    "coder": "r/ai/coder.py",
-    "codex": "r/codex/codex.py",
-}
 PROMPT_OPTIONS = {
     "coder": ["--prompt"],
-    "codex": [],
 }
 DEFAULT_AGENT = "coder"
 DEFAULT_AGENT_FILE = os.path.join(get_data_dir(), "default_agent.json")
 
 
-def get_default_agent() -> str:
+def get_default_agent(agents: Collection[str]) -> str:
     agent = load_json(DEFAULT_AGENT_FILE, {"agent": DEFAULT_AGENT}).get("agent")
-    return agent if agent in AGENTS else DEFAULT_AGENT
+    return agent if agent in agents else DEFAULT_AGENT
 
 
 def main() -> int:
@@ -30,19 +27,20 @@ def main() -> int:
     parser.add_argument("-p", "--prompt", help="initial user prompt")
     args = parser.parse_args()
 
-    agent = get_default_agent()
+    agents = get_agents()
+    agent = get_default_agent(agents)
     # A bare invocation comes from the global hotkey: activate the default
     # agent's idle window when it exists, otherwise launch it. Invocations that
     # carry work must still create a session to receive that work.
     command = (
-        ["start_script", "--instance-mode=activate", AGENTS[agent]]
+        ["start_script", "--instance-mode=activate", agents[agent]]
         if not args.context and not args.prompt
-        else [sys.executable, os.path.join(get_bin_dir(), "run_script.py"), AGENTS[agent]]
+        else [sys.executable, os.path.join(get_bin_dir(), "run_script.py"), agents[agent]]
     )
     if args.context:
         command.extend(["--context", args.context])
     if args.prompt:
-        command.extend([*PROMPT_OPTIONS[agent], args.prompt])
+        command.extend([*PROMPT_OPTIONS.get(agent, []), args.prompt])
     return subprocess.run(command).returncode
 
 

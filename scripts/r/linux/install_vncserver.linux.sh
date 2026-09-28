@@ -5,6 +5,9 @@ set -e
 if [[ ! -x "$(command -v x11vnc)" ]]; then
 	if [[ -f "/etc/arch-release" ]]; then
 		sudo pacman -S --noconfirm x11vnc
+	elif [[ -f "/etc/debian_version" ]]; then
+		sudo apt-get update
+		sudo apt-get install -y x11vnc x11-xserver-utils
 	fi
 fi
 

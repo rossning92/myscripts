@@ -243,7 +243,7 @@ function esc(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-var path = new URLSearchParams(location.search).get("path");
+var path = decodeURIComponent(location.pathname);
 if (path) {
     var name = path.split("/").pop().split("?")[0];
     document.title = "ropen - " + name;
@@ -251,11 +251,10 @@ if (path) {
 
     var v = document.getElementById("viewer");
     var e = ext(name);
-    var encPath = path.split("/").map(encodeURIComponent).join("/");
-    var fileUrl = "/api/file" + encPath;
-    var statUrl = "/api/stat" + encPath;
+    var fileUrl = location.pathname;
+    var statUrl = "/api/stat" + fileUrl;
 
-    dlBtn.href = fileUrl;
+    dlBtn.href = fileUrl + "?raw";
     dlBtn.setAttribute("download", name);
     dlBtn.style.display = "inline-block";
 

@@ -713,6 +713,7 @@
     "choco": {
       "packages": ["nodejs-lts"]
     },
+    "executables": ["node"],
     "pacman": {
       "packages": ["nodejs"]
     },
@@ -732,6 +733,7 @@
     "apt": {
       "packages": ["npm"]
     },
+    "executables": ["npm"],
     "pacman": {
       "packages": ["npm"]
     },
@@ -1355,9 +1357,6 @@
     }
   },
   "yt-dlp": {
-    "apt": {
-      "packages": ["yt-dlp"]
-    },
     "pip": {
       "packages": ["yt-dlp"]
     }

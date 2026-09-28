@@ -15,6 +15,7 @@ from _script import (
     execute_script_autorun,
     get_all_script_access_time,
     get_all_scripts,
+    update_agents,
 )
 from _shutil import get_ahk_exe, get_selected_files, pause, refresh_env_vars
 from utils.jsonutil import load_json, save_json
@@ -483,6 +484,8 @@ class ScriptManager:
         self.scripts[:] = [
             script for script in self.scripts if script.script_path in existing_scripts
         ]
+
+        update_agents(s.script_path for s in self.scripts if s.cfg["agent"])
 
         # Sort
         self.scripts.sort()

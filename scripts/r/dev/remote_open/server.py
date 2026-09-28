@@ -82,7 +82,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        path = urllib.parse.urlparse(self.path).path
+        url = urllib.parse.urlparse(self.path)
+        path = urllib.parse.unquote(url.path)
 
         if path == "/":
             return self._serve_static("index.html")
@@ -90,17 +91,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/events":
             return self._handle_sse()
 
-        if path.startswith("/api/file/"):
-            return self._serve_file(urllib.parse.unquote(path[9:]))
-
         if path.startswith("/api/stat/"):
-            return self._serve_stat(urllib.parse.unquote(path[9:]))
+            return self._serve_stat(path[9:])
 
-        # Static files (view.html, etc.)
-        if path.startswith("/"):
+        if os.path.isfile(os.path.join(STATIC_DIR, path.lstrip("/"))):
             return self._serve_static(path.lstrip("/"))
 
-        self._json_err(404, "not found")
+        # The URL is the file path, so relative refs inside a viewed file resolve
+        # natively. Page loads get the viewer, subresource loads get raw bytes.
+        if self.headers.get("Sec-Fetch-Dest") == "document" and url.query != "raw":
+            return self._serve_static("view.html")
+        self._serve_file(path)
 
     def do_POST(self):
         if self.path == "/api/open":

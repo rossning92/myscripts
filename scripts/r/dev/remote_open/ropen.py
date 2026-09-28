@@ -40,8 +40,7 @@ def _target_url(port: int, target: str, cwd: str) -> str:
     path = Path(target)
     if not path.is_absolute():
         path = Path(cwd) / path
-    query = urllib.parse.urlencode({"path": str(path.resolve())})
-    return f"http://localhost:{port}/view.html?{query}"
+    return f"http://localhost:{port}{urllib.parse.quote(str(path.resolve()))}"
 
 
 def _start_server(port: int) -> None:

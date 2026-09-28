@@ -16,7 +16,7 @@ import urllib.parse
 from enum import IntEnum
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 from _cpp import setup_cmake
 from _filelock import FileLock
@@ -1978,6 +1978,7 @@ def get_default_script_config() -> Dict[str, Union[str, bool, None]]:
     return {
         "adk.jdk_version": "",
         "adk": False,
+        "agent": False,
         "args.clipboard": False,
         "args.clipboardAsFile": False,
         "args.selectDir": False,
@@ -2227,6 +2228,27 @@ def get_all_scripts() -> Iterator[str]:
                 continue
 
             yield file
+
+
+def _get_agents_file() -> str:
+    return os.path.join(get_data_dir(), "agents.json")
+
+
+def get_agents() -> Dict[str, str]:
+    """Agent name to script path, for scripts whose config sets `agent`."""
+    return load_json(_get_agents_file(), default={}) or update_agents(
+        f for f in get_all_scripts() if load_script_config(f)["agent"]
+    )
+
+
+def update_agents(script_paths: Iterable[str]) -> Dict[str, str]:
+    agents = {
+        os.path.splitext(os.path.basename(path))[0]: path
+        for path in sorted(script_paths)
+    }
+    if agents != load_json(_get_agents_file(), default={}):
+        save_json(_get_agents_file(), agents)
+    return agents
 
 
 def execute_script_autorun(script: Script):

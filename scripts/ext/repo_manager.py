@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 import subprocess
 import threading
@@ -210,6 +211,14 @@ def _get_repos() -> List[Repo]:
     return [Repo(d) for d in dirs]
 
 
+def _is_linked_worktree(repo: Repo) -> bool:
+    if not repo.is_hg:
+        return False
+    out = get_vcs_output("sl", "worktree", "list", "-Tjson", cwd=repo.path)
+    entries = json.loads(out) if out else []
+    return any(e["current"] and e["role"] == "linked" for e in entries)
+
+
 class RepoMenu(Menu[Repo]):
     def __init__(self):
         super().__init__(
@@ -386,6 +395,14 @@ class RepoMenu(Menu[Repo]):
 
         if os.path.realpath(repo.path) == os.path.realpath(get_my_script_root()):
             self.set_message("Cannot delete the myscripts repository")
+            return
+
+        if _is_linked_worktree(repo):
+            if not confirm(
+                f'Remove worktree "{repo.display_path}"?', prompt_color="red"
+            ):
+                return
+            self._run_cmds(["sl", "worktree", "remove", repo.path, "-y"])
             return
 
         if not confirm(

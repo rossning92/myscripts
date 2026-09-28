@@ -13,6 +13,9 @@ return
 
 {{HOTKEYS}}
 
+*CapsLock::Send {Blind}{LWin DownR}{LCtrl DownR}
+*CapsLock Up::Send {Blind}{LWin Up}{LCtrl Up}
+
 #enter::RestartLastScript()
 
 StartScript(scriptTitle, scriptPath)
