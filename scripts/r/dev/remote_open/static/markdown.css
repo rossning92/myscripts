@@ -14,16 +14,16 @@
     border-bottom: 1px solid var(--border);
     padding-bottom: .3em;
 }
-.markdown-body a { color: #4ea1ff; }
+.markdown-body a { color: var(--link); }
 .markdown-body code {
-    background: #2a2a2a;
+    background: var(--btn-bg);
     padding: .2em .4em;
     border-radius: 4px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 85%;
 }
 .markdown-body pre {
-    background: #161616;
+    background: var(--pre-bg);
     padding: 12px;
     border-radius: 6px;
     overflow: auto;

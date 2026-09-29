@@ -51,23 +51,24 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.__refresh_windows()
 
     def __toggle_pin(self):
-        selected = self.get_selected_item(ignore_cancellation=True)
-        if not selected:
+        titles = {item.title for item in self.get_selected_items()}
+        if not titles:
             return
-        if selected.title in self.__pinned:
-            self.__pinned.discard(selected.title)
+        if titles <= self.__pinned:
+            self.__pinned -= titles
             self.set_message("unpinned")
         else:
-            self.__pinned.add(selected.title)
+            self.__pinned |= titles
             self.set_message("pinned")
+        self.set_multi_select(False)
         self.__refresh_windows()
 
     def __get_sort_key(self, w: WindowItem) -> int:
         if w.title in self.__pinned:
-            return 0
+            return 2
         status = w.get_status(self.script_status)
         if status == "success":
-            return 1 if w.title not in self.__visited_success else 2
+            return 0 if w.title not in self.__visited_success else 1
         if status == "running":
             return 3
         return 4

@@ -7,21 +7,21 @@
 // the quoted text after each re-render, so they survive the viewer's reloads.
 (function () {
     var STYLE = [
-        "mark.ropen-annot{background:#5a4a00;color:inherit;border-radius:2px;",
+        "mark.ropen-annot{background:var(--mark-bg);color:inherit;border-radius:2px;",
         "box-shadow:0 0 0 1px #b89000 inset;cursor:pointer;padding:0 1px;}",
-        "#annot-copy{display:none;padding:5px 8px;color:#888;background:#2a2a2a;",
-        "border:1px solid #333;border-radius:4px;cursor:pointer;font:12px/1 sans-serif;}",
-        "#annot-copy:hover{background:#383838;color:#e0e0e0;}",
+        "#annot-copy{display:none;align-items:center;gap:4px;padding:5px 6px;color:var(--muted);background:var(--btn-bg);",
+        "border:1px solid var(--border);border-radius:4px;cursor:pointer;font:12px/1 sans-serif;}",
+        "#annot-copy:hover{background:var(--btn-hover);color:var(--fg);}",
         "#annot-copy.ok{color:#4ade80;border-color:#4ade80;}",
         "#annot-popup{position:fixed;z-index:21;display:none;width:280px;padding:10px;",
-        "background:#252525;border:1px solid #444;border-radius:6px;",
+        "background:var(--btn-bg);border:1px solid var(--border);border-radius:6px;",
         "box-shadow:0 4px 16px rgba(0,0,0,.6);}",
-        "#annot-popup input{width:100%;background:#1a1a1a;color:#e0e0e0;",
-        "border:1px solid #444;border-radius:4px;padding:6px;",
+        "#annot-popup input{width:100%;background:var(--bg);color:var(--fg);",
+        "border:1px solid var(--border);border-radius:4px;padding:6px;",
         "font:13px/1.4 sans-serif;box-sizing:border-box;}",
         "#annot-popup .row{display:flex;gap:6px;margin-top:8px;justify-content:flex-end;}",
-        "#annot-popup button{padding:5px 12px;border-radius:4px;border:1px solid #444;",
-        "background:#333;color:#e0e0e0;cursor:pointer;font:12px/1 sans-serif;}",
+        "#annot-popup button{padding:5px 12px;border-radius:4px;border:1px solid var(--border);",
+        "background:var(--btn-hover);color:var(--fg);cursor:pointer;font:12px/1 sans-serif;}",
         "#annot-popup button.save{background:#b89000;color:#1a1a1a;border-color:#b89000;",
         "font-weight:600;}",
         "#annot-popup button.del{margin-right:auto;background:#4a1f1f;color:#ff9b9b;",
@@ -311,9 +311,8 @@
 
     function refresh() {
         applyHighlights();
-        els.copy.style.display = annots.length ? "block" : "none";
-        els.copy.innerHTML =
-            "Copy annotations (" + annots.length + ')<span class="annot-key">' + ALT + "N</span>";
+        els.copy.style.display = annots.length ? "flex" : "none";
+        els.copy.innerHTML = icon("note") + annots.length;
     }
 
     function buildUi() {

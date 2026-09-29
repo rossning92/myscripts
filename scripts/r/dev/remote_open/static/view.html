@@ -5,13 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Loading...</title>
 <link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
 <style>
-:root {
-    --bg: #1e1e1e;
-    --fg: #e0e0e0;
-    --muted: #888;
-    --border: #333;
-}
 * { box-sizing: border-box; }
 html, body {
     margin: 0;
@@ -26,7 +22,7 @@ body {
 }
 #path {
     flex: 0 0 auto;
-    padding: 8px 330px 8px 12px;
+    padding: 8px 200px 8px 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
     color: var(--muted);
@@ -43,18 +39,7 @@ body {
     gap: 6px;
     align-items: center;
 }
-.tbtn {
-    padding: 5px 8px;
-    color: var(--muted);
-    background: #2a2a2a;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-}
-.tbtn:hover { background: #383838; color: var(--fg); }
-.tbtn .key { opacity: .6; margin-left: 4px; }
-a.tbtn { text-decoration: none; display: inline-block; }
+a.tbtn { text-decoration: none; }
 #copybtn, #dlbtn { display: none; }
 #viewer {
     flex: 1 1 auto;
@@ -93,7 +78,7 @@ a.tbtn { text-decoration: none; display: inline-block; }
 </style>
 </head>
 <body>
-<div id="toolbar"><button id="copypathbtn" class="tbtn"></button><button id="copybtn" class="tbtn"></button><a id="dlbtn" class="tbtn"></a></div>
+<div id="toolbar"><button id="themebtn" class="tbtn"></button><button id="copypathbtn" class="tbtn"></button><button id="copybtn" class="tbtn"></button><a id="dlbtn" class="tbtn"></a></div>
 <div id="path"></div>
 <div id="viewer"></div>
 <script src="/annotate.js"></script>
@@ -133,7 +118,7 @@ function renderMarkdown(v, text) {
             v.innerHTML = '<div class="markdown-body"></div>';
             var body = v.querySelector(".markdown-body");
             body.innerHTML = marked.parse(text);
-            loadStyle(CDN + "highlight.js/styles/github-dark.min.css");
+            loadStyle(CDN + "highlight.js/styles/" + Theme.hljsStyle());
             return window.hljs
                 ? Promise.resolve()
                 : loadScript(CDN + "highlight.js/lib/common.min.js").catch(function () {});
@@ -153,14 +138,17 @@ var ALT = isMac ? "⌥" : "Alt+";
 var copyBtn = document.getElementById("copybtn");
 var copyPathBtn = document.getElementById("copypathbtn");
 var dlBtn = document.getElementById("dlbtn");
-var COPY_LABEL = 'Copy text<span class="key">' + ALT + 'C</span>';
-var PATH_LABEL = 'Copy path<span class="key">' + ALT + 'P</span>';
+var COPY_LABEL = icon("copy");
+var PATH_LABEL = icon("link");
 copyBtn.innerHTML = COPY_LABEL;
+copyBtn.title = "Copy text (" + ALT + "C)";
 copyPathBtn.innerHTML = PATH_LABEL;
-dlBtn.innerHTML = 'Download<span class="key">' + ALT + 'D</span>';
+copyPathBtn.title = "Copy path (" + ALT + "P)";
+dlBtn.innerHTML = icon("download");
+dlBtn.title = "Download (" + ALT + "D)";
 
 function flashBtn(btn, label, ok) {
-    btn.textContent = ok ? "Copied" : "Failed";
+    btn.innerHTML = icon(ok ? "check" : "x");
     setTimeout(function () { btn.innerHTML = label; }, 1200);
 }
 
@@ -256,7 +244,7 @@ if (path) {
 
     dlBtn.href = fileUrl + "?raw";
     dlBtn.setAttribute("download", name);
-    dlBtn.style.display = "inline-block";
+    dlBtn.style.display = "inline-flex";
 
     function snapshotScroll() {
         var pre = v.querySelector("pre");
@@ -352,7 +340,7 @@ if (path) {
                 .then(function (t) { return renderMarkdown(v, t); })
                 .then(function () {
                     restoreScroll(scroll);
-                    copyBtn.style.display = "inline-block";
+                    copyBtn.style.display = "inline-flex";
                     if (window.Annotator) {
                         Annotator.enable(v.querySelector(".markdown-body"), path);
                     }

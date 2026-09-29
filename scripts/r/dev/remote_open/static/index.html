@@ -5,14 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ropen</title>
 <link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
 <style>
-:root {
-    --bg: #1e1e1e;
-    --fg: #e0e0e0;
-    --muted: #888;
-    --border: #333;
-    --link: #4ea1ff;
-}
 * { box-sizing: border-box; }
 body {
     margin: 0;
@@ -24,10 +19,14 @@ body {
     padding: 12px 14px;
 }
 h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     font-size: 15px;
     font-weight: 600;
     margin: 0 0 8px;
 }
+#themebtn { margin-left: auto; }
 #status {
     font-size: 12px;
     font-weight: 400;
@@ -73,7 +72,7 @@ li small {
 </style>
 </head>
 <body>
-<h2>Remote Open <span id="status">(connecting...)</span></h2>
+<h2>Remote Open <span id="status">(connecting...)</span><button id="themebtn" class="tbtn"></button></h2>
 <div id="empty">waiting for files ...</div>
 <ul id="list"></ul>
 <div id="popup-warning" style="display:none">

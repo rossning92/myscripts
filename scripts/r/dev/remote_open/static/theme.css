@@ -1,0 +1,37 @@
+:root {
+    color-scheme: dark;
+    --bg: #1e1e1e;
+    --fg: #e0e0e0;
+    --muted: #888;
+    --border: #333;
+    --link: #4ea1ff;
+    --btn-bg: #2a2a2a;
+    --btn-hover: #383838;
+    --pre-bg: #161616;
+    --mark-bg: #5a4a00;
+}
+:root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #fff;
+    --fg: #1f2328;
+    --muted: #656d76;
+    --border: #d0d7de;
+    --link: #0969da;
+    --btn-bg: #f6f8fa;
+    --btn-hover: #eaeef2;
+    --pre-bg: #f6f8fa;
+    --mark-bg: #fff3b0;
+}
+.tbtn {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 6px;
+    color: var(--muted);
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.tbtn:hover { background: var(--btn-hover); color: var(--fg); }
+.tbtn svg, #annot-copy svg { width: 14px; height: 14px; }

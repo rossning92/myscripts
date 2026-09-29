@@ -1261,7 +1261,8 @@
       "packages": ["com.tencent.WeChat"]
     },
     "post_install": [
-      "sudo flatpak override com.tencent.WeChat --filesystem=home"
+      "sudo flatpak override com.tencent.WeChat --filesystem=home",
+      "flatpak override --user --env=QT_IM_MODULE=fcitx --env=XMODIFIERS=@im=fcitx com.tencent.WeChat"
     ]
   },
   "wezterm": {
