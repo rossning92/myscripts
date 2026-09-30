@@ -115,18 +115,21 @@ class ListEditMenu(Menu, Generic[T]):
         self.update_screen()
         self.save_json()
 
+    def get_json_items(self) -> List[T]:
+        return self.items
+
     def save_json(self):
         if self.__json_file:
             self.__last_mtime = try_save_json(
                 self.__json_file,
-                self.items,
+                self.get_json_items(),
                 last_mtime=self.__last_mtime,
                 backup=self.__backup_json,
             )
 
     def __force_save(self):
         if self.__json_file:
-            save_json(self.__json_file, self.items)
+            save_json(self.__json_file, self.get_json_items())
             self.__last_mtime = os.path.getmtime(self.__json_file)
             self.set_message("force saved")
 

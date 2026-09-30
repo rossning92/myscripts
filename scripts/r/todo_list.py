@@ -177,6 +177,9 @@ class TodoMenu(ListEditMenu[TodoItem]):
             if len(self.items) > 0:
                 self.set_selected_item(self.items[0])
 
+    def get_json_items(self) -> List[TodoItem]:
+        return sorted(self.items, key=lambda item: item["id"])
+
     def save_json(self):
         try:
             super().save_json()
