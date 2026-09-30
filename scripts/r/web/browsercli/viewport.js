@@ -1,4 +1,4 @@
-import { WINDOW_HEIGHT, WINDOW_WIDTH } from "./config.js";
+import { currentSession, WINDOW_HEIGHT, WINDOW_WIDTH } from "./config.js";
 
 const VIEWPORT_PATTERN = /^(\d+)\s*[xX×]\s*(\d+)$/;
 
@@ -17,13 +17,14 @@ export function parseViewport(value) {
   return { width, height };
 }
 
-let currentViewport = { width: WINDOW_WIDTH, height: WINDOW_HEIGHT };
+const defaultViewport = { width: WINDOW_WIDTH, height: WINDOW_HEIGHT };
+const viewports = new Map();
 
 export function getViewport() {
-  return { ...currentViewport };
+  return { ...(viewports.get(currentSession()) ?? defaultViewport) };
 }
 
 export function setViewport(viewport) {
-  currentViewport = { width: viewport.width, height: viewport.height };
+  viewports.set(currentSession(), { width: viewport.width, height: viewport.height });
   return getViewport();
 }

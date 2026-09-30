@@ -1,6 +1,7 @@
+import { AsyncLocalStorage } from "async_hooks";
 import { getProfileDir } from "./app-paths.js";
 
-function validateSessionName(session) {
+export function validateSessionName(session) {
   if (session == null) return null;
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(session)) {
     throw new Error(
@@ -19,14 +20,18 @@ function hashSession(session) {
   return hash >>> 0;
 }
 
-export const SESSION = validateSessionName(process.env.BROWSERCLI_SESSION);
-export const USER_DATA_DIR = getProfileDir(SESSION);
-// Keep the original ports for the default session. Named sessions get a stable
-// pair of ports, allowing their daemons and Chrome profiles to run concurrently.
-export const DEBUG_PORT = SESSION
-  ? 30000 + (hashSession(SESSION) % 15000) * 2
-  : 21222;
-export const BROWSER_URL = `http://127.0.0.1:${DEBUG_PORT}`;
+// One daemon serves every session. The daemon runs each request in the
+// context of the session named by its ?session= query parameter.
+export const sessionContext = new AsyncLocalStorage();
+export const currentSession = () => sessionContext.getStore() ?? null;
+export const sessionQuery = (session) => (session ? `?session=${session}` : "");
+export const profileDir = () => getProfileDir(currentSession());
+// Keep the original port for the default session. Named sessions get a stable
+// port, allowing their Chrome profiles to run concurrently.
+export function debugPort() {
+  const session = currentSession();
+  return session ? 30000 + (hashSession(session) % 15000) * 2 : 21222;
+}
 export const WINDOW_WIDTH = 1024;
 export const WINDOW_HEIGHT = 768;
-export const DAEMON_PORT = DEBUG_PORT + 2;
+export const DAEMON_PORT = 21224;

@@ -24,6 +24,7 @@ vim.opt.foldlevelstart = 99
 vim.opt.foldcolumn = "1"
 
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
+vim.keymap.set('n', '<leader>w', '<cmd>set wrap!<CR>', { desc = 'Toggle line wrap' })
 
 vim.g.loaded_netrw = 1         -- built-in file explorer (replaced by telescope)
 vim.g.loaded_netrwPlugin = 1   -- netrw's plugin wrapper
@@ -70,6 +71,22 @@ vim.keymap.set({ "n", "o" }, "ZZ", ":wq<CR>")
 -- Terminal settings
 vim.api.nvim_command("autocmd TermOpen * startinsert")
 vim.api.nvim_command("autocmd TermOpen * setlocal nonumber norelativenumber signcolumn=no")
+
+-- Markdown: gf anywhere on [text](file) opens file relative to the current note.
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "markdown",
+  callback = function(ev)
+    vim.keymap.set("n", "gf", function()
+      local line, col = vim.api.nvim_get_current_line(), vim.fn.col(".")
+      for s, file, e in line:gmatch("()%[[^%]]*%]%(([^)]+)%)()") do
+        if col >= s and col < e then
+          return vim.cmd.edit(vim.fn.fnameescape(vim.fn.expand("%:p:h") .. "/" .. file))
+        end
+      end
+      vim.cmd("normal! gf")
+    end, { buffer = ev.buf })
+  end,
+})
 
 -- auto-reload files when modified externally
 -- https://unix.stackexchange.com/a/383044

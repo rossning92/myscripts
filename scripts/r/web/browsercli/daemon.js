@@ -9,12 +9,20 @@ import { fileURLToPath } from "url";
 import {
   getBrowser,
   getOrOpenPage,
+  closeBrowser,
   getStatus,
+  listSessions,
   restoreOpenerPage,
   withActivePage,
 } from "./browser-core.js";
 import { withActivePageCdp } from "./browser-cdp.js";
-import { DAEMON_PORT, DEBUG_PORT, SESSION } from "./config.js";
+import {
+  currentSession,
+  DAEMON_PORT,
+  debugPort,
+  sessionContext,
+  validateSessionName,
+} from "./config.js";
 import {
   click as clickCdp,
   pressKey as pressKeyCdp,
@@ -50,11 +58,12 @@ const contentTypes = {
   ".svg": "image/svg+xml",
 };
 
-let activeBackend = SESSION ? "browser" : await loadBackendPreference();
+let defaultBackend = await loadBackendPreference();
+const activeBackend = () => (currentSession() ? "browser" : defaultBackend);
 const screencastUploadDir = resolve(tmpdir(), "browsercli-screencast-uploads");
 
 async function runOnActiveBackend(command, args, browserHandler) {
-  if (activeBackend === "extension") {
+  if (activeBackend() === "extension") {
     return await extensionBridge.send(command, args);
   }
   return await browserHandler();
@@ -82,19 +91,19 @@ async function serveStatic(pathname, res) {
 const commands = {
   async open({ url, headed, extension }) {
     if (extension) {
-      if (SESSION) {
+      if (currentSession()) {
         throw new Error(
           "Named sessions are only supported by the managed browser backend",
         );
       }
       await extensionBridge.send("open", { url });
-      activeBackend = "extension";
-      await saveBackendPreference(activeBackend);
-      return { mode: "extension", backend: activeBackend };
+      defaultBackend = "extension";
+      await saveBackendPreference(defaultBackend);
+      return { mode: "extension", backend: activeBackend() };
     }
-    if (activeBackend === "extension") {
+    if (activeBackend() === "extension") {
       await extensionBridge.send("open", { url });
-      return { mode: "extension", backend: activeBackend };
+      return { mode: "extension", backend: activeBackend() };
     }
     const browser = await getBrowser({ headed });
     await getOrOpenPage(browser, url);
@@ -102,7 +111,7 @@ const commands = {
   },
 
   async "set-viewport"({ viewport }) {
-    if (activeBackend === "extension") {
+    if (activeBackend() === "extension") {
       throw new Error(
         "Viewport emulation is only available for the managed browser backend",
       );
@@ -119,7 +128,7 @@ const commands = {
     if (backend !== "browser" && backend !== "extension") {
       throw new Error('Backend must be "browser" or "extension"');
     }
-    if (SESSION && backend === "extension") {
+    if (currentSession() && backend === "extension") {
       throw new Error(
         "Named sessions are only supported by the managed browser backend",
       );
@@ -129,15 +138,15 @@ const commands = {
     } else {
       await getBrowser({ headed });
     }
-    activeBackend = backend;
-    if (!SESSION) await saveBackendPreference(activeBackend);
+    if (!currentSession()) {
+      defaultBackend = backend;
+      await saveBackendPreference(defaultBackend);
+    }
     return { backend };
   },
 
   async "close-browser"() {
-    const browser = await getBrowser();
-    await browser.close();
-    setTimeout(() => process.exit(0), 100);
+    await closeBrowser();
   },
 
   async "shutdown-daemon"() {
@@ -238,7 +247,7 @@ const commands = {
   },
 
   async screenshot({ output, ...target } = {}) {
-    if (activeBackend === "extension") {
+    if (activeBackend() === "extension") {
       const { data } = await extensionBridge.send("screenshot", target);
       return await saveScreenshotData(data, output);
     }
@@ -246,7 +255,7 @@ const commands = {
   },
 
   async screencast() {
-    if (activeBackend === "extension") {
+    if (activeBackend() === "extension") {
       throw new Error("screencast is only available for the managed browser backend");
     }
     return await screencast();
@@ -274,7 +283,7 @@ async function saveScreencastUpload(req, filename) {
 
 const startTime = Date.now();
 
-const server = createServer(async (req, res) => {
+async function handleRequest(req, res) {
   const requestUrl = new URL(req.url, "http://localhost");
   const { pathname } = requestUrl;
 
@@ -337,7 +346,7 @@ const server = createServer(async (req, res) => {
 
   if (pathname === "/active-ws") {
     try {
-      const r = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json`);
+      const r = await fetch(`http://127.0.0.1:${debugPort()}/json`);
       const targets = await r.json();
       const page = targets.find((t) => t.type === "page");
       let ws = null;
@@ -389,6 +398,11 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === "/sessions" && req.method === "GET") {
+    res.end(JSON.stringify(listSessions()));
+    return;
+  }
+
   if (pathname === "/viewport" && req.method === "GET") {
     res.end(JSON.stringify(getViewport()));
     return;
@@ -414,6 +428,20 @@ const server = createServer(async (req, res) => {
 
   res.writeHead(404);
   res.end(JSON.stringify({ error: "Not found" }));
+}
+
+const server = createServer(async (req, res) => {
+  let session;
+  try {
+    session = validateSessionName(
+      new URL(req.url, "http://localhost").searchParams.get("session"),
+    );
+  } catch (err) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: err.message }));
+    return;
+  }
+  await sessionContext.run(session, () => handleRequest(req, res));
 });
 
 server.listen(DAEMON_PORT, "127.0.0.1");

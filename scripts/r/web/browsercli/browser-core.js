@@ -2,9 +2,9 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import {
-  BROWSER_URL,
-  DEBUG_PORT,
-  USER_DATA_DIR,
+  currentSession,
+  debugPort,
+  profileDir,
   WINDOW_HEIGHT,
   WINDOW_WIDTH,
 } from "./config.js";
@@ -49,8 +49,8 @@ const getExecutablePath = () => {
 async function launchDetachedChrome(headed = false) {
   const executablePath = getExecutablePath();
   const chromeArgs = [
-    `--remote-debugging-port=${DEBUG_PORT}`,
-    `--user-data-dir=${USER_DATA_DIR}`,
+    `--remote-debugging-port=${debugPort()}`,
+    `--user-data-dir=${profileDir()}`,
     "--remote-allow-origins=*",
     "--no-first-run",
     `--window-size=${WINDOW_WIDTH},${WINDOW_HEIGHT}`,
@@ -146,7 +146,7 @@ export async function getOrOpenPage(browser, url) {
 
 export async function launchOrConnectBrowser({
   headed = false,
-  browserURL = BROWSER_URL,
+  browserURL = `http://127.0.0.1:${debugPort()}`,
 } = {}) {
   let browser;
 
@@ -182,25 +182,42 @@ export async function launchOrConnectBrowser({
   return browser;
 }
 
-let _browser = null;
-let _onDisconnect = null;
-let _currentHeaded = false;
+const sessions = new Map();
+
+function sessionState() {
+  const session = currentSession();
+  if (!sessions.has(session)) {
+    sessions.set(session, { browser: null, headed: false });
+  }
+  return sessions.get(session);
+}
 
 export function getStatus() {
   return {
-    port: DEBUG_PORT,
-    mode: _currentHeaded ? "headed" : "headless",
-    profile: USER_DATA_DIR,
+    port: debugPort(),
+    mode: sessionState().headed ? "headed" : "headless",
+    profile: profileDir(),
   };
 }
 
 export async function getBrowser(options) {
-  _currentHeaded = options?.headed ?? _currentHeaded;
-  if (_browser && _browser.isConnected()) return _browser;
-  _browser = await launchOrConnectBrowser(options);
-  _onDisconnect = () => process.exit(0);
-  _browser.on("disconnected", _onDisconnect);
-  return _browser;
+  const state = sessionState();
+  state.headed = options?.headed ?? state.headed;
+  if (state.browser?.isConnected()) return state.browser;
+  state.browser = await launchOrConnectBrowser(options);
+  return state.browser;
+}
+
+export function listSessions() {
+  return [...sessions]
+    .filter(([, state]) => state.browser?.isConnected())
+    .map(([session]) => session);
+}
+
+export async function closeBrowser() {
+  const browser = await getBrowser();
+  sessions.delete(currentSession());
+  await browser.close();
 }
 
 export async function withActivePage(handler, { url } = {}) {

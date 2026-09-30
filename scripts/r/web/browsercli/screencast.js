@@ -1,11 +1,11 @@
 import { spawn } from "child_process";
 import { withActivePage } from "./browser-core.js";
-import { DAEMON_PORT } from "./config.js";
+import { currentSession, DAEMON_PORT, sessionQuery } from "./config.js";
 
 export async function screencast() {
   await withActivePage(() => {});
 
-  const viewerUrl = `http://127.0.0.1:${DAEMON_PORT}/screencast`;
+  const viewerUrl = `http://127.0.0.1:${DAEMON_PORT}/screencast${sessionQuery(currentSession())}`;
   const opener =
     process.platform === "win32"
       ? "start"

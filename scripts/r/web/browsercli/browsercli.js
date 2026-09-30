@@ -3,9 +3,10 @@ import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
-import { DAEMON_PORT } from "./config.js";
+import { DAEMON_PORT, sessionQuery, validateSessionName } from "./config.js";
 
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
+const SESSION = validateSessionName(process.env.BROWSERCLI_SESSION);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function getLatestMtime(dir) {
@@ -41,7 +42,7 @@ async function waitForDaemon(alive, { retries = 10, delay = 300 } = {}) {
 }
 
 async function postCommand(command, args = {}) {
-  const res = await fetch(`${DAEMON_URL}/command`, {
+  const res = await fetch(`${DAEMON_URL}/command${sessionQuery(SESSION)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ command, args }),
