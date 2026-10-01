@@ -159,7 +159,7 @@ def _get_windows_tmux() -> List[WindowItem]:
                 "list-windows",
                 "-a",
                 "-F",
-                "#{session_name}:#{window_index}\t#{window_name}",
+                "#{window_id}\t#{window_name}",
             ],
             text=True,
             stderr=subprocess.DEVNULL,
@@ -169,11 +169,11 @@ def _get_windows_tmux() -> List[WindowItem]:
             if line:
                 parts = line.split("\t", 1)
                 assert len(parts) == 2
-                target, name = parts
+                window_id, name = parts
                 if name == "win_switcher":
                     continue
 
-                windows.append(WindowItem(id=f"tmux:{target}", title=name))
+                windows.append(WindowItem(id=f"tmux:{window_id}", title=name))
         return windows
     except Exception:
         return []
@@ -413,7 +413,21 @@ def get_windows(
 
 def activate_window(win_id) -> Optional[str]:
     if isinstance(win_id, str) and win_id.startswith("tmux:"):
-        target = win_id[len("tmux:") :]
+        cp = subprocess.run(
+            [
+                "tmux",
+                "display-message",
+                "-p",
+                "-t",
+                win_id[len("tmux:") :],
+                "#{session_name}:#{window_index}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if cp.returncode != 0:
+            return cp.stderr.splitlines()[0] if cp.stderr else "Error"
+        target = cp.stdout.strip()
         session, _, window_index = target.rpartition(":")
 
         if window_index != "1":

@@ -74,6 +74,9 @@ class WinSwitcherMenu(Menu[WindowItem]):
         return 4
 
     def __refresh_windows(self, message: Optional[str] = None):
+        begin, end = self.get_selected_row_range()
+        selected = self.get_selected_item() if begin == end else None
+
         notifications = get_notifications()
         self.script_status = {
             n["app"]: n.get("hint")
@@ -93,6 +96,12 @@ class WinSwitcherMenu(Menu[WindowItem]):
         if message:
             self.set_message(message)
         self.refresh()
+
+        if selected:
+            for row, i in enumerate(self.get_item_indices()):
+                if self.items[i].id == selected.id:
+                    self.set_selected_row(row)
+                    break
 
     def __activate_window(self, win_id):
         error = activate_window(win_id)
@@ -144,15 +153,6 @@ class WinSwitcherMenu(Menu[WindowItem]):
     def on_focus_gained(self):
         self.__refresh_windows()
         self.__auto_refresh_enabled = True
-        self.__highlight_first_done()
-
-    def __highlight_first_done(self):
-        for item in self.items:
-            if item.title in self.__pinned:
-                continue
-            if item.get_status(self.script_status) == "success":
-                self.set_selected_item(item)
-                break
 
     def on_focus_lost(self):
         self.__auto_refresh_enabled = False
