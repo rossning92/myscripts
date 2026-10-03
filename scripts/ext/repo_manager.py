@@ -280,7 +280,20 @@ class RepoMenu(Menu[Repo]):
 
     def on_item_selected(self, item: Repo):
         if not item.vcs:
-            return
+            if not confirm(f'Initialize Git repository in "{item.display_path}"?'):
+                return
+            try:
+                subprocess.run(
+                    ["git", "init"],
+                    cwd=item.path,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as error:
+                self.set_message(error.stderr.strip() or error.stdout.strip() or str(error))
+                return
+            item.is_git = True
         saved_cwd = os.getcwd()
         try:
             os.chdir(item.path)
@@ -316,13 +329,16 @@ class RepoMenu(Menu[Repo]):
         if repo is None or not repo.vcs:
             return
 
+        self._run_cmds_for_repo(repo, *commands)
+        self._refresh()
+
+    def _run_cmds_for_repo(self, repo: Repo, *commands: List[str]):
         shell_cmd = " && ".join(subprocess.list2cmdline(cmd) for cmd in commands)
         menu = ShellCmdMenu(
             shell_cmd,
             cwd=repo.path,
         )
         menu.exec()
-        self._refresh()
 
     def _ensure_git_identity(self) -> bool:
         """Prompt for missing global Git identity before creating a commit."""
@@ -352,10 +368,12 @@ class RepoMenu(Menu[Repo]):
         return True
 
     def _sync(self):
-        repo = self.get_selected_item()
-        if repo is None or not repo.vcs:
+        repos = [repo for repo in self.get_selected_items() if repo.vcs]
+        if not repos:
             return
-        self._run_cmds(*get_sync_cmds(repo.vcs))
+        for repo in repos:
+            self._run_cmds_for_repo(repo, *get_sync_cmds(repo.vcs))
+        self._refresh()
 
     def _amend(self, push: bool = False):
         repo = self.get_selected_item()

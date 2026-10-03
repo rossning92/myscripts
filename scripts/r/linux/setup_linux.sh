@@ -85,10 +85,14 @@ has_backlight=false
 if [[ -d /sys/class/backlight ]]; then
     has_backlight=true
 fi
+install_picom=${INSTALL_PICOM:-0}
 
-common_packages=(acpi alacritty autocutsel curl fzf git less neovim playerctl unzip usbutils wmctrl xclip zip
+common_packages=(acpi alacritty curl fzf git less neovim playerctl unzip usbutils wmctrl xclip zip
     bluez pulseaudio pavucontrol alsa-utils udisks2 udiskie
     fcitx5 fcitx5-chinese-addons pqiv awesome sxhkd zathura flameshot xsecurelock xss-lock)
+if [[ $install_picom == 1 ]]; then
+    common_packages+=(picom)
+fi
 
 if [[ $distro == arch ]]; then
     packages=("${common_packages[@]}" inetutils openssh
@@ -105,7 +109,7 @@ if [[ $distro == arch ]]; then
         packages+=(xf86-video-intel)
     fi
 else
-    packages=("${common_packages[@]}" inetutils-tools openssh-client
+    packages=("${common_packages[@]}" autocutsel inetutils-tools openssh-client
         fonts-jetbrains-mono fonts-noto-core fonts-noto-cjk
         blueman pulseaudio-module-bluetooth network-manager-gnome
         fcitx5-frontend-qt5 fcitx5-frontend-gtk3 fcitx5-config-qt
@@ -130,6 +134,7 @@ fi
 if [[ $distro == arch ]]; then
     sudo pacman -S --noconfirm --needed "${packages[@]}"
     run_script r/linux/arch/install_yay.sh
+    yay -S --noconfirm --needed autocutsel
     sudo systemctl enable --now systemd-resolved.service earlyoom.service
 else
     sudo apt-get update
@@ -269,6 +274,7 @@ export XSECURELOCK_DATETIME_FORMAT='%m-%d  %H:%M'
 export XSECURELOCK_SHOW_KEYBOARD_LAYOUT=0
 export XSECURELOCK_SHOW_HOSTNAME=0
 export XSECURELOCK_SHOW_USERNAME=0
+export XSECURELOCK_COMPOSITE_OBSCURER=0
 xss-lock -l -- xsecurelock &
 XSECURELOCK
 mkdir -p "$HOME/.config"
@@ -287,10 +293,19 @@ startx_line='[[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]] && startx'
 append_line_dedup "$HOME/.bash_profile" "$startx_line"
 touch "$HOME/.xinitrc"
 portal_env_line='dbus-update-activation-environment --systemd DISPLAY XAUTHORITY'
-sed -i "\|^${portal_env_line}$|d; \|^xrdb -merge ~/.Xresources$|d; \|^exec awesome$|d" "$HOME/.xinitrc"
+sed -i "\|^${portal_env_line}$|d; \|^xrdb -merge ~/.Xresources$|d; \|^picom --daemon --backend xrender.*$|d; \|^exec awesome$|d" "$HOME/.xinitrc"
+sed -i '\|^\. "$HOME/\.xprofile"$|d' "$HOME/.xinitrc"
 sed -i '1i xrdb -merge ~/.Xresources' "$HOME/.xinitrc"
 sed -i "1i $portal_env_line" "$HOME/.xinitrc"
+sed -i '1i . "$HOME/.xprofile"' "$HOME/.xinitrc"
+if [[ $install_picom == 1 ]]; then
+    append_line_dedup "$HOME/.xinitrc" 'picom --daemon --backend xrender'
+fi
 echo 'exec awesome' >>"$HOME/.xinitrc"
+
+if [[ $install_picom == 1 && -n ${DISPLAY:-} ]] && ! pgrep -x picom >/dev/null; then
+    picom --daemon --backend xrender
+fi
 
 # XXX: Disable the old suspend service, if present, so it does not race with xss-lock.
 sudo systemctl disable "betterlockscreen@$(whoami).service" 2>/dev/null || true

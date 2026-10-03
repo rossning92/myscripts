@@ -27,7 +27,7 @@ def main():
     args = sys.argv[1:]
     config = [
         'model_verbosity="low"',
-        'tui.alternate_screen="never"',
+        'tui.alternate_screen="always"',
         'tui.fullscreen_transcript=false',
         'tui.terminal_title=[]',
         'tui.status_line=["context-used","used-tokens","weekly-limit"]',

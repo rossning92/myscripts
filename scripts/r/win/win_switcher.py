@@ -41,6 +41,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.script_status: Dict[str, str] = {}
         self.__visited_success: Set[str] = set()
         self.__pinned: Set[str] = set()
+        self.__has_item_markers = False
         self.add_command(self.__refresh_windows, hotkey="ctrl+r")
         self.add_command(self.__close_windows, hotkey="delete")
         self.add_command(self.__close_windows, hotkey="ctrl+k")
@@ -92,6 +93,9 @@ class WinSwitcherMenu(Menu[WindowItem]):
             if w.get_status(self.script_status) == "success"
         }
         self.__visited_success &= current_success_titles
+        self.__has_item_markers = any(
+            self.__get_item_marker(item) for item in self.items
+        )
 
         if message:
             self.set_message(message)
@@ -164,13 +168,18 @@ class WinSwitcherMenu(Menu[WindowItem]):
     def on_escape_pressed(self):
         self.clear_input()
 
-    def get_item_text(self, item: WindowItem) -> str:
+    def __get_item_marker(self, item: WindowItem) -> Optional[str]:
         if item.title in self.__pinned:
-            return "★ " + item.title
+            return "★"
         status = item.get_status(self.script_status)
         if status == "success" and item.title not in self.__visited_success:
-            return "● " + item.title
-        return "  " + item.title
+            return "●"
+        return None
+
+    def get_item_text(self, item: WindowItem) -> str:
+        marker = self.__get_item_marker(item)
+        prefix = f"{marker} " if marker else "  " if self.__has_item_markers else ""
+        return prefix + item.title
 
     def get_item_color(self, item: WindowItem) -> str:
         if item.title in self.__pinned:
