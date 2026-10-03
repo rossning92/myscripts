@@ -557,9 +557,14 @@
     }
   },
   "llama-cpp": {
-    "pacman": {
-      "packages": ["llama-cpp"]
+    "apt": {
+      "commands": ["run_script r/ai/install_llama_cpp.sh"]
     },
+    "executables": ["llama-server"],
+    "pacman": {
+      "packages": ["llama-cpp", "ggml-cuda"]
+    },
+    "paths": ["$HOME/.local/bin"],
     "termux": {
       "packages": ["llama-cpp"]
     }

@@ -280,7 +280,20 @@ class RepoMenu(Menu[Repo]):
 
     def on_item_selected(self, item: Repo):
         if not item.vcs:
-            return
+            if not confirm(f'Initialize Git repository in "{item.display_path}"?'):
+                return
+            try:
+                subprocess.run(
+                    ["git", "init"],
+                    cwd=item.path,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as error:
+                self.set_message(error.stderr.strip() or error.stdout.strip() or str(error))
+                return
+            item.is_git = True
         saved_cwd = os.getcwd()
         try:
             os.chdir(item.path)

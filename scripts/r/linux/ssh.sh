@@ -31,26 +31,8 @@ if [ -n "${_EXEC_COMMANDS}" ]; then
     ssh_command+=" ${_EXEC_COMMANDS}"
 fi
 
-# SSH login automation
-cat >~/s.expect <<EOF
-set timeout 10
-spawn ${ssh_command}
-expect -nocase "password"
-send "${SSH_PWD}\r"
-${EXPECT_EXTRA_COMMANDS}
-interact
-EOF
-
-if [[ -z "${_NO_AUTO_LOGIN}" ]]; then
-    if [[ -n "${_RUN_IN_SCREEN}" ]]; then
-        ./screen/run_command_in_screen.sh ssh "expect ~/s.expect"
-    else
-        expect ~/s.expect
-    fi
+if [[ -n "${_RUN_IN_SCREEN}" ]]; then
+    ./screen/run_command_in_screen.sh ssh "${ssh_command}"
 else
-    if [[ -n "${_RUN_IN_SCREEN}" ]]; then
-        ./screen/run_command_in_screen.sh ssh "${ssh_command}"
-    else
-        eval "${ssh_command}"
-    fi
+    eval "${ssh_command}"
 fi
