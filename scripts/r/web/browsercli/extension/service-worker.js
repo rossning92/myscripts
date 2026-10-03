@@ -9,6 +9,7 @@ import {
 } from "./shared/actions.js";
 import { captureScreenshot } from "./shared/screenshot.js";
 import { upload } from "./shared/upload.js";
+import { attachFrameContexts } from "./debugger-contexts.js";
 import {
   goBackOrRestore,
   goForward,
@@ -104,16 +105,23 @@ async function withActiveDebuggee(callback) {
 
   const target = { tabId: activeTab.id };
   await chrome.debugger.attach(target, "1.3");
+  let detachFrameContexts = () => {};
   try {
-    return await callback(target, activeTab);
+    const send = (method, params = {}) =>
+      sendDebuggeeCommand(target, method, params);
+    send.contexts = [{ send, url: activeTab.url }];
+    const frameAttachment = await attachFrameContexts(chrome.debugger, target);
+    send.contexts.push(...frameAttachment.contexts);
+    detachFrameContexts = frameAttachment.detach;
+    return await callback(target, activeTab, send);
   } finally {
+    detachFrameContexts();
     await chrome.debugger.detach(target).catch(() => {});
   }
 }
 
 async function pageCommand(command, args = {}) {
-  return withActiveDebuggee(async (target) => {
-    const send = (method, params) => sendDebuggeeCommand(target, method, params);
+  return withActiveDebuggee(async (_target, _activeTab, send) => {
     if (["get-text", "get-html", "get-markdown"].includes(command)) {
       return evaluatePageContent(send, command);
     }
@@ -133,8 +141,7 @@ async function pageCommand(command, args = {}) {
 }
 
 async function back() {
-  return withActiveDebuggee(async (target, activeTab) => {
-    const send = (method, params) => sendDebuggeeCommand(target, method, params);
+  return withActiveDebuggee(async (_target, activeTab, send) => {
     return goBackOrRestore(send, async () => {
       if (activeTab.openerTabId == null) return false;
       try {
@@ -153,18 +160,18 @@ function sendDebuggeeCommand(target, method, params = {}) {
 }
 
 async function snapshot() {
-  return withActiveDebuggee(async (target, activeTab) => {
+  return withActiveDebuggee(async (_target, activeTab, send) => {
     return await collectSnapshot(
-      (method, params) => sendDebuggeeCommand(target, method, params),
+      send,
       { title: activeTab.title, url: activeTab.url },
     );
   });
 }
 
 async function screenshot(args = {}) {
-  return withActiveDebuggee(async (target) => {
+  return withActiveDebuggee(async (_target, _activeTab, send) => {
     return captureScreenshot(
-      (method, params) => sendDebuggeeCommand(target, method, params),
+      send,
       args,
     );
   });

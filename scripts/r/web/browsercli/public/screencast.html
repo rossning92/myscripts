@@ -9,6 +9,11 @@
     <title>browsercli screencast</title>
     <link rel="icon" href="/static/screencast.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/static/virtual-keys.css" />
+    <script>
+      if (new URLSearchParams(location.search).get("controls") === "0") {
+        document.documentElement.classList.add("controls-hidden");
+      }
+    </script>
     <style>
       * {
         margin: 0;
@@ -48,6 +53,10 @@
         background: var(--chrome-toolbar);
         flex: 0 0 auto;
         z-index: 2;
+      }
+      .controls-hidden #toolbar,
+      .controls-hidden #virtualKeys {
+        display: none !important;
       }
       #toolbar button {
         width: 36px;
@@ -434,7 +443,8 @@
 
       const addr = document.getElementById("addr");
       const sessionSelect = document.getElementById("sessionSelect");
-      const currentSession = new URLSearchParams(location.search).get("session") ?? "";
+      const searchParams = new URLSearchParams(location.search);
+      const currentSession = searchParams.get("session") ?? "";
       let sessionsKey = null;
 
       async function refreshSessions() {
@@ -454,9 +464,12 @@
       }
 
       sessionSelect.addEventListener("change", () => {
-        location.search = sessionSelect.value
-          ? `?session=${encodeURIComponent(sessionSelect.value)}`
-          : "";
+        if (sessionSelect.value) {
+          searchParams.set("session", sessionSelect.value);
+        } else {
+          searchParams.delete("session");
+        }
+        location.search = searchParams.toString();
       });
       const backBtn = document.getElementById("backBtn");
       const fwdBtn = document.getElementById("fwdBtn");

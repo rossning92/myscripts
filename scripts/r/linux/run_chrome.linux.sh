@@ -1,5 +1,5 @@
 if [[ -x "$(command -v chromium)" ]]; then
-    policy_source="$(dirname "${BASH_SOURCE[0]}")/run_chrome.keepassxc-policy.json"
+    policy_source="$(dirname "${BASH_SOURCE[0]}")/run_chrome.extensions-policy.json"
     policy_target="/etc/chromium/policies/managed/keepassxc-browser.json"
 
     if ! cmp -s "$policy_source" "$policy_target"; then

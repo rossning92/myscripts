@@ -286,8 +286,10 @@ fi
 startx_line='[[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]] && startx'
 append_line_dedup "$HOME/.bash_profile" "$startx_line"
 touch "$HOME/.xinitrc"
-sed -i '\|^xrdb -merge ~/.Xresources$|d; \|^exec awesome$|d' "$HOME/.xinitrc"
+portal_env_line='dbus-update-activation-environment --systemd DISPLAY XAUTHORITY'
+sed -i "\|^${portal_env_line}$|d; \|^xrdb -merge ~/.Xresources$|d; \|^exec awesome$|d" "$HOME/.xinitrc"
 sed -i '1i xrdb -merge ~/.Xresources' "$HOME/.xinitrc"
+sed -i "1i $portal_env_line" "$HOME/.xinitrc"
 echo 'exec awesome' >>"$HOME/.xinitrc"
 
 # XXX: Disable the old suspend service, if present, so it does not race with xss-lock.
