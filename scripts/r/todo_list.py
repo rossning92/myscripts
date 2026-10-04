@@ -15,12 +15,12 @@ from utils.textutil import truncate_text
 class TodoItem(TypedDict):
     id: int
     description: str
-    status: Literal["none", "closed", "in_progress"]
+    status: Literal["none", "closed", "in_progress", "blocked"]
     due_ts: NotRequired[float]
 
 
-_STATUS_SYMBOLS = {"closed": "[✓]", "in_progress": "[…]", "none": "[ ]"}
-_STATUS_PRIORITY = {"in_progress": 0, "none": 1, "closed": 2}
+_STATUS_SYMBOLS = {"closed": "[✓]", "in_progress": "[…]", "blocked": "[!]", "none": "[ ]"}
+_STATUS_PRIORITY = {"in_progress": 0, "blocked": 1, "none": 2, "closed": 3}
 
 
 def get_relative_time_str(ts: float) -> str:
@@ -98,6 +98,7 @@ class TodoMenu(ListEditMenu[TodoItem]):
         self.add_command(self.__set_status_none, hotkey="alt+n")
         self.add_command(self.__set_status_wip, hotkey="alt+w")
         self.add_command(self.__set_status_closed, hotkey="alt+x")
+        self.add_command(self.__set_status_blocked, hotkey="alt+b")
 
     def __new_task(self):
         self.__add_task_interactive(
@@ -137,7 +138,7 @@ class TodoMenu(ListEditMenu[TodoItem]):
         if ts:
             date_str = f"{get_pretty_ts(ts):<13}"
             if (
-                item.get("status") not in ("closed", "in_progress")
+                item.get("status") not in ("closed", "in_progress", "blocked")
                 and datetime.fromtimestamp(ts) < datetime.now()
             ):
                 date_str = f"\x1b[31m{date_str}\x1b[0m"
@@ -158,6 +159,8 @@ class TodoMenu(ListEditMenu[TodoItem]):
             return "green"
         if status == "closed":
             return "blue"
+        if status == "blocked":
+            return "magenta"
 
         return "white"
 
@@ -293,6 +296,9 @@ class TodoMenu(ListEditMenu[TodoItem]):
 
     def __set_status_closed(self):
         self.__set_status("closed")
+
+    def __set_status_blocked(self):
+        self.__set_status("blocked")
 
 
 def _print_invalid_date_error(due: str):
@@ -443,7 +449,7 @@ def _main():
     edit_parser.add_argument("--desc", help="New description for the todo item")
     edit_parser.add_argument("--due", help="New due date/time")
     edit_parser.add_argument(
-        "--status", choices=["none", "closed", "in_progress"], help="New status"
+        "--status", choices=["none", "closed", "in_progress", "blocked"], help="New status"
     )
 
     list_parser = subparsers.add_parser("list", help="List todo items")

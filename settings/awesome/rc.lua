@@ -305,18 +305,6 @@ local globalkeys = gears.table.join(
             end
         end
     end, { description = "toggle window floating 1920x1080", group = "client" }),
-    awful.key({ modkey, "Control" }, "j", function()
-        awful.screen.focus_relative(1)
-    end, {
-        description = "focus the next screen",
-        group = "screen"
-    }),
-    awful.key({ modkey, "Control" }, "k", function()
-        awful.screen.focus_relative(-1)
-    end, {
-        description = "focus the previous screen",
-        group = "screen"
-    }),
     awful.key({ modkey }, "u", awful.client.urgent.jumpto, {
         description = "jump to urgent client",
         group = "client"
@@ -344,31 +332,6 @@ local globalkeys = gears.table.join(
         { description = "reload awesome", group = "awesome" }),
     awful.key({ modkey, "Shift" }, "q", awesome.quit,
         { description = "quit awesome", group = "awesome" }),
-
-    awful.key({ modkey, "Control" }, "h", function()
-        awful.tag.incncol(1, nil, true)
-    end, {
-        description = "increase the number of columns",
-        group = "layout"
-    }),
-    awful.key({ modkey, "Control" }, "l", function()
-        awful.tag.incncol(-1, nil, true)
-    end, {
-        description = "decrease the number of columns",
-        group = "layout"
-    }),
-    awful.key({ modkey, "Control" }, "n", function()
-        local c = awful.client.restore()
-        -- Focus restored client
-        if c then
-            c:emit_signal("request::activate", "key.unminimize", {
-                raise = true
-            })
-        end
-    end, {
-        description = "restore minimized",
-        group = "client"
-    }),
 
     -- Prompt
     -- awful.key({ modkey }, "r", function()

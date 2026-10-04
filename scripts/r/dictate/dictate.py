@@ -36,6 +36,7 @@ MODEL_URL = (
 SAMPLE_RATE = 16_000
 BLOCK_SIZE = 512
 INPUT_DEVICE: int | str | None = None
+IGNORED_WINDOW_CLASSES = {"remmina"}
 
 TOGGLE = "toggle"
 CANCEL = "cancel"
@@ -53,15 +54,52 @@ def make_hotkey_callbacks(
         if key in pressed:
             return
         pressed.add(key)
+        action: str | None = None
         if key == keyboard.Key.esc:
-            emit(CANCEL)
+            action = CANCEL
         elif key == keyboard.Key.space and pressed.intersection(ctrl_keys):
-            emit(TOGGLE)
+            action = TOGGLE
+        if action is not None and not hotkeys_blocked():
+            emit(action)
 
     def on_release(key: Any) -> None:
         pressed.discard(key)
 
     return on_press, on_release
+
+
+def hotkeys_blocked() -> bool:
+    """Return whether the focused X11 window has an ignored WM_CLASS."""
+    if sys.platform != "linux" or not os.environ.get("DISPLAY"):
+        return False
+
+    try:
+        from Xlib import X, display
+
+        connection = display.Display()
+        try:
+            root = connection.screen().root
+            active_window_atom = connection.intern_atom("_NET_ACTIVE_WINDOW")
+            active_window = root.get_full_property(
+                active_window_atom, X.AnyPropertyType
+            )
+            if active_window is None or not active_window.value:
+                return False
+            window = connection.create_resource_object(
+                "window", int(active_window.value[0])
+            )
+            active_classes = {
+                part.casefold()
+                for value in window.get_wm_class() or ()
+                for part in (value, *value.split("."))
+            }
+            ignored_classes = {value.casefold() for value in IGNORED_WINDOW_CLASSES}
+            return not active_classes.isdisjoint(ignored_classes)
+        finally:
+            connection.close()
+    except Exception:
+        logger.debug("Could not identify the active X11 window", exc_info=True)
+        return False
 
 
 def cache_dir() -> Path:

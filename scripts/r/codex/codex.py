@@ -51,6 +51,11 @@ def main():
     npm_prefix = Path.home() / ".npm-global"
     npm_bin = npm_prefix if sys.platform == "win32" else npm_prefix / "bin"
     os.environ["PATH"] = str(npm_bin) + os.pathsep + os.environ.get("PATH", "")
+    # Codex sanitizes PATH for shell commands, so preserve the launcher's PATH
+    # to keep myscripts tools available.
+    config.append(
+        "shell_environment_policy.set.PATH=" + json.dumps(os.environ["PATH"])
+    )
     codex = shutil.which("codex")
     if not codex:
         subprocess.check_call(

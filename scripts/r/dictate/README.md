@@ -12,6 +12,10 @@ uv run dictate.py
 - `Escape`: cancel the active recording
 - `Ctrl+C`: quit
 
+Hotkeys are disabled while a window whose class appears in
+`IGNORED_WINDOW_CLASSES` is focused. The default list contains Remmina so its
+keyboard grab sends the keys only to the remote machine.
+
 A small click-through status pill appears at the bottom center, showing animated
 audio bars while listening and pulsing dots while transcribing. It stays hidden
 while idle and never takes focus from your current application.

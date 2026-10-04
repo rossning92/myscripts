@@ -14,7 +14,7 @@ import { getViewport } from "./viewport.js";
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const getExecutablePath = () => {
+export const getExecutablePath = () => {
   const defaults = {
     win32: [
       "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",

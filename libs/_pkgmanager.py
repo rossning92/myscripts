@@ -302,6 +302,12 @@ def require_package(
                     newly_installed = True
             package_matched = True
 
+        elif sys.platform == "win32" and not wsl and "windows" in packages[pkg]:
+            for cmd in packages[pkg]["windows"]["commands"]:
+                subprocess.check_call(cmd, shell=True)
+                newly_installed = True
+            package_matched = True
+
         elif sys.platform == "win32" and not wsl:
             for pm in win_package_manager:
                 if pm == "choco" and "choco" in packages[pkg]:
