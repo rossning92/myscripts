@@ -48,6 +48,11 @@ reg add HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR /v GameDVR_Enable
 echo Disable shake to minimize
 reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced /v DisallowShaking /t REG_DWORD /d 1 /f >NUL
 
+echo Disable Alt+Shift / Ctrl+Shift input language switch hotkeys
+reg add "HKCU\Keyboard Layout\Toggle" /v Hotkey /t REG_SZ /d 3 /f >NUL
+reg add "HKCU\Keyboard Layout\Toggle" /v "Language Hotkey" /t REG_SZ /d 3 /f >NUL
+reg add "HKCU\Keyboard Layout\Toggle" /v "Layout Hotkey" /t REG_SZ /d 3 /f >NUL
+
 echo Disable hibernation
 powercfg /hibernate off
 

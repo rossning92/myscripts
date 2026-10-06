@@ -28,11 +28,25 @@ from PySide6 import QtCore, QtWidgets
 
 from overlay import StatusOverlay, StatusSignals
 
-MODEL_NAME = "parakeet-unified-en-0.6b-Q8_0.gguf"
-MODEL_URL = (
-    "https://huggingface.co/handy-computer/parakeet-unified-en-0.6b-gguf/"
-    f"resolve/main/{MODEL_NAME}"
-)
+MODELS = {
+    "parakeet": (
+        "parakeet-unified-en-0.6b-Q8_0.gguf",
+        (
+            "https://huggingface.co/handy-computer/"
+            "parakeet-unified-en-0.6b-gguf/resolve/main/"
+            "parakeet-unified-en-0.6b-Q8_0.gguf"
+        ),
+        "731 MB",
+    ),
+    "qwen": (
+        "Qwen3-ASR-0.6B-Q8_0.gguf",
+        (
+            "https://huggingface.co/handy-computer/Qwen3-ASR-0.6B-gguf/"
+            "resolve/main/Qwen3-ASR-0.6B-Q8_0.gguf"
+        ),
+        "850 MB",
+    ),
+}
 SAMPLE_RATE = 16_000
 BLOCK_SIZE = 512
 INPUT_DEVICE: int | str | None = None
@@ -113,15 +127,23 @@ def cache_dir() -> Path:
 
 
 def get_model() -> Path:
-    path = cache_dir() / MODEL_NAME
+    key = os.environ.get("DICTATE_MODEL", "parakeet").casefold()
+    try:
+        filename, url, size = MODELS[key]
+    except KeyError as exc:
+        choices = ", ".join(MODELS)
+        raise ValueError(
+            f"Unknown DICTATE_MODEL={key!r}; choose one of: {choices}"
+        ) from exc
+    path = cache_dir() / filename
     if path.is_file():
         return path
 
     path.parent.mkdir(parents=True, exist_ok=True)
     partial = path.with_suffix(path.suffix + ".part")
-    logger.info("Downloading %s (about 700 MB)...", MODEL_NAME)
+    logger.info("Downloading %s (about %s)...", filename, size)
     try:
-        request = urllib.request.Request(MODEL_URL, headers={"User-Agent": "dictate/0.1"})
+        request = urllib.request.Request(url, headers={"User-Agent": "dictate/0.1"})
         with urllib.request.urlopen(request) as response, partial.open("wb") as output:
             shutil.copyfileobj(response, output)
         partial.replace(path)
