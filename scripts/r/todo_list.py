@@ -303,7 +303,7 @@ class TodoMenu(ListEditMenu[TodoItem]):
 
 def _print_invalid_date_error(due: str):
     print("Error: Invalid date format")
-    print('Examples: "today", "tomorrow", "monday", "07/11 2pm", "2026-07-11 14:00", "2pm"')
+    print('Examples: "today", "tmr", "fri", "next monday", "eow", "eom", "eoy", "07/11 2pm", "2026-07-11 14:00", "2pm"')
 
 
 def _add_todo(data_file: str, desc: str, due: Optional[str] = None):

@@ -36,10 +36,10 @@ class TestParseDatetime(unittest.TestCase):
         self.assertEqual(parse_datetime("today"), datetime(now.year, now.month, now.day))
 
     def test_weekday(self):
-        self.assertEqual(parse_datetime("monday").weekday(), 0)
+        self.assertEqual(parse_datetime("mon").weekday(), 0)
 
     def test_next_weekday(self):
-        result = parse_datetime("next monday")
+        result = parse_datetime("next mon")
         self.assertEqual(result.weekday(), 0)
         self.assertGreater(result, datetime.now())
 

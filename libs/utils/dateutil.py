@@ -1,3 +1,4 @@
+import calendar
 import re
 from datetime import datetime, timedelta
 
@@ -11,19 +12,22 @@ def parse_datetime(text: str) -> datetime:
         is_next = True
         text_lower = text_lower[5:].strip()
 
-    weekdays = {
-        "monday": 0,
-        "tuesday": 1,
-        "wednesday": 2,
-        "thursday": 3,
-        "friday": 4,
-        "saturday": 5,
-        "sunday": 6,
-    }
-    if text_lower in weekdays:
+    weekdays = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ]
+    target_weekday = next(
+        (i for i, d in enumerate(weekdays) if len(text_lower) >= 3 and d.startswith(text_lower)),
+        None,
+    )
+    if target_weekday is not None:
         now = datetime.now()
         current_weekday = now.weekday()
-        target_weekday = weekdays[text_lower]
 
         if is_next:
             days_ahead = (7 - current_weekday) + target_weekday
@@ -40,9 +44,18 @@ def parse_datetime(text: str) -> datetime:
     elif text_lower == "yesterday":
         yesterday = datetime.now() - timedelta(days=1)
         return datetime(yesterday.year, yesterday.month, yesterday.day)
-    elif text_lower == "tomorrow":
+    elif text_lower in ("tmr", "tomorrow"):
         tomorrow = datetime.now() + timedelta(days=1)
         return datetime(tomorrow.year, tomorrow.month, tomorrow.day)
+    elif text_lower == "eow":
+        now = datetime.now()
+        friday = now + timedelta(days=(4 - now.weekday()) % 7)
+        return datetime(friday.year, friday.month, friday.day)
+    elif text_lower == "eom":
+        now = datetime.now()
+        return datetime(now.year, now.month, calendar.monthrange(now.year, now.month)[1])
+    elif text_lower == "eoy":
+        return datetime(datetime.now().year, 12, 31)
 
     # Try match date and time.
     match = re.search(
