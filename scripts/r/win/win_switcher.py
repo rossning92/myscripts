@@ -153,6 +153,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
             self.__activate_window(selected.id)
             if selected.get_status(self.script_status) == "success":
                 self.__visited_success.add(selected.title)
+        self.clear_input()
 
     def on_focus_gained(self):
         self.__refresh_windows()

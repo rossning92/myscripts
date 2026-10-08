@@ -42,6 +42,7 @@ from utils.historymanager import HistoryManager
 from utils.http import is_retryable_error
 from utils.jsonschema import JSONSchema
 from utils.menu import Menu
+from utils.menu.confirmmenu import confirm
 from utils.menu.exceptionmenu import ExceptionMenu
 from utils.menu.filemenu import FileMenu
 from utils.menu.inputmenu import InputMenu
