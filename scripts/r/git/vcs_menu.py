@@ -13,7 +13,6 @@ from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.spinner import Spinner
 
 from git.vcs import (
-    get_amend_cmds,
     get_commit_all_cmds,
     get_sync_cmds,
     prepend_recent_commits,
@@ -123,6 +122,22 @@ class VcsDiffMenu(Menu):
         stage: bool,
     ) -> List[List[str]]:
         raise NotImplementedError
+
+    def _get_amend_cmds(
+        self,
+        filenames: List[str],
+        *,
+        stage: bool,
+        push: bool,
+    ) -> List[List[str]]:
+        cmds = [[self._vcs, "add", "--"] + filenames] if stage else []
+        if self._vcs == "git":
+            cmds += [["git", "commit", "--amend", "--no-edit"]]
+            if push:
+                cmds += [["git", "push", "--force-with-lease"]]
+        elif self._vcs == "hg":
+            cmds += [["hg", "amend", "--"] + filenames]
+        return cmds
 
     def _commit_files(
         self,
@@ -251,7 +266,14 @@ class VcsDiffMenu(Menu):
         if push and self._vcs == "hg":
             self.set_message("amend+push is not supported for hg")
             return
-        cmds = get_amend_cmds(self._vcs, push=push)
+        items = list(self.get_selected_items())
+        if not items:
+            return
+        selected = [self._get_filename(item) for item in items]
+        filenames, _, stage = self._resolve_commit_files(selected)
+        if not filenames:
+            return
+        cmds = self._get_amend_cmds(filenames, stage=stage, push=push)
         if not cmds:
             return
         _run_shell_cmds(cmds)

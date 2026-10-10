@@ -3,9 +3,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ai.utils.env import get_global_config_path
 from utils.git import get_git_root
 from utils.markdown import parse_front_matter
+from utils.script.path import get_data_dir
 
 
 @dataclass
@@ -18,22 +18,20 @@ class Skill:
 
 
 def _find_skills_roots() -> List[Path]:
-    roots = [Path(__file__).resolve().parent.parent / "skills"]
-
-    if config_path := get_global_config_path():
-        skills_path = config_path / "skills"
-        if skills_path.is_dir():
-            roots.append(skills_path)
+    roots = [
+        Path(__file__).resolve().parent.parent / "skills",
+        Path(get_data_dir()) / "skills",
+    ]
 
     cwd = Path.cwd().resolve()
-    git_root = get_git_root()
-    if git_root:
+    if git_root := get_git_root():
         curr = cwd
         while True:
             roots.append(curr / ".agents" / "skills")
             if curr == git_root:
                 break
             curr = curr.parent
+
     return roots
 
 

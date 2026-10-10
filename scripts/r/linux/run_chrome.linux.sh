@@ -7,5 +7,5 @@ if [[ -x "$(command -v chromium)" ]]; then
         sudo install -D -o root -g root -m 0644 "$policy_source" "$policy_target"
     fi
 
-    nohup chromium --force-dark-mode >/dev/null 2>&1 &
+    nohup chromium --force-dark-mode --disable-smooth-scrolling >/dev/null 2>&1 &
 fi

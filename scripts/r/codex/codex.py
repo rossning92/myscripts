@@ -73,7 +73,12 @@ def main():
         command = [codex, "--dangerously-bypass-approvals-and-sandbox"]
     else:
         command = [codex, "--sandbox", "workspace-write", "--ask-for-approval", "on-request"]
-        config += ['approvals_reviewer="auto_review"', 'sandbox_workspace_write.network_access=true']
+        downloads = str(Path.home() / "Downloads")
+        config += [
+            'approvals_reviewer="user"',
+            'sandbox_workspace_write.network_access=true',
+            "sandbox_workspace_write.writable_roots=[" + json.dumps(downloads) + "]",
+        ]
 
     try:
         os.environ["CODEX_TERMINAL_TTY"] = os.ttyname(sys.stdin.fileno())
