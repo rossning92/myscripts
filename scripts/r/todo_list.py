@@ -64,7 +64,7 @@ class _EditTodoItemMenu(DictEditMenu):
 
     def get_value_str(self, name: str, val: Any) -> str:
         if name in ("due_ts",):
-            return format_timestamp(val, show_hhmm=False)
+            return format_timestamp(val)
         else:
             return super().get_value_str(name, val)
 
@@ -373,7 +373,7 @@ def _edit_todo(
 
 def _get_todo_str(item: TodoItem) -> str:
     ts = item.get("due_ts")
-    due_str = format_timestamp(ts, show_year=True, show_hhmm=False) if ts else "None"
+    due_str = format_timestamp(ts, show_year=True) if ts else "None"
 
     desc = item.get("description", "")
     if "\n" in desc:
