@@ -36,7 +36,7 @@ class GithubRepoMenu(Menu[Repository]):
             self.__clone,
             hotkey="alt+c",
             name="clone",
-            pinned=True,
+            show_in_hotkey_bar=True,
         )
 
     def get_item_text(self, item: Repository) -> str:

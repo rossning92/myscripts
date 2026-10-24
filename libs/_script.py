@@ -84,6 +84,8 @@ from utils.uv import (
     wrap_uv_command,
 )
 from utils.window import (
+    TITLE_MATCH_MODE_END_WITH,
+    TITLE_MATCH_MODE_START_WITH,
     activate_window_by_class,
     activate_window_by_name,
     close_window_by_name,
@@ -586,6 +588,12 @@ class Script:
 
         return os.path.splitext(os.path.basename(self.script_path))[0]
 
+    def get_window_title_match_mode(self) -> int:
+        mode = self.cfg["titleMatchMode"]
+        if mode == "end":
+            return TITLE_MATCH_MODE_END_WITH
+        return TITLE_MATCH_MODE_START_WITH
+
     def get_script_path(self) -> str:
         return self.real_script_path if self.real_script_path else self.script_path
 
@@ -739,7 +747,9 @@ class Script:
         ):
             return True
 
-        elif activate_window_by_name(title):
+        elif activate_window_by_name(
+            title, match_mode=self.get_window_title_match_mode()
+        ):
             logging.info(f"Activated window by title: {title}")
             return True
 
@@ -781,7 +791,9 @@ class Script:
 
         else:
             # Close exising instances
-            close_window_by_name(self.get_window_title())
+            close_window_by_name(
+                self.get_window_title(), match_mode=self.get_window_title_match_mode()
+            )
 
     def get_script_log_file(self) -> str:
         log_dir = os.path.join(get_data_dir(), "logs")
@@ -2039,6 +2051,7 @@ def get_default_script_config() -> Dict[str, Union[str, bool, None]]:
         "template.readVarFromCsv": "",
         "terminal": "alacritty",
         "title": "",
+        "titleMatchMode": "start",
         "updateSelectedScriptAccessTime": False,
         "variableNames": "auto",
         "venv.name": "",

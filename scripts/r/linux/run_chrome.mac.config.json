@@ -1,4 +1,5 @@
 {
   "globalHotkey": "win+alt+c",
-  "title": "Google Chrome"
+  "title": "Google Chrome",
+  "titleMatchMode": "end"
 }

@@ -282,15 +282,15 @@ class ConfirmCommandMenu(Menu[str]):
         self.__save = False
         self.__session_allowed = False
 
-        self.add_command(self.__confirm, hotkey="y", name="yes", pinned=True)
-        self.add_command(self.__cancel, hotkey="n", name="no", pinned=True)
-        self.add_command(self.__allow_session, hotkey="a", pinned=True)
+        self.add_command(self.__confirm, hotkey="y", name="yes", show_in_hotkey_bar=True)
+        self.add_command(self.__cancel, hotkey="n", name="no", show_in_hotkey_bar=True)
+        self.add_command(self.__allow_session, hotkey="a", show_in_hotkey_bar=True)
         if self.save_pattern:
             self.add_command(
                 self.__save_and_confirm,
                 hotkey="s",
                 name="save",
-                pinned=True,
+                show_in_hotkey_bar=True,
             )
 
     def __confirm(self):

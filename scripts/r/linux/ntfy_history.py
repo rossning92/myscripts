@@ -67,7 +67,7 @@ class NtfyHistoryMenu(Menu[NtfyMessage]):
         self.url = url
         self.ntfy = ntfy
         super().__init__(prompt=f"ntfy: {url.rsplit('/', 1)[-1]}", close_on_selection=False)
-        self.add_command(self.refresh, hotkey="ctrl+r", pinned=True)
+        self.add_command(self.refresh, hotkey="ctrl+r", show_in_hotkey_bar=True)
         self.refresh()
 
     def refresh(self) -> None:

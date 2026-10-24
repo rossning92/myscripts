@@ -142,10 +142,10 @@ def get_saved_connections() -> dict[str, tuple[str, ...]]:
 class WifiMenu(Menu[WifiNetwork]):
     def __init__(self):
         super().__init__(prompt="Wi-Fi", close_on_selection=False)
-        self.add_command(self.scan, hotkey="ctrl+r", pinned=True)
-        self.add_command(self.enable_wifi, hotkey="alt+e", pinned=True)
-        self.add_command(self.disable_wifi, hotkey="alt+d", pinned=True)
-        self.add_command(self._delete_network, hotkey="ctrl+d", pinned=True)
+        self.add_command(self.scan, hotkey="ctrl+r", show_in_hotkey_bar=True)
+        self.add_command(self.enable_wifi, hotkey="alt+e", show_in_hotkey_bar=True)
+        self.add_command(self.disable_wifi, hotkey="alt+d", show_in_hotkey_bar=True)
+        self.add_command(self._delete_network, hotkey="ctrl+d", show_in_hotkey_bar=True)
         self.refresh()
 
     def refresh(self) -> None:

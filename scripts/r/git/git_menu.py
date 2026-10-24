@@ -86,8 +86,8 @@ class GitMenu(VcsDiffMenu):
         return commits
 
     def _init_extra_commands(self):
-        self.add_command(self.__stage, hotkey="ctrl+s", name="stage", pinned=True)
-        self.add_command(self.__unstage, hotkey="alt+u", name="unstage", pinned=True)
+        self.add_command(self.__stage, hotkey="ctrl+s", name="stage", show_in_hotkey_bar=True)
+        self.add_command(self.__unstage, hotkey="alt+u", name="unstage", show_in_hotkey_bar=True)
 
     def _get_status_items(self):
         try:

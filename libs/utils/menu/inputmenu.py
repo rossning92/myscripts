@@ -54,7 +54,7 @@ class InputMenu(Menu[str]):
                     func=lambda item=item: self._set_input_and_close(item),
                     hotkey=hotkey,
                     name=(item_hotkey_name or {}).get(item, f"select {item}"),
-                    pinned=True,
+                    show_in_hotkey_bar=True,
                 )
 
     def __run_script_and_insert_output(self):

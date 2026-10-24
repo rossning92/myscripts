@@ -234,24 +234,24 @@ class RepoMenu(Menu[Repo]):
         self._last_refresh_time = 0.0
         self._focused = True
         self._git_identity_ready = False
-        self.add_command(self._sync, hotkey="ctrl+s", name="sync", pinned=True)
-        self.add_command(self._amend, hotkey="alt+a", name="amend", pinned=True)
-        self.add_command(self._commit, hotkey="alt+c", name="commit", pinned=True)
-        self.add_command(self._push, hotkey="alt+p", name="push", pinned=True)
-        self.add_command(self._discard, hotkey="ctrl+d", name="discard", pinned=True)
-        self.add_command(self._delete, hotkey="ctrl+k", name="delete", pinned=True)
+        self.add_command(self._sync, hotkey="ctrl+s", name="sync", show_in_hotkey_bar=True)
+        self.add_command(self._amend, hotkey="alt+a", name="amend", show_in_hotkey_bar=True)
+        self.add_command(self._commit, hotkey="alt+c", name="commit", show_in_hotkey_bar=True)
+        self.add_command(self._push, hotkey="alt+p", name="push", show_in_hotkey_bar=True)
+        self.add_command(self._discard, hotkey="ctrl+d", name="discard", show_in_hotkey_bar=True)
+        self.add_command(self._delete, hotkey="ctrl+k", name="delete", show_in_hotkey_bar=True)
         self.add_command(self._amend_and_push, hotkey="alt+a", name="amend+push")
         self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
-        self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
+        self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", show_in_hotkey_bar=True)
         self.add_command(
             self._terminal,
             hotkey="ctrl+t",
-            pinned=True,
+            show_in_hotkey_bar=True,
         )
         self.add_command(
             self._browse,
             hotkey="ctrl+o",
-            pinned=True,
+            show_in_hotkey_bar=True,
         )
 
     def get_item_text(self, item: Repo) -> str:

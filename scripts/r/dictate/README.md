@@ -2,6 +2,11 @@
 
 Local speech-to-text using `transcribe.cpp`.
 
+Streaming-capable models are transcribed while recording, minimizing the wait
+after the shortcut is released. Audio frames pass through a worker queue so
+inference never blocks microphone capture. Batch transcription is used only
+for models that do not support streaming.
+
 ```bash
 cd scripts/r/dictate
 uv sync

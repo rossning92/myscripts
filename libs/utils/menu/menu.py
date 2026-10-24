@@ -40,6 +40,7 @@ EXPERIMENTAL_EANBLE_WINDOWS_VT = True
 ENABLE_VIM_MODE = False
 
 GUTTER_SIZE = 1
+HOTKEY_BAR_CELL_WIDTH = 12
 MESSAGE_TIMEOUT_SEC = 2.0
 INPUT_SETTLE_TIMEOUT_MS = 50
 PROCESS_EVENT_INTERVAL_SEC = 0.1
@@ -252,11 +253,11 @@ class _Command:
         hotkey: Optional[str],
         func: Callable,
         name: Optional[str] = None,
-        pinned: bool = False,
+        show_in_hotkey_bar: bool = False,
     ):
         self.hotkey = hotkey
         self.func = func
-        self.pinned = pinned
+        self.show_in_hotkey_bar = show_in_hotkey_bar
         if name is not None:
             self.name = name
         else:
@@ -803,10 +804,10 @@ class Menu(Generic[T]):
         func: Callable,
         hotkey: Optional[str] = None,
         name: Optional[str] = None,
-        pinned: bool = False,
+        show_in_hotkey_bar: bool = False,
         override: bool = False,
     ) -> _Command:
-        command = _Command(hotkey=hotkey, func=func, name=name, pinned=pinned)
+        command = _Command(hotkey=hotkey, func=func, name=name, show_in_hotkey_bar=show_in_hotkey_bar)
 
         if hotkey is not None and override:
             for old in self.__hotkeys.get(hotkey, []):
@@ -821,16 +822,28 @@ class Menu(Generic[T]):
         return command
 
     def get_hotkey_bar(self) -> str:
-        # Build the hotkey bar (e.g. "^a diff all !c commit") from commands
-        # registered with pinned=True. Hotkeys are cyan and bold, and
-        # underscores in the command name are rendered as spaces.
-        parts = [
-            "\x1b[1;36m%s\x1b[22;39m %s"
-            % (get_hotkey_abbr(cmd.hotkey), cmd.name.replace("_", " "))
+        commands = [
+            cmd
             for cmd in self.__custom_commands
-            if cmd.pinned and cmd.hotkey is not None
+            if cmd.show_in_hotkey_bar and cmd.hotkey is not None
         ]
-        return " ".join(parts)
+        if not commands:
+            return ""
+
+        cell_width = min(HOTKEY_BAR_CELL_WIDTH, max(1, self.__width))
+        columns = max(1, self.__width // cell_width)
+        cells = []
+        for cmd in commands:
+            hotkey = get_hotkey_abbr(cmd.hotkey)
+            name_width = cell_width - len(hotkey) - 1
+            name = cmd.name.replace("_", " ")[:name_width]
+            cells.append(f"\x1b[1;36m{hotkey}\x1b[22;39m {name:<{name_width}}")
+
+        lines = [
+            "".join(cells[i : i + columns]).rstrip()
+            for i in range(0, len(cells), columns)
+        ]
+        return "\n".join(lines)
 
     def delete_commands_if(self, condition: Callable[[_Command], bool]):
         for cmd in self.__custom_commands[:]:  # Iterate over a copy of the list
@@ -1737,20 +1750,7 @@ class Menu(Generic[T]):
             show_enter_symbol=self.__should_trigger_search(),
         )
 
-        # Draw the auto-generated hotkey bar (from commands with pinned=True)
-        # below the prompt, above the items.
         item_y = draw_input_result.last_y + 1
-        hotkey_bar = self.get_hotkey_bar()
-        if hotkey_bar and item_y < item_y_max:
-            hotkey_bar_result = self.__draw_text(
-                row=item_y,
-                col=0,
-                s=hotkey_bar,
-                fg=-1,
-                ymax=item_y_max,
-                wrap_text=True,
-            )
-            item_y = hotkey_bar_result.last_y + 1
 
         # Auto select last item
         item_indices = self.get_item_indices()
@@ -1765,29 +1765,37 @@ class Menu(Generic[T]):
             )
             self.__selected_row_end = clamp(self.__selected_row_end, 0, total_items - 1)
 
-        # Draw status bar
-        status_bar_text = self.get_status_text()
-        lines = status_bar_text.splitlines()
-        if len(lines) < self._height:
-            for i, status_line in enumerate(lines):
-                parts = status_line.split("\t", maxsplit=1)
-                if len(parts) == 1:
-                    status_line = parts[0]
-                else:
-                    status_bar_text, b = parts
-                    left_width = max(0, self.__width - len(b))
-                    status_line = (
-                        f"{status_bar_text[:left_width]:<{left_width}}{b:>{len(b)}}"
-                    )
+        available_footer_rows = max(0, self._height - item_y)
+        status_lines = self.get_status_text().splitlines()[:available_footer_rows]
+        available_hotkey_rows = available_footer_rows - len(status_lines)
+        hotkey_bar_lines = self.get_hotkey_bar().splitlines()[:available_hotkey_rows]
 
-                self.__draw_text(
-                    row=self._height - len(lines) + i,
-                    col=0,
-                    s=status_line,
-                    fg=-1,
-                    ymax=self._height,
-                )
-            item_y_max -= len(lines) - 1
+        hotkey_bar_y = self._height - len(hotkey_bar_lines)
+        if hotkey_bar_lines:
+            self.__draw_text(
+                row=hotkey_bar_y,
+                col=0,
+                s="\n".join(hotkey_bar_lines),
+                fg=-1,
+                ymax=self._height,
+                wrap_text=True,
+            )
+
+        status_y = hotkey_bar_y - len(status_lines)
+        for i, status_line in enumerate(status_lines):
+            parts = status_line.split("\t", maxsplit=1)
+            if len(parts) == 2:
+                left, right = parts
+                left_width = max(0, self.__width - len(right))
+                status_line = f"{left[:left_width]:<{left_width}}{right}"
+            self.__draw_text(
+                row=status_y + i,
+                col=0,
+                s=status_line,
+                fg=-1,
+                ymax=hotkey_bar_y,
+            )
+        item_y_max = status_y
 
         # Update scroll y.
         items_per_page = self.get_items_per_page()

@@ -44,7 +44,9 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.__has_item_markers = False
         self.add_command(self.__refresh_windows, hotkey="ctrl+r")
         self.add_command(self.__close_windows, hotkey="delete")
-        self.add_command(self.__close_windows, hotkey="alt+x")
+        self.add_command(
+            self.__close_windows, hotkey="alt+x", name="close", show_in_hotkey_bar=True
+        )
         self.add_command(self.__toggle_pin, hotkey="ctrl+t", name="pin/unpin")
 
     def on_created(self):

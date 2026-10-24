@@ -13,6 +13,7 @@ from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.spinner import Spinner
 
 from git.vcs import (
+    get_amend_cmds,
     get_commit_all_cmds,
     get_sync_cmds,
     prepend_recent_commits,
@@ -26,12 +27,18 @@ def _run_shell_cmds(cmds: List[List[str]]) -> None:
 
 
 class VcsDiffView(DiffMenu):
-    """Diff view that can also commit every pending change."""
+    """Diff view that can commit or amend every pending change."""
 
     def __init__(self, vcs: str, **kwargs):
         super().__init__(**kwargs)
         self.__vcs = vcs
-        self.add_command(self.__commit, hotkey="alt+c", name="commit")
+        self.add_command(
+            self.__commit, hotkey="alt+c", name="commit", show_in_hotkey_bar=True
+        )
+        self.add_command(
+            self.__amend, hotkey="alt+a", name="amend", show_in_hotkey_bar=True
+        )
+        self.add_command(self.__amend_and_push, hotkey="alt+a", name="amend+push")
 
     def __commit(self) -> None:
         message = prompt_commit_message()
@@ -39,6 +46,16 @@ class VcsDiffView(DiffMenu):
             return
         _run_shell_cmds(get_commit_all_cmds(self.__vcs, message))
         self._refresh()
+
+    def __amend(self, push: bool = False) -> None:
+        if push and self.__vcs == "hg":
+            self.set_message("amend+push is not supported for hg")
+            return
+        _run_shell_cmds(get_amend_cmds(self.__vcs, push=push))
+        self._refresh()
+
+    def __amend_and_push(self) -> None:
+        self.__amend(push=True)
 
 
 class VcsDiffMenu(Menu):
@@ -55,38 +72,38 @@ class VcsDiffMenu(Menu):
         self.__recent_commits: List[str] = []
         self._is_clean: bool = False
         self.add_command(
-            self._diff_all, hotkey="alt+d", name="diff all", pinned=True
+            self._diff_all, hotkey="alt+d", name="diff all", show_in_hotkey_bar=True
         )
         self.add_command(
             self.__edit_file,
             hotkey="ctrl+e",
             name="edit",
-            pinned=True,
+            show_in_hotkey_bar=True,
             override=True,
         )
         self.add_command(
             self.__open_in_file_manager,
             hotkey="ctrl+o",
             name="open in file manager",
-            pinned=True,
+            show_in_hotkey_bar=True,
         )
         self._init_extra_commands()
         self.add_command(
             lambda: self._move_commit(1),
-            hotkey="alt+p", name="prev commit", pinned=True,
+            hotkey="alt+p", name="prev commit", show_in_hotkey_bar=True,
         )
         self.add_command(
             lambda: self._move_commit(-1),
-            hotkey="alt+n", name="next commit", pinned=True,
+            hotkey="alt+n", name="next commit", show_in_hotkey_bar=True,
         )
-        self.add_command(self.__discard, hotkey="ctrl+d", name="discard", pinned=True)
-        self.add_command(self.__commit, hotkey="alt+c", name="commit", pinned=True)
+        self.add_command(self.__discard, hotkey="ctrl+d", name="discard", show_in_hotkey_bar=True)
+        self.add_command(self.__commit, hotkey="alt+c", name="commit", show_in_hotkey_bar=True)
         self.add_command(
             self.__commit_and_sync, hotkey="alt+c", name="commit+sync"
         )
-        self.add_command(self.__amend, hotkey="alt+a", name="amend", pinned=True)
+        self.add_command(self.__amend, hotkey="alt+a", name="amend", show_in_hotkey_bar=True)
         self.add_command(self.__amend_and_push, hotkey="alt+a", name="amend+push")
-        self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", pinned=True)
+        self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", show_in_hotkey_bar=True)
         self.set_prompt(os.path.basename(os.getcwd()))
 
     def on_created(self) -> None:

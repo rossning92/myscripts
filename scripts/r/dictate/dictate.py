@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
@@ -56,6 +57,66 @@ IGNORED_WINDOW_CLASSES = {"remmina"}
 TOGGLE = "toggle"
 CANCEL = "cancel"
 logger = logging.getLogger(__name__)
+
+_FINALIZE_STREAM = object()
+_CANCEL_STREAM = object()
+
+
+class StreamingTranscriber:
+    """Feed microphone frames to transcribe.cpp away from the audio callback."""
+
+    def __init__(self, model: transcribe_cpp.Model) -> None:
+        self._model = model
+        self._commands: queue.SimpleQueue[np.ndarray | object] = queue.SimpleQueue()
+        self._cancelled = threading.Event()
+        self._thread = threading.Thread(
+            target=self._run,
+            name="streaming-transcriber",
+            daemon=True,
+        )
+        self._text = ""
+        self._error: Exception | None = None
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def feed(self, samples: np.ndarray) -> None:
+        # Handy routes frames through a channel so inference can never block
+        # the real-time microphone callback. SimpleQueue is unbounded too.
+        self._commands.put(samples)
+
+    def finish(self) -> str:
+        self._commands.put(_FINALIZE_STREAM)
+        self._thread.join()
+        if self._error is not None:
+            raise self._error
+        return self._text
+
+    def cancel(self) -> None:
+        # Match Handy's cancellation flag: queued frames are discarded instead
+        # of being decoded before the cancel command reaches the worker.
+        self._cancelled.set()
+        self._commands.put(_CANCEL_STREAM)
+        self._thread.join()
+
+    def _run(self) -> None:
+        try:
+            with self._model.session() as session, session.stream() as stream:
+                logger.info("Live streaming transcription started.")
+                while True:
+                    command = self._commands.get()
+                    if command is _CANCEL_STREAM:
+                        return
+                    if command is _FINALIZE_STREAM:
+                        stream.finalize()
+                        self._text = stream.text().display.strip()
+                        return
+                    if self._cancelled.is_set():
+                        continue
+                    assert isinstance(command, np.ndarray)
+                    stream.feed(command)
+        except Exception as exc:
+            self._error = exc
 
 
 def make_hotkey_callbacks(
@@ -154,8 +215,18 @@ def get_model() -> Path:
     return path
 
 
-def record(events: queue.Queue[str], status: StatusSignals) -> np.ndarray | None:
-    chunks: list[np.ndarray] = []
+def record(
+    model: transcribe_cpp.Model,
+    events: queue.Queue[str],
+    status: StatusSignals,
+) -> np.ndarray | str | None:
+    streaming = model.capabilities.supports_streaming
+    chunks: list[np.ndarray] | None = None if streaming else []
+    streamer = StreamingTranscriber(model) if streaming else None
+    if streamer is not None:
+        streamer.start()
+    else:
+        logger.info("Model does not support streaming; using batch transcription.")
 
     def audio_callback(
         indata: np.ndarray,
@@ -167,35 +238,56 @@ def record(events: queue.Queue[str], status: StatusSignals) -> np.ndarray | None
         if callback_status:
             logger.warning("Audio: %s", callback_status)
         samples = indata[:, 0].copy()
-        chunks.append(samples)
+        if streamer is not None:
+            streamer.feed(samples)
+        else:
+            assert chunks is not None
+            chunks.append(samples)
         rms = float(np.sqrt(np.mean(np.square(samples), dtype=np.float64)))
         # A logarithmic dBFS meter tracks perceived loudness more naturally
         # than displaying the raw linear waveform amplitude.
         dbfs = 20 * math.log10(max(rms, 1e-9))
         status.level.emit(max(0.0, min(1.0, (dbfs + 60.0) / 48.0)))
 
-    with sd.InputStream(
-        samplerate=SAMPLE_RATE,
-        blocksize=BLOCK_SIZE,
-        channels=1,
-        dtype="float32",
-        device=INPUT_DEVICE,
-        callback=audio_callback,
-    ):
-        logger.info("Recording...")
-        status.changed.emit("listening")
-        action = events.get()
+    try:
+        with sd.InputStream(
+            samplerate=SAMPLE_RATE,
+            blocksize=BLOCK_SIZE,
+            channels=1,
+            dtype="float32",
+            device=INPUT_DEVICE,
+            callback=audio_callback,
+        ):
+            logger.info("Recording...")
+            status.changed.emit("listening")
+            action = events.get()
+    except BaseException:
+        if streamer is not None:
+            streamer.cancel()
+        raise
 
     if action == CANCEL:
+        if streamer is not None:
+            streamer.cancel()
         logger.info("Cancelled.")
         status.changed.emit("idle")
         return None
-    if not chunks:
+    if chunks is not None and not chunks:
         logger.info("No audio recorded.")
         status.changed.emit("idle")
         return None
     status.changed.emit("transcribing")
-    return np.concatenate(chunks)
+    if streamer is None:
+        assert chunks is not None
+        return np.concatenate(chunks)
+
+    stopped_at = time.perf_counter()
+    text = streamer.finish()
+    logger.info(
+        "Stream finalized in %.0f ms.",
+        (time.perf_counter() - stopped_at) * 1000,
+    )
+    return text
 
 
 def transcribe(model: transcribe_cpp.Model, audio: np.ndarray) -> str:
@@ -222,11 +314,11 @@ def dictate_loop(
         if events.get() != TOGGLE:
             continue
 
-        audio = record(events, status)
-        if audio is None:
+        result = record(model, events, status)
+        if result is None:
             continue
 
-        text = transcribe(model, audio)
+        text = result if isinstance(result, str) else transcribe(model, result)
         if text:
             # Use delayed xdotool input to prevent incorrect X11 Unicode characters.
             if sys.platform == "linux" and not text.isascii():

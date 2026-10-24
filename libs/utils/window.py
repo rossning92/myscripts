@@ -17,6 +17,7 @@ TITLE_MATCH_MODE_PARTIAL = 1
 TITLE_MATCH_MODE_START_WITH = 2
 TITLE_MATCH_MODE_REGEX = 3
 TITLE_MATCH_MODE_START_OR_END_WITH = 4
+TITLE_MATCH_MODE_END_WITH = 5
 TITLE_MATCH_MODE_DEFAULT = TITLE_MATCH_MODE_START_OR_END_WITH
 
 TITLE_DIVIDER = " - "
@@ -544,6 +545,8 @@ def _activate_window_darwin(
             return title == name
         elif match_mode == TITLE_MATCH_MODE_START_WITH:
             return title.startswith(name)
+        elif match_mode == TITLE_MATCH_MODE_END_WITH:
+            return title.endswith(name)
         elif match_mode == TITLE_MATCH_MODE_REGEX:
             return bool(re.search(patt, title))
         elif match_mode == TITLE_MATCH_MODE_START_OR_END_WITH:
@@ -602,6 +605,9 @@ def _control_window(
             ):
                 hwnds.append(hwnd)
                 return should_search_next(hwnd=hwnd)
+            elif match_mode == TITLE_MATCH_MODE_END_WITH and win_title.endswith(name):
+                hwnds.append(hwnd)
+                return should_search_next(hwnd=hwnd)
             elif match_mode == TITLE_MATCH_MODE_REGEX and re.search(patt, win_title):
                 hwnds.append(hwnd)
                 return should_search_next(hwnd=hwnd)
@@ -650,21 +656,18 @@ def _control_window(
                 raise Exception("Invalid cmd parameter: %s" % cmd)
 
         elif os.environ.get("DISPLAY", None) and shutil.which("wmctrl"):
-            if cmd == "activate":
-                return 0 == subprocess.call(
-                    [
-                        "bash",
-                        os.path.abspath(
-                            os.path.dirname(__file__)
-                            + "/../../scripts/r/linux/activate_window_by_name.sh"
-                        ),
-                        name,
-                    ]
-                )
-            elif cmd == "close":
-                return subprocess.call(["wmctrl", "-c", name]) == 0
-            else:
-                raise Exception("Invalid cmd parameter: %s" % cmd)
+            return 0 == subprocess.call(
+                [
+                    "bash",
+                    os.path.abspath(
+                        os.path.dirname(__file__)
+                        + "/../../scripts/r/linux/control_window_by_title.sh"
+                    ),
+                    name,
+                    str(match_mode),
+                    cmd,
+                ]
+            )
 
         else:
             logging.warning("Cannot %s window, window manager is not supported" % cmd)

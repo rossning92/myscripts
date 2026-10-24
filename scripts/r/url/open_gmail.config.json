@@ -1,5 +1,6 @@
 {
   "globalHotkey": "win+alt+m",
   "title": "@gmail.com - Gmail",
+  "titleMatchMode": "end",
   "webApp": true
 }
