@@ -289,6 +289,8 @@ if grep -q '^Xft\.dpi:' "$HOME/.Xresources"; then
 else
     echo "Xft.dpi: $dpi_value" >>"$HOME/.Xresources"
 fi
+profile_line='[[ ! -f "$HOME/.profile" ]] || source "$HOME/.profile"'
+append_line_dedup "$HOME/.bash_profile" "$profile_line"
 startx_line='[[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]] && startx'
 append_line_dedup "$HOME/.bash_profile" "$startx_line"
 touch "$HOME/.xinitrc"

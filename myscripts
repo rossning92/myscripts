@@ -53,9 +53,22 @@ append_line_dedup() {
     echo "$2" >>"$1"
 }
 
+prepend_line_dedup() {
+    local file="$1"
+    local line="$2"
+    local tmp
+    tmp="$(mktemp)"
+    {
+        printf '%s\n' "$line"
+        [[ ! -f "$file" ]] || grep -vFx -- "$line" "$file" || true
+    } >"$tmp"
+    cat "$tmp" >"$file"
+    rm -f "$tmp"
+}
+
 # XXX: For some reason, mingw64 `bash.exe` may hang indefinitely while starting if it sources `$SCRIPT_ROOT/settings/bash/.bashrc`.
 if [[ "$MSYSTEM" != MINGW64 ]]; then
-    append_line_dedup \
+    prepend_line_dedup \
         "$HOME/.bashrc" \
         "source \"$SCRIPT_ROOT/settings/bash/.bashrc\""
 fi

@@ -9,11 +9,6 @@
     <title>browsercli screencast</title>
     <link rel="icon" href="/static/screencast.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/static/virtual-keys.css" />
-    <script>
-      if (new URLSearchParams(location.search).get("controls") === "0") {
-        document.documentElement.classList.add("controls-hidden");
-      }
-    </script>
     <style>
       * {
         margin: 0;
@@ -53,10 +48,6 @@
         background: var(--chrome-toolbar);
         flex: 0 0 auto;
         z-index: 2;
-      }
-      .controls-hidden #toolbar,
-      .controls-hidden #virtualKeys {
-        display: none !important;
       }
       #toolbar button {
         width: 36px;
@@ -275,6 +266,12 @@
         #addr {
           margin-left: 2px;
           padding-inline: 12px;
+        }
+      }
+      @media (max-height: 500px) {
+        #toolbar,
+        #virtualKeys {
+          display: none;
         }
       }
     </style>

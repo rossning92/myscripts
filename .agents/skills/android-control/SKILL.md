@@ -1,6 +1,6 @@
 ---
 name: android-control
-description: Controls Android device features through Termux API commands. Use when the user asks to access the clipboard, camera, microphone, media, calls, SMS, contacts, Wi-Fi, sharing, or navigation on an Android device.
+description: Control Android device features with Termux APIs. Use for device actions such as clipboard, camera, microphone, media, calls, SMS, contacts, Wi-Fi, sharing, and maps. Also use when "navigate to" refers to a physical place; open Android map directions rather than a website.
 compatibility: Requires Android, Termux, Termux API, and the termux-api package.
 ---
 

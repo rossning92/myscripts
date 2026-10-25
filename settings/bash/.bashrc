@@ -1,7 +1,7 @@
+export PATH="$HOME/myscripts/bin:$PATH"
+
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
-
-export PATH="$HOME/myscripts/bin:$PATH"
 
 alias c='xclip -selection clipboard'
 alias grep='grep --color=auto'
