@@ -409,6 +409,7 @@
     />
     <script type="module">
       import { setupFileUpload } from "/static/file-upload.js";
+      import { forwardPaste, isPasteShortcut } from "/static/keyboard-input.js";
       import { setupScreencastZoom } from "/static/zoom.js";
       import { setupVirtualKeys } from "/static/virtual-keys.js";
 
@@ -1065,7 +1066,12 @@
         flushRemoteInput();
       });
 
+      hiddenInput.addEventListener("paste", (e) => forwardPaste(e, send));
+
       hiddenInput.addEventListener("keydown", (e) => {
+        // Let the viewer receive its local clipboard data. The paste handler
+        // inserts that text remotely, without also sending a remote Ctrl+V.
+        if (isPasteShortcut(e)) return;
         const usesAltGraph = e.getModifierState("AltGraph");
         const producesText =
           (!e.ctrlKey || usesAltGraph) &&
@@ -1090,6 +1096,7 @@
       });
 
       hiddenInput.addEventListener("keyup", (e) => {
+        if (isPasteShortcut(e)) return;
         e.preventDefault();
         send("Input.dispatchKeyEvent", {
           type: "keyUp",
