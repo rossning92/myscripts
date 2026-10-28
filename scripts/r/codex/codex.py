@@ -89,10 +89,13 @@ def main():
     else:
         command = [codex, "--sandbox", "workspace-write", "--ask-for-approval", "on-request"]
         downloads = str(Path.home() / "Downloads")
+        android_home = str(Path.home() / ".android")
         config += [
             'approvals_reviewer="user"',
             'sandbox_workspace_write.network_access=true',
-            "sandbox_workspace_write.writable_roots=[" + json.dumps(downloads) + "]",
+            "sandbox_workspace_write.writable_roots=["
+            + ",".join([json.dumps(downloads), json.dumps(android_home)])
+            + "]",
         ]
 
     try:

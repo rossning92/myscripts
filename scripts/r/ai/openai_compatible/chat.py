@@ -231,9 +231,14 @@ async def complete_chat(
                     content = delta.get("content")
                     if content:
                         flush_reasoning()
-                        logging.debug(f"yielding content chunk: {content}")
-                        yield content
-                        out_message["text"] += content
+                        if not out_message["text"]:
+                            # Some reasoning models leave their reasoning/answer
+                            # separator at the start of the answer content.
+                            content = content.lstrip("\r\n")
+                        if content:
+                            logging.debug(f"yielding content chunk: {content}")
+                            yield content
+                            out_message["text"] += content
 
                     # On finish, flush all pending state
                     if finish_reason:

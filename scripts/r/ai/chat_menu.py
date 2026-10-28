@@ -29,7 +29,6 @@ from ai.chat import (
 from ai.models import DEFAULT_MODEL, MODEL_IDS, get_model
 from ai.title_generator import generate_title, get_fallback_title
 from ai.utils.session import Session, load_session, save_session
-from ai.utils.llama_cpp_server import ensure_llama_cpp_server
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolResult, ToolUse
 from ai.utils.usagemetadata import UsageMetadata
@@ -1179,14 +1178,6 @@ class ChatMenu(Menu[Line]):
         retry_delay_sec: float = 0.0,
     ):
         self.__streaming_reasoning_line = None
-        selected_model = get_model(self.get_settings()["model"])
-        if (
-            selected_model.provider == "llama_cpp"
-            and not ensure_llama_cpp_server()
-        ):
-            self.__is_running = False
-            return
-
         self.on_generating()
         if status:
             self.set_message(status)

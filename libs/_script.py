@@ -729,18 +729,22 @@ class Script:
                 return True
             return False
 
-        if (run_in_tmux or is_in_tmux()) and subprocess.call(
-            [
-                "tmux",
-                "select-window",
-                "-t",
-                self.get_window_title(),
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ) == 0:
-            return True
-        elif (
+        if run_in_tmux or is_in_tmux():
+            return (
+                subprocess.call(
+                    [
+                        "tmux",
+                        "select-window",
+                        "-t",
+                        f":={self.get_window_title()}",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                == 0
+            )
+
+        if (
             SUPPORT_GNU_SCREEN
             and shutil.which("screen")
             and subprocess.call(["screen", "-r", slugify(title)]) == 0

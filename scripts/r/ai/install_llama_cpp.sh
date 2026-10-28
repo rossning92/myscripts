@@ -29,6 +29,8 @@ fi
 
 if [[ ! -d "$src/.git" ]]; then
     git clone --depth 1 https://github.com/ggml-org/llama.cpp "$src"
+else
+    git -C "$src" pull --ff-only
 fi
 
 cmake -S "$src" -B "$src/build" -G Ninja \

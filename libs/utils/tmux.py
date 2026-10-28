@@ -43,7 +43,7 @@ def _script_command(script: object) -> str:
         ]
     )
     select_command = shlex.join(
-        ["tmux", "select-window", "-t", f"={script.get_window_title()}"]
+        ["tmux", "select-window", "-t", f":={script.get_window_title()}"]
     )
     return f"{select_command} 2>/dev/null || {start_command}"
 
