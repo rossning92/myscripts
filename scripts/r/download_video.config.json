@@ -1,5 +1,5 @@
 {
-  "matchClipboard": "{{ include('r/video_url_regex_youtube.txt') }}",
-  "packages": "lux yt-dlp",
+  "matchClipboard": "{{ include('r/video_url_regex.txt') }}",
+  "packages": "yt-dlp ffmpeg",
   "instanceMode": "multiple"
 }

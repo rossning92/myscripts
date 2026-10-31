@@ -2,7 +2,7 @@ import argparse
 import logging
 import os
 import re
-import subprocess
+from urllib.parse import urlparse
 
 import requests
 from _shutil import (
@@ -17,7 +17,7 @@ root = os.path.dirname(os.path.realpath(__file__))
 
 def get_download_dir(base=None):
     if base is None:
-        d = os.environ["VIDEO_DOWNLOAD_DIR"]
+        d = os.environ.get("VIDEO_DOWNLOAD_DIR")
         if not d:
             d = os.path.join(os.path.expanduser("~"), "Desktop")
     else:
@@ -31,10 +31,32 @@ def get_redirected_url(url):
     return requests.get(url).url
 
 
-def download_bilibili(url, download_dir=None):
-    subprocess.check_call(
-        ["run_script", "r/download_video_lux.sh", url], cwd=download_dir
+def download_bilibili(url, download_dir=None, audio_only=False, save_url=True):
+    args = [
+        "yt-dlp",
+        "--no-playlist",
+        "--no-mtime",
+        "--add-header",
+        "Range:bytes=0-",
+        "--retries",
+        "3",
+        "--fragment-retries",
+        "3",
+    ]
+    cookie = os.environ.get("BILIBILI_COOKIE_FILE") or os.path.join(
+        root, "..", "..", "repos", "private_scripts", "bili", "tmp",
+        "bilibili-cookies.txt",
     )
+    if os.path.isfile(cookie):
+        args.extend(["--cookies", cookie])
+    elif os.environ.get("BILIBILI_COOKIE_FILE"):
+        raise FileNotFoundError(cookie)
+    if audio_only:
+        args.extend(["-f", "bestaudio"])
+    if save_url:
+        args.append("--write-url-link")
+    args.append(url)
+    call_echo(args, cwd=download_dir)
 
 
 def download_youtube(url, download_dir=None, audio_only=False, download_playlist=False):
@@ -70,11 +92,14 @@ def download_youtube(url, download_dir=None, audio_only=False, download_playlist
 @retry()
 def download_video(url, audio_only=False, download_dir=None, save_url=True):
     url = get_redirected_url(url)
-    if "bilibili.com" in url:
+    hostname = urlparse(url).hostname or ""
+    if hostname == "bilibili.com" or hostname.endswith(".bilibili.com"):
         ddir = get_download_dir(base=download_dir)
         download_bilibili(
             url,
             download_dir=ddir,
+            audio_only=audio_only,
+            save_url=save_url,
         )
     elif "youtube.com" in url:
         ddir = get_download_dir(base=download_dir)

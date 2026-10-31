@@ -41,7 +41,6 @@ def main():
         'tui.terminal_title=[]',
         'tui.status_line=["model","context-used","used-tokens","weekly-limit"]',
         'tui.show_tooltips=false',
-        'tui.keymap.global.open_transcript=["ctrl-t","page-up"]',
         'check_for_update_on_startup=false',
         'features.hooks=true',
     ]
@@ -90,11 +89,12 @@ def main():
         command = [codex, "--sandbox", "workspace-write", "--ask-for-approval", "on-request"]
         downloads = str(Path.home() / "Downloads")
         android_home = str(Path.home() / ".android")
+        uv_cache = str(Path.home() / ".cache" / "uv")
         config += [
             'approvals_reviewer="user"',
             'sandbox_workspace_write.network_access=true',
             "sandbox_workspace_write.writable_roots=["
-            + ",".join([json.dumps(downloads), json.dumps(android_home)])
+            + ",".join(json.dumps(path) for path in [downloads, android_home, uv_cache])
             + "]",
         ]
 

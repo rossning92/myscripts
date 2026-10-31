@@ -28,6 +28,16 @@ Hotkeys are disabled while a window whose class appears in
 `IGNORED_WINDOW_CLASSES` is focused. The default list contains Remmina so its
 keyboard grab sends the keys only to the remote machine.
 
+Add desired words or phrases to `custom_words.txt`, one per line. Changes apply
+on the next transcription without restarting. Blank lines and `#` comments are
+ignored. An empty list disables correction.
+
+Correction runs after recognition using spelling distance, English
+Soundex, and groups of up to three words (`Charge B` -> `ChargeBee`). It keeps
+punctuation and case patterns. Only ASCII letters and numbers are matched;
+non-ASCII dictionary terms are skipped. Fuzzy matching can change valid words,
+so keep the list focused on distinctive terms.
+
 A small click-through status pill appears at the bottom center, showing animated
 audio bars while listening and pulsing dots while transcribing. It stays hidden
 while idle and never takes focus from your current application.

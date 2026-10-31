@@ -1,0 +1,4 @@
+{
+  "packages": "docker docker-nvidia",
+  "template": false
+}

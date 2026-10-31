@@ -60,6 +60,7 @@ MODELS: List[Model] = [
     Model("openai", "gpt-5.6-sol"),
     Model("openai", "gpt-5.6-terra"),
     Model("openai", "gpt-5.6-luna"),
+    Model("openai", "gpt-5.6-luna", reasoning_effort="low"),
     Model(
         "cliproxy",
         "gpt-5.6-sol",

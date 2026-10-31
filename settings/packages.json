@@ -200,6 +200,20 @@
       "packages": ["docker-compose"]
     }
   },
+  "docker-nvidia": {
+    "apt": {
+      "commands": [
+        "run_script r/docker/install_nvidia_container_toolkit.sh"
+      ]
+    },
+    "pacman": {
+      "packages": ["nvidia-container-toolkit"]
+    },
+    "post_install": [
+      "sudo nvidia-ctk runtime configure --runtime=docker",
+      "sudo systemctl reload docker"
+    ]
+  },
   "dotnet": {
     "choco": {
       "packages": ["dotnet"]
@@ -589,14 +603,6 @@
     },
     "winget": {
       "packages": ["TheDocumentFoundation.LibreOffice"]
-    }
-  },
-  "lux": {
-    "executablePath": {
-      "linux": ["$HOME/go/bin/lux"]
-    },
-    "golang": {
-      "packagePath": "github.com/iawia002/lux@latest"
     }
   },
   "mdpdf": {

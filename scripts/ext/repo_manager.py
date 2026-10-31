@@ -129,7 +129,7 @@ class Repo:
     def vcs_info(self) -> str:
         if not self.vcs:
             return ""
-        return f"{self.vcs}:{self.branch}"
+        return self.branch or "?"
 
     @property
     def has_missing_upstream(self) -> bool:

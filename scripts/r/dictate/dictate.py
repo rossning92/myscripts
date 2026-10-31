@@ -29,6 +29,7 @@ from pynput import keyboard
 from PySide6 import QtCore, QtWidgets
 
 from overlay import StatusOverlay, StatusSignals
+from custom_words import apply_custom_words, load_custom_words
 
 MODELS = {
     "parakeet": (
@@ -319,6 +320,9 @@ def dictate_loop(
             continue
 
         text = result if isinstance(result, str) else transcribe(model, result)
+        text = apply_custom_words(
+            text, load_custom_words(Path(__file__).with_name("custom_words.txt"))
+        )
         if text:
             # Use delayed xdotool input to prevent incorrect X11 Unicode characters.
             if sys.platform == "linux" and not text.isascii():
