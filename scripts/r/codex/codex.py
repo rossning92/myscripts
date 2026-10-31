@@ -41,7 +41,6 @@ def main():
         'tui.terminal_title=[]',
         'tui.status_line=["model","context-used","used-tokens","weekly-limit"]',
         'tui.show_tooltips=false',
-        'tui.keymap.global.open_transcript=["ctrl-t","page-up"]',
         'check_for_update_on_startup=false',
         'features.hooks=true',
     ]

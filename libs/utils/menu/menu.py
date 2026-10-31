@@ -1175,11 +1175,19 @@ class Menu(Generic[T]):
     def process_events(
         self, timeout_sec: float = 0.0, raise_keyboard_interrupt=False
     ) -> bool:
-        """Process one keyboard event.
+        """Process all queued keyboard events.
 
-        Poll without blocking by default. Pass a negative timeout to block
-        until an event, or a positive timeout to wait at most that many seconds.
+        Wait for the first event according to timeout_sec, then process any
+        events already queued without blocking.
         """
+        done = self._process_event(timeout_sec, raise_keyboard_interrupt)
+        while not done and not self.__event_timed_out:
+            done = self._process_event(0.0, raise_keyboard_interrupt)
+        return done
+
+    def _process_event(
+        self, timeout_sec: float = 0.0, raise_keyboard_interrupt=False
+    ) -> bool:
         assert Menu._stdscr is not None
 
         if self.__closed:

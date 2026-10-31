@@ -374,6 +374,7 @@ class ChatMenu(Menu[Line]):
         self.add_command(self.continue_session, hotkey="alt+enter")
         self.add_command(self.new_session, hotkey="ctrl+n")
         self.add_command(self.__regenerate, hotkey="ctrl+r")
+        self.add_command(self.__regenerate_title)
         self.add_command(self.save_session, hotkey="ctrl+s")
         self.add_command(self.__revert_messages, hotkey="ctrl+z")
 
@@ -877,6 +878,20 @@ class ChatMenu(Menu[Line]):
         self.__session_title = self.__session.get("title")
         if not self.__session_title:
             self.__start_title_summary(first_message.get("text", ""))
+
+    def __regenerate_title(self):
+        if not self.__messages:
+            self.set_message("error: no message to title")
+            return
+        if not self.get_settings()["generate_title"]:
+            self.set_message("error: title generation is disabled")
+            return
+        prompt = self.__messages[0].get("text", "")
+        if not prompt.strip():
+            self.set_message("error: first message is empty")
+            return
+        self.__start_title_summary(prompt)
+        self.set_message("regenerating title")
 
     def __show_system_prompt(self):
         system_prompt = self.get_system_prompt()
