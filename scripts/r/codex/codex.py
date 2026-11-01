@@ -10,6 +10,13 @@ import tempfile
 
 from utils.term import set_terminal_title
 
+WRITABLE_ROOTS = (
+    Path.home() / "Downloads",
+    Path.home() / ".android",
+    Path.home() / ".gradle",
+    Path.home() / ".cache" / "uv",
+)
+
 
 def hook_command(status):
     args = [sys.executable, str(Path(__file__).with_name("terminal_title_hook.py")), status]
@@ -36,10 +43,12 @@ def main():
     )
     config = [
         'model_verbosity="low"',
+        'hide_agent_reasoning=true',
         'tui.alternate_screen="always"',
+        'tui.animations=false',
         'tui.fullscreen_transcript=false',
         'tui.terminal_title=[]',
-        'tui.status_line=["model","context-used","used-tokens","weekly-limit"]',
+        'tui.status_line=["model","used-tokens","weekly-limit"]',
         'tui.show_tooltips=false',
         'check_for_update_on_startup=false',
         'features.hooks=true',
@@ -87,15 +96,11 @@ def main():
         command = [codex, "--dangerously-bypass-approvals-and-sandbox"]
     else:
         command = [codex, "--sandbox", "workspace-write", "--ask-for-approval", "on-request"]
-        downloads = str(Path.home() / "Downloads")
-        android_home = str(Path.home() / ".android")
-        uv_cache = str(Path.home() / ".cache" / "uv")
         config += [
             'approvals_reviewer="user"',
             'sandbox_workspace_write.network_access=true',
-            "sandbox_workspace_write.writable_roots=["
-            + ",".join(json.dumps(path) for path in [downloads, android_home, uv_cache])
-            + "]",
+            "sandbox_workspace_write.writable_roots="
+            + json.dumps([str(path) for path in WRITABLE_ROOTS]),
         ]
 
     try:

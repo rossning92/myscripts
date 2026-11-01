@@ -190,6 +190,7 @@ local function run_agent()
     local full_path = vim.api.nvim_buf_get_name(0)
     if full_path ~= "" then
         local mode = vim.fn.mode()
+        local context = "<editor_context>\n<file>" .. full_path .. "</file>"
 
         if mode == "v" or mode == "V" or mode == "\22" then
             -- Get selected line ranges
@@ -203,14 +204,19 @@ local function run_agent()
                 line_start, line_end = line_end, line_start
             end
 
-            -- Concatenate selected line range at the end
-            full_path = full_path .. "#" .. line_start .. "-" .. line_end
+            local lines = vim.api.nvim_buf_get_lines(0, line_start - 1, line_end, false)
+            context = context .. string.format(
+                '\n<selection start_line="%d" end_line="%d" source="vim_buffer" full_lines="true" may_include_unsaved_edits="true">\n%s\n</selection>',
+                line_start, line_end, table.concat(lines, "\n")
+            )
         end
 
-        run_in_terminal('start_script --cd=false r/ai/agent.py --context ' .. vim.fn.shellescape(full_path), {
+        context = context .. "\n</editor_context>"
+
+        run_in_terminal('start_script --cd=false r/ai/agent.py --context ' .. vim.fn.shellescape(context), {
             on_exit = function()
-                -- Reload the current file from disk
-                vim.api.nvim_command('edit!')
+                -- Check for agent edits without discarding unsaved buffer changes.
+                vim.api.nvim_command('checktime')
             end
         })
     end

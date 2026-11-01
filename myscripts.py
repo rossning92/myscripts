@@ -1,7 +1,6 @@
 # ruff: noqa: E402
 
 import argparse
-import hashlib
 import io
 import logging
 import os
@@ -277,16 +276,6 @@ class _MyScriptMenu(Menu[Script]):
             ascii_only=False,
             cancellable=run_script_and_quit,
             prompt=self.__get_prompt(),
-            prompt_color=(
-                "white"
-                if open_with_script
-                else (
-                    "black",
-                    ["red", "green", "yellow", "blue", "magenta", "cyan"][
-                        int(hashlib.md5(platform.node().encode()).hexdigest(), 16) % 6
-                    ],
-                )
-            ),
             text=input_text,
             wrap_text=True,
             timeout_sec=1.0,

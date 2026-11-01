@@ -7,10 +7,6 @@ else
     GRADLE=gradle
 fi
 
-# Keep Gradle's downloaded distribution and dependency cache with the project.
-# An explicit GRADLE_USER_HOME still takes precedence.
-export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$PWD/.gradle}"
-
 if [[ $# -eq 0 ]]; then
     set -- assembleDebug
 fi

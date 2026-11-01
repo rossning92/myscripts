@@ -667,7 +667,7 @@ class Menu(Generic[T]):
             self.add_command(self.__prev_search_history, hotkey="alt+u")
             self.add_command(self.__reload_menu, hotkey="alt+r")
             self.add_command(self.__select_all, hotkey="ctrl+a")
-            self.add_command(self.__toggle_multi_select, hotkey="ctrl+x")
+            self.add_command(self.__toggle_multi_select, hotkey="alt+m")
             self.add_command(self.__toggle_wrap, hotkey="alt+z")
             self.add_command(self.paste, hotkey="ctrl+v")
             self.add_command(self.yank, hotkey="ctrl+y")
@@ -835,8 +835,10 @@ class Menu(Generic[T]):
         cells = []
         for cmd in commands:
             hotkey = get_hotkey_abbr(cmd.hotkey)
-            name_width = cell_width - len(hotkey) - 1
-            name = cmd.name.replace("_", " ")[:name_width]
+            name_width = max(0, cell_width - len(hotkey) - 1)
+            name = cmd.name.replace("_", " ")
+            if len(name) > name_width:
+                name = name[: name_width - 1] + "\u2026" if name_width else ""
             cells.append(f"\x1b[1;36m{hotkey}\x1b[22;39m {name:<{name_width}}")
 
         lines = [

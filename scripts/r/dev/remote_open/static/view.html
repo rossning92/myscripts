@@ -126,6 +126,27 @@ function openInPerfetto(src, name) {
     });
 }
 
+// Swaps ```mermaid blocks for diagrams. Runs before highlight.js, which would mangle them.
+function renderMermaid(body, CDN) {
+    var nodes = [];
+    body.querySelectorAll("pre > code.language-mermaid").forEach(function (code) {
+        var pre = document.createElement("pre");
+        pre.className = "mermaid";
+        pre.textContent = code.textContent;
+        code.parentNode.replaceWith(pre);
+        nodes.push(pre);
+    });
+    if (!nodes.length) return;
+    var ready = window.mermaid ? Promise.resolve() : loadScript(CDN + "mermaid/dist/mermaid.min.js");
+    ready
+        .then(function () {
+            var dark = document.documentElement.dataset.theme !== "light";
+            mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "default" });
+            return mermaid.run({ nodes: nodes });
+        })
+        .catch(function () {});
+}
+
 function renderMarkdown(v, text) {
     var CDN = "https://cdn.jsdelivr.net/npm/";
     loadStyle("/markdown.css");
@@ -138,6 +159,7 @@ function renderMarkdown(v, text) {
             v.innerHTML = '<div class="markdown-body"></div>';
             var body = v.querySelector(".markdown-body");
             body.innerHTML = marked.parse(text);
+            renderMermaid(body, CDN);
             loadStyle(CDN + "highlight.js/styles/" + Theme.hljsStyle());
             return window.hljs
                 ? Promise.resolve()

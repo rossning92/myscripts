@@ -278,12 +278,12 @@
   </head>
   <body>
     <div id="toolbar">
-      <button id="backBtn" title="Back" aria-label="Back" disabled>
+      <button id="backBtn" title="Back (Alt+Left)" aria-label="Back" aria-keyshortcuts="Alt+ArrowLeft" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M15 5l-7 7 7 7" />
         </svg>
       </button>
-      <button id="fwdBtn" title="Forward" aria-label="Forward" disabled>
+      <button id="fwdBtn" title="Forward (Alt+Right)" aria-label="Forward" aria-keyshortcuts="Alt+ArrowRight" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M9 5l7 7-7 7" />
         </svg>
@@ -300,6 +300,9 @@
       </div>
       <input
         id="addr"
+        title="Address bar (Alt+A)"
+        aria-label="Address bar"
+        aria-keyshortcuts="Alt+A"
         type="text"
         placeholder="Enter URL and press Enter"
         autocomplete="off"
@@ -309,8 +312,9 @@
       />
       <button
         id="viewportBtn"
-        title="Viewport resolution"
+        title="Viewport resolution (Alt+V)"
         aria-label="Viewport resolution"
+        aria-keyshortcuts="Alt+V"
         aria-haspopup="menu"
         aria-expanded="false"
       >
@@ -696,6 +700,36 @@
         }
       });
 
+      const shortcuts = {
+        KeyV: () => viewportBtn.click(),
+        KeyA: () => {
+          closeViewportMenu();
+          closeSessionMenu();
+          addr.focus();
+          addr.select();
+        },
+        ArrowLeft: () => backBtn.click(),
+        ArrowRight: () => fwdBtn.click(),
+      };
+      const heldShortcuts = new Set();
+      for (const type of ["keydown", "keyup"]) {
+        document.addEventListener(type, (event) => {
+          const shortcut = Object.hasOwn(shortcuts, event.code) && event.altKey &&
+            !event.ctrlKey && !event.metaKey && !event.shiftKey &&
+            !event.getModifierState("AltGraph") && !event.isComposing;
+          if (!shortcut && !(type === "keyup" &&
+              heldShortcuts.has(event.code))) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          if (type === "keydown") {
+            heldShortcuts.add(event.code);
+            if (!event.repeat) shortcuts[event.code]();
+          } else {
+            heldShortcuts.delete(event.code);
+          }
+        }, true);
+      }
+
       viewportMenu.addEventListener("click", (event) => {
         const option = event.target.closest("[data-viewport]");
         if (!option) return;
@@ -748,7 +782,7 @@
           for (const option of viewportMenu.querySelectorAll("[data-viewport]")) {
             option.setAttribute("aria-checked", String(option === selected));
           }
-          viewportBtn.title = `Viewport: ${width}×${height}`;
+          viewportBtn.title = `Viewport: ${width}×${height} (Alt+V)`;
           viewportBtn.setAttribute(
             "aria-label",
             `Viewport: ${width} by ${height}`,
@@ -1068,10 +1102,25 @@
 
       hiddenInput.addEventListener("paste", (e) => forwardPaste(e, send));
 
+      let remoteAltKey = null;
+      hiddenInput.addEventListener("blur", () => {
+        if (!remoteAltKey) return;
+        send("Input.dispatchKeyEvent", { ...remoteAltKey, type: "keyUp", modifiers: 0 });
+        remoteAltKey = null;
+      });
+
       hiddenInput.addEventListener("keydown", (e) => {
         // Let the viewer receive its local clipboard data. The paste handler
         // inserts that text remotely, without also sending a remote Ctrl+V.
         if (isPasteShortcut(e)) return;
+        if (e.key === "Alt") {
+          remoteAltKey = {
+            key: e.key,
+            code: e.code,
+            windowsVirtualKeyCode: e.keyCode,
+            nativeVirtualKeyCode: e.keyCode,
+          };
+        }
         const usesAltGraph = e.getModifierState("AltGraph");
         const producesText =
           (!e.ctrlKey || usesAltGraph) &&
@@ -1096,6 +1145,7 @@
       });
 
       hiddenInput.addEventListener("keyup", (e) => {
+        if (e.key === "Alt") remoteAltKey = null;
         if (isPasteShortcut(e)) return;
         e.preventDefault();
         send("Input.dispatchKeyEvent", {

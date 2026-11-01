@@ -295,6 +295,12 @@ async function handleRequest(req, res) {
   const requestUrl = new URL(req.url, "http://localhost");
   const { pathname } = requestUrl;
 
+  if (pathname === "/" && (req.method === "GET" || req.method === "HEAD")) {
+    res.writeHead(302, { Location: `/screencast${requestUrl.search}` });
+    res.end();
+    return;
+  }
+
   // Only extension service workers may consume or complete bridge commands.
   if (pathname.startsWith("/extension/")) {
     const origin = req.headers.origin || "";
