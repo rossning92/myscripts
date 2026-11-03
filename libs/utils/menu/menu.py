@@ -316,6 +316,7 @@ def _to_curses_color(color: Union[str, int]) -> int:
         "darkgray": 240 if has_256 else curses.COLOR_BLACK,
         "brightblack": 8 if has_256 else curses.COLOR_BLACK,
         "darkblue": 17 if has_256 else curses.COLOR_BLUE,
+        "orange": 208 if has_256 else curses.COLOR_YELLOW,
     }.get(color.lower(), -1)
 
 
@@ -667,7 +668,7 @@ class Menu(Generic[T]):
             self.add_command(self.__prev_search_history, hotkey="alt+u")
             self.add_command(self.__reload_menu, hotkey="alt+r")
             self.add_command(self.__select_all, hotkey="ctrl+a")
-            self.add_command(self.__toggle_multi_select, hotkey="alt+m")
+            self.add_command(self.__toggle_multi_select, hotkey="tab")
             self.add_command(self.__toggle_wrap, hotkey="alt+z")
             self.add_command(self.paste, hotkey="ctrl+v")
             self.add_command(self.yank, hotkey="ctrl+y")

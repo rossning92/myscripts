@@ -20,9 +20,12 @@ from utils.window import (
 _WINDOW_CLOSE_WAIT_SECONDS = 1.0
 _AUTO_REFRESH_INTERVAL_SECONDS = 2.0
 _PROMPT = "activate window"
+# Fits current Claude window titles, so the session id column lines up.
+_TITLE_WIDTH = 56
 
 _STATUS_COLOR_MAPPING: Dict[WindowStatus, str] = {
     "success": "green",
+    "waiting": "orange",
     "error": "red",
     "running": "yellow",
 }
@@ -71,6 +74,8 @@ class WinSwitcherMenu(Menu[WindowItem]):
         if w.title in self.__pinned:
             return 2
         status = w.get_status(self.script_status)
+        if status == "waiting":
+            return 0
         if status == "success":
             return 0 if w.title not in self.__visited_success else 1
         if status == "running":
@@ -170,12 +175,13 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.clear_input()
 
     def get_item_text(self, item: WindowItem) -> str:
+        title = item.title[:_TITLE_WIDTH].ljust(_TITLE_WIDTH)
         if (
             item.get_status(self.script_status) == "success"
             and item.title not in self.__visited_success
         ):
-            return f"\x1b[1m{item.title}\x1b[22m"
-        return item.title
+            title = f"\x1b[1m{title}\x1b[22m"
+        return f"{title}  {item.session_id[:8]}"
 
     def get_item_color(self, item: WindowItem) -> str:
         if item.title in self.__pinned:

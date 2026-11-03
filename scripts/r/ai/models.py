@@ -164,6 +164,21 @@ MODELS: List[Model] = [
     ),
     Model(
         "openrouter",
+        "x-ai/grok-imagine-image-2.0",
+        api_type="openai_chat_completions",
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+    ),
+    Model(
+        "openrouter",
+        "x-ai/grok-imagine-image-2.0",
+        api_type="openai_chat_completions",
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+        image_resolution="2K",
+    ),
+    Model(
+        "openrouter",
         "x-ai/grok-imagine-image-quality",
         api_type="openai_chat_completions",
         base_url="https://openrouter.ai/api/v1",

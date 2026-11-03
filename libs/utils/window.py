@@ -22,10 +22,11 @@ TITLE_MATCH_MODE_DEFAULT = TITLE_MATCH_MODE_START_OR_END_WITH
 
 TITLE_DIVIDER = " - "
 
-WindowStatus = Literal["normal", "success", "error", "running"]
+WindowStatus = Literal["normal", "success", "waiting", "error", "running"]
 
 _WINDOW_STATUS_PRIORITY: Dict[WindowStatus, int] = {
     "success": 0,
+    "waiting": 0,
     "error": 1,
     "running": 2,
     "normal": 3,
@@ -33,13 +34,15 @@ _WINDOW_STATUS_PRIORITY: Dict[WindowStatus, int] = {
 
 _WINDOW_STATUS_SYMBOLS: Dict[WindowStatus, str] = {
     "success": "✓✳",
+    "waiting": "‽",
     "running": "⧗⠂⠐",
 }
 
 class WindowItem:
-    def __init__(self, id, title):
+    def __init__(self, id, title, session_id=""):
         self.id = id
         self.title = title
+        self.session_id = session_id
 
     def get_status(self, script_status: Dict[str, str]) -> WindowStatus:
         if any(character in self.title for character in SPINNER_CHARS):
@@ -160,21 +163,25 @@ def _get_windows_tmux() -> List[WindowItem]:
                 "list-windows",
                 "-a",
                 "-F",
-                "#{window_id}\t#{window_name}",
+                "#{window_id}\t#{window_name}\t#{@claude_session_id}",
             ],
             text=True,
             stderr=subprocess.DEVNULL,
         )
         windows = []
-        for line in output.strip().splitlines():
+        for line in output.splitlines():
             if line:
-                parts = line.split("\t", 1)
-                assert len(parts) == 2
-                window_id, name = parts
+                parts = line.split("\t", 2)
+                assert len(parts) == 3
+                window_id, name, session_id = parts
                 if name == "win_switcher":
                     continue
 
-                windows.append(WindowItem(id=f"tmux:{window_id}", title=name))
+                windows.append(
+                    WindowItem(
+                        id=f"tmux:{window_id}", title=name, session_id=session_id
+                    )
+                )
         return windows
     except Exception:
         return []
