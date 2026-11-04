@@ -13,6 +13,8 @@ services:
     container_name: ntfy
     command:
       - serve
+      # Reduce keepalive traffic to save battery on Android clients.
+      - --keepalive-interval=300s
       - --base-url=http://$ip:$port
       - --cache-file=/var/cache/ntfy/cache.db
       - --attachment-cache-dir=/var/cache/ntfy/attachments
