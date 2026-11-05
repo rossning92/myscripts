@@ -218,7 +218,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def start_server(port):
     load_history()
-    server = http.server.ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"serving on http://localhost:{port}")
     print(f"open files: ./ropen.sh <file_or_url>")
     server.serve_forever()

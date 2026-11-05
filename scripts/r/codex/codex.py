@@ -107,10 +107,18 @@ def main():
         os.environ["CODEX_TERMINAL_TTY"] = os.ttyname(sys.stdin.fileno())
     except (AttributeError, OSError, ValueError):
         os.environ["CODEX_TERMINAL_TTY"] = ""
-    for event, status in [("UserPromptSubmit", "⧗"), ("Stop", "✓")]:
+    for event, status, matcher in [
+        ("UserPromptSubmit", "⧗", None),
+        ("Stop", "✓", None),
+        ("PermissionRequest", "‽", None),
+        ("PreToolUse", "‽", "(^|.*__)request_user_input(_async)?$"),
+        ("PostToolUse", "⧗", None),
+    ]:
         config.append(
             f"hooks.{event}="
-            + '[{hooks=[{type="command",command='
+            + '[{'
+            + ("matcher=" + json.dumps(matcher) + "," if matcher else "")
+            + 'hooks=[{type="command",command='
             + json.dumps(hook_command(status))
             + ',timeout=5}]}]'
         )

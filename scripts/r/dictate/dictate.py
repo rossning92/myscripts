@@ -225,6 +225,7 @@ def record(
     chunks: list[np.ndarray] | None = None if streaming else []
     streamer = StreamingTranscriber(model) if streaming else None
     if streamer is not None:
+        logger.info("Streaming transcription enabled.")
         streamer.start()
     else:
         logger.info("Model does not support streaming; using batch transcription.")

@@ -175,13 +175,16 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.clear_input()
 
     def get_item_text(self, item: WindowItem) -> str:
-        title = item.title[:_TITLE_WIDTH].ljust(_TITLE_WIDTH)
+        title = item.title[:_TITLE_WIDTH]
+        session_id = item.session_id[:8]
+        if session_id:
+            title = title.ljust(_TITLE_WIDTH)
         if (
             item.get_status(self.script_status) == "success"
             and item.title not in self.__visited_success
         ):
             title = f"\x1b[1m{title}\x1b[22m"
-        return f"{title}  {item.session_id[:8]}"
+        return f"{title}  {session_id}" if session_id else title
 
     def get_item_color(self, item: WindowItem) -> str:
         if item.title in self.__pinned:

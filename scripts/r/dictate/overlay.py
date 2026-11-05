@@ -18,8 +18,8 @@ class StatusSignals(QtCore.QObject):
 class StatusOverlay(QtWidgets.QWidget):
     """Small, animated, focusless Material-style status pill."""
 
-    _WINDOW_SIZE = QtCore.QSize(128, 56)
     _BOTTOM_MARGIN = 24
+    _WINDOW_SIZE = QtCore.QSize(104, 40)
     _WAVEFORM_BARS = 15
     _SURFACE = QtGui.QColor("#2B2930")
     _OUTLINE = QtGui.QColor("#49454F")
