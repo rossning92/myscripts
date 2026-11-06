@@ -18,8 +18,10 @@ async def complete_chat(
     model: str,
     on_image: Optional[Callable[[str], None]] = None,
     usage: Optional[UsageMetadata] = None,
+    endpoint_url: str = "https://api.openai.com/v1/images/generations",
+    api_key: Optional[str] = None,
 ) -> AsyncIterator[str]:
-    api_key = os.environ["OPENAI_API_KEY"]
+    api_key = api_key or os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise Exception("OPENAI_API_KEY must be provided.")
 
@@ -32,7 +34,6 @@ async def complete_chat(
     if not prompt:
         raise Exception("No user message found for image generation.")
 
-    url = "https://api.openai.com/v1/images/generations"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -41,16 +42,23 @@ async def complete_chat(
     payload: Dict[str, Any] = {
         "model": model,
         "prompt": prompt,
-        "n": 1,
-        "size": "1024x1024",
-        "quality": "auto",
-        "output_format": "png",
     }
+    if endpoint_url.endswith("/images/generations"):
+        payload.update(n=1, size="1024x1024", quality="auto", output_format="png")
+    else:
+        payload["aspect_ratio"] = "auto"
+        references = [
+            {"type": "image_url", "image_url": {"url": url}}
+            for message in messages
+            for url in message.get("image_urls", [])
+        ]
+        if references:
+            payload["input_references"] = references
 
     logger.debug(f"payload: {payload}")
 
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, headers=headers, json=payload) as response:
+        async with session.post(endpoint_url, headers=headers, json=payload) as response:
             await check_for_status(response)
 
             body = await response.json()
@@ -73,7 +81,7 @@ async def complete_chat(
             for item in body.get("data", []):
                 b64 = item.get("b64_json")
                 if b64:
-                    image_url = f"data:{mime_type};base64,{b64}"
+                    image_url = f"data:{item.get('media_type', mime_type)};base64,{b64}"
                     out_message.setdefault("image_urls", []).append(image_url)
                     if on_image:
                         on_image(image_url)

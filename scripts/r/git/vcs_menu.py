@@ -5,6 +5,7 @@ import time
 from typing import List, Optional, Tuple
 
 from _script import start_script
+from utils.clip import set_clip
 from utils.fileutils import get_display_path
 from utils.menu.confirmmenu import confirm
 from utils.menu.diffmenu import DiffMenu
@@ -87,6 +88,7 @@ class VcsDiffMenu(Menu):
             name="open in file manager",
             show_in_hotkey_bar=True,
         )
+        self.add_command(self.__copy_paths, hotkey="alt+y", name="copy paths")
         self._init_extra_commands()
         self.add_command(
             lambda: self._move_commit(1),
@@ -288,6 +290,13 @@ class VcsDiffMenu(Menu):
             return
         filename = os.path.abspath(self._get_filename(item))
         start_script("ext/filemgr.py", args=[filename])
+
+    def __copy_paths(self) -> None:
+        paths = [os.path.abspath(self._get_filename(item)) for item in self.get_selected_items()]
+        if not paths:
+            return
+        set_clip("\n".join(paths))
+        self.set_message(f"Copied {len(paths)} path(s)")
 
     def __commit(self, sync: bool = False) -> None:
         if self._reject_if_readonly():

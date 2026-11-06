@@ -124,6 +124,12 @@ async def complete_chat(
             model=selected_model.model,
             on_image=on_image,
             usage=usage,
+            endpoint_url=(
+                selected_model.base_url.rstrip("/") + "/images"
+                if selected_model.base_url
+                else "https://api.openai.com/v1/images/generations"
+            ),
+            api_key=selected_model.api_key,
         )
     elif selected_model.api_type == "openai_chat_completions":
         if not selected_model.base_url:

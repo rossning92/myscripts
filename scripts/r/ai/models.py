@@ -200,6 +200,13 @@ MODELS: List[Model] = [
         api_key=os.environ.get("OPENROUTER_API_KEY"),
     ),
     Model(
+        "openrouter",
+        "openai/gpt-image-2.6-sunburst",
+        api_type="openai_images",
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+    ),
+    Model(
         "deepseek",
         "deepseek-v4-flash",
         api_type="openai_chat_completions",
