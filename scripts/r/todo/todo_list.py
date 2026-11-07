@@ -217,7 +217,7 @@ class TodoMenu(ListEditMenu[TodoItem]):
         self.set_selected_item(item)
 
     def open_ai_agent(self, extra_args: Optional[List[str]] = None):
-        prompt_file = os.path.join(os.path.dirname(__file__), "ai/skills/todo-list.md")
+        prompt_file = os.path.join(os.path.dirname(__file__), "skills/todo-list/SKILL.md")
         args = [
             "--system-prompt",
             prompt_file,

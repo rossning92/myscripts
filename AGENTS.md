@@ -27,6 +27,8 @@ Edit the `.config.json`, not the script body, for runtime behavior.
 
 ## Tests
 
+Do not create tests unless the user explicitly asks.
+
 Tests mirror the source path under `tests/` (e.g. `ai/utils/menu/confirmcommandmenu.py` -> `tests/ai/utils/menu/test_confirmcommandmenu.py`). `discover` only collects top-level `tests/*.py`; tests in subdirs are not auto-discovered, so run those by file path.
 
 ```bash

@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec run_script r/todo_list.py "$@"
+exec run_script r/todo/todo_list.py "$@"

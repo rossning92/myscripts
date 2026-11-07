@@ -7,6 +7,17 @@ import math
 from PySide6 import QtCore, QtGui, QtWidgets
 
 
+ACCENT_COLORS = {
+    "blue": "#A8C7FA",
+    "lavender": "#D0BCFF",
+    "mint": "#A8DAB5",
+    "peach": "#FFB4AB",
+    "pink": "#EFB8C8",
+    "gold": "#E2C46D",
+}
+ACCENT_COLOR = "pink"
+
+
 class StatusSignals(QtCore.QObject):
     """Thread-safe bridge from the dictation worker to the overlay."""
 
@@ -19,11 +30,16 @@ class StatusOverlay(QtWidgets.QWidget):
     """Small, animated, focusless Material-style status pill."""
 
     _BOTTOM_MARGIN = 24
-    _WINDOW_SIZE = QtCore.QSize(104, 40)
+    # 104 x 32 content, 1 px border, 4 px transparent margin.
+    _WINDOW_SIZE = QtCore.QSize(114, 42)
     _WAVEFORM_BARS = 15
+    _BAR_WIDTH = 3.33
+    _BAR_GAP = 3.0
+    _BAR_MIN_HEIGHT = 6.0
+    _BAR_MAX_HEIGHT = 28.0
     _SURFACE = QtGui.QColor("#2B2930")
     _OUTLINE = QtGui.QColor("#49454F")
-    _PRIMARY = QtGui.QColor("#A8C7FA")
+    _PRIMARY = QtGui.QColor(ACCENT_COLORS[ACCENT_COLOR])
 
     def __init__(self) -> None:
         super().__init__()
@@ -67,26 +83,30 @@ class StatusOverlay(QtWidgets.QWidget):
         painter.setCompositionMode(
             QtGui.QPainter.CompositionMode.CompositionMode_SourceOver
         )
-        unit = self.height() / 48
-        pill = QtCore.QRectF(self.rect()).adjusted(
-            4 * unit, 4 * unit, -4 * unit, -4 * unit
-        )
+        # Inset the 1 px pen by half a pixel to keep the border inside the margin.
+        pill = QtCore.QRectF(self.rect()).adjusted(4.5, 4.5, -4.5, -4.5)
         radius = pill.height() / 2
 
         painter.setBrush(self._SURFACE)
-        painter.setPen(QtGui.QPen(self._OUTLINE, unit))
+        painter.setPen(QtGui.QPen(self._OUTLINE, 1.0))
         painter.drawRoundedRect(pill, radius, radius)
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
 
         if self._status == "listening":
             painter.setBrush(self._PRIMARY)
             center = pill.center().y()
-            bar_width = 4 * unit
+            bar_width = self._BAR_WIDTH
             bar_radius = bar_width / 2
             for index, level in enumerate(self._level_history):
-                height = (6 + level * 22) * unit
+                height = self._BAR_MIN_HEIGHT + level * (
+                    self._BAR_MAX_HEIGHT - self._BAR_MIN_HEIGHT
+                )
                 offset = index - (self._WAVEFORM_BARS - 1) / 2
-                x = pill.center().x() + offset * 6 * unit - bar_radius
+                x = (
+                    pill.center().x()
+                    + offset * (bar_width + self._BAR_GAP)
+                    - bar_radius
+                )
                 painter.drawRoundedRect(
                     QtCore.QRectF(x, center - height / 2, bar_width, height),
                     bar_radius,
@@ -98,10 +118,10 @@ class StatusOverlay(QtWidgets.QWidget):
                 color = QtGui.QColor(self._PRIMARY)
                 color.setAlphaF(0.38 + pulse * 0.62)
                 painter.setBrush(color)
-                dot_radius = (3 + pulse) * unit
+                dot_radius = 3 + pulse
                 painter.drawEllipse(
                     QtCore.QPointF(
-                        pill.center().x() + (index - 1) * 9 * unit,
+                        pill.center().x() + (index - 1) * 9,
                         pill.center().y(),
                     ),
                     dot_radius,
@@ -111,18 +131,18 @@ class StatusOverlay(QtWidgets.QWidget):
             painter.setPen(
                 QtGui.QPen(
                     self._PRIMARY,
-                    3 * unit,
+                    3.0,
                     QtCore.Qt.PenStyle.SolidLine,
                     QtCore.Qt.PenCapStyle.RoundCap,
                 )
             )
             center_x = pill.center().x()
             painter.drawLine(
-                QtCore.QPointF(center_x, pill.center().y() - 8 * unit),
-                QtCore.QPointF(center_x, pill.center().y() + 3 * unit),
+                QtCore.QPointF(center_x, pill.center().y() - 8),
+                QtCore.QPointF(center_x, pill.center().y() + 3),
             )
             painter.drawPoint(
-                QtCore.QPointF(center_x, pill.center().y() + 9 * unit)
+                QtCore.QPointF(center_x, pill.center().y() + 9)
             )
 
     @QtCore.Slot(str)

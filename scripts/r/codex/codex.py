@@ -11,7 +11,6 @@ import tempfile
 from utils.term import set_terminal_title
 
 WRITABLE_ROOTS = (
-    Path.home() / "Downloads",
     Path.home() / ".android",
     Path.home() / ".gradle",
     Path.home() / ".cache" / "uv",
@@ -45,7 +44,6 @@ def main():
         'model_verbosity="low"',
         'hide_agent_reasoning=true',
         'tui.alternate_screen="always"',
-        'tui.animations=false',
         'tui.fullscreen_transcript=false',
         'tui.terminal_title=[]',
         'tui.status_line=["model","used-tokens","weekly-limit"]',
@@ -122,6 +120,9 @@ def main():
             + json.dumps(hook_command(status))
             + ',timeout=5}]}]'
         )
+    # Wrapper overrides require embedded mode; select it explicitly to avoid
+    # the shared-server fallback warning without changing the user's config.
+    command.append("--no-daemon")
     for value in config:
         command.extend(["-c", value])
     command.extend(args)
