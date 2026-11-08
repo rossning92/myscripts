@@ -1178,9 +1178,10 @@ class Script:
                 )
 
             arg_list = [script_path] + arg_list
-            arg_list = [
-                convert_to_unix_path(arg, wsl=self.cfg["wsl"]) for arg in arg_list
-            ]
+            if sys.platform == "win32":
+                arg_list = [
+                    convert_to_unix_path(arg, wsl=self.cfg["wsl"]) for arg in arg_list
+                ]
 
             # if sys.platform == "win32" and self.cfg["msys2"]:
             #     require_package("msys2")

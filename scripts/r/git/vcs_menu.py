@@ -281,7 +281,7 @@ class VcsDiffMenu(Menu):
             return
         filename = os.path.abspath(self._get_filename(item))
         self.run_raw(
-            lambda: start_script("ext/edit.py", args=[filename])
+            lambda: start_script("ext/nvim.py", args=[filename])
         )
 
     def __open_in_file_manager(self) -> None:

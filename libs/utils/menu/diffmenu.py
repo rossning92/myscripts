@@ -327,7 +327,7 @@ class DiffMenu(TextMenu):
 
             self.run_raw(
                 lambda: start_script(
-                    "ext/edit.py",
+                    "ext/nvim.py",
                     args=[os.path.abspath(filename), "--line", str(line_number)],
                 )
             )

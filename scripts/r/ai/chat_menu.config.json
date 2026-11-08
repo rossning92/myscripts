@@ -1,5 +1,6 @@
 {
   "dynamicTitle": true,
+  "instanceMode": "multiple",
   "matchClipboard": "[^\\\\]*\\.(jpg|jpeg|png|txt)$",
   "title": "chat_menu"
 }
