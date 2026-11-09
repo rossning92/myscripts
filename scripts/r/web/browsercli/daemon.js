@@ -146,6 +146,12 @@ const commands = {
     return { backend };
   },
 
+  async close() {
+    return await runOnActiveBackend("close", {}, () =>
+      withActivePage((page) => page.close()),
+    );
+  },
+
   async "close-browser"() {
     await closeBrowser();
   },

@@ -3,9 +3,8 @@ local awful = require("awful")
 
 local M = {}
 
--- Fractions of the work area assigned to the main (left-hand) pane.
--- Pinning cycles through 1:1 and 2:1 (main:pinned), then turns off.
-local MAIN_PANE_RATIOS = { 1 / 2, 2 / 3 }
+-- Keep the right third for the pinned client.
+local MAIN_PANE_RATIO = 2 / 3
 local STANDARD_ASPECT_RATIO = 16 / 9
 
 local pin_state = nil
@@ -65,8 +64,7 @@ function M.layout.arrange(p)
         return
     end
 
-    local main_pane_ratio = MAIN_PANE_RATIOS[pin_state.split_index]
-    local main_width = math.floor(area.width * main_pane_ratio + 0.5)
+    local main_width = math.floor(area.width * MAIN_PANE_RATIO + 0.5)
     local pinned_width = area.width - main_width
     local main_geometry = {
         x = area.x,
@@ -103,7 +101,7 @@ local function unpin(focus_client)
     end
 end
 
--- Pin a specific client on the right without cycling an existing pin.
+-- Pin a specific client on the right.
 function M.pin(c)
     if not c or not c.valid then return end
     if pin_state and pin_state.client == c then
@@ -117,7 +115,6 @@ function M.pin(c)
         floating = c.floating,
         fullscreen = c.fullscreen,
         maximized = c.maximized,
-        split_index = 1,
     }
 
     c.fullscreen = false
@@ -127,22 +124,14 @@ function M.pin(c)
     awful.layout.arrange(c.screen)
 end
 
--- Pin the focused client on the right. Further invocations cycle through the
--- configured pane ratios, then restore the normal max layout.
-function M.cycle_pin(c)
-    if pin_state then
-        if pin_state.client and pin_state.client.valid then
-            if pin_state.split_index < #MAIN_PANE_RATIOS then
-                pin_state.split_index = pin_state.split_index + 1
-                awful.layout.arrange(pin_state.client.screen)
-            else
-                unpin(c)
-            end
-            return
-        end
-        pin_state = nil
+-- Toggle the right-third pin, restoring the normal max layout when disabled.
+function M.toggle_pin(c)
+    if pin_state and pin_state.client.valid then
+        unpin(c)
+        return
     end
 
+    pin_state = nil
     M.pin(c or client.focus)
 end
 

@@ -2,5 +2,5 @@
   "commandWrapper": false,
   "globalHotkey": "win+alt+e",
   "hotkey": "alt+e",
-  "title": "edt"
+  "title": "nvim"
 }

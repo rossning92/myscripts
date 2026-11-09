@@ -89,7 +89,8 @@ def register_global_hotkeys_sxhkd(scripts: List[Script]):
     s = (
         "control+q\n"
         "  wmctrl -a myscriptsmgr"
-        f' || alacritty -e "{get_my_script_root()}/myscripts"\n\n'
+        ' || alacritty --title "myscriptsmgr" -o window.dynamic_title=false'
+        ' -e "$HOME/myscripts/myscripts" -t\n\n'
     )
 
     replacements = {

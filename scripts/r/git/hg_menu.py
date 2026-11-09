@@ -126,7 +126,7 @@ class HgMenu(VcsDiffMenu):
             ]
         else:
             diff_cmd = self.__build_diff_cmd("--", filename)
-        self._open_diff(root=os.getcwd(), diff_cmd=diff_cmd)
+        self._open_diff(filename=filename, root=os.getcwd(), diff_cmd=diff_cmd)
 
 
 if __name__ == "__main__":

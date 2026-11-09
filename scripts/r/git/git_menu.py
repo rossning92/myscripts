@@ -182,7 +182,7 @@ class GitMenu(VcsDiffMenu):
 
     def _get_commit_cmds(self, filenames, message, *, stage):
         cmds = [["git", "add", "--"] + filenames] if stage else []
-        cmds += [["git", "commit", "-m", message]]
+        cmds += [["git", "commit", "-m", message, "--"] + filenames]
         return cmds
 
     def _diff_all(self):
@@ -209,11 +209,11 @@ class GitMenu(VcsDiffMenu):
             self._open_commit_diff(item)
             return
         elif item.status == "??":
-            self._open_diff(untracked_file=filename)
+            self._open_diff(filename=filename, untracked_file=filename)
             return
         else:
             git_args = [filename]
-        self._open_diff(git_args=git_args)
+        self._open_diff(filename=filename, git_args=git_args)
 
 
 if __name__ == "__main__":

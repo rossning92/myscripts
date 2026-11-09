@@ -6,7 +6,7 @@ from utils.menu.confirmmenu import confirm
 
 class ContainerMenu(Menu):
     def __init__(self):
-        super().__init__(selected_index=1)
+        super().__init__(prompt="containers", quick_select=True)
         self.add_command(self.__delete_container, hotkey="delete")
         self.__refresh_containers()
 
@@ -16,7 +16,7 @@ class ContainerMenu(Menu):
             return
 
         parts = selected.split()
-        if not parts or parts[0] == "CONTAINER":
+        if not parts:
             return
 
         container_id = parts[0]
@@ -31,7 +31,7 @@ class ContainerMenu(Menu):
                 "ps",
                 "-a",
                 "--format",
-                "table {{.ID}}\t{{.Image}}\t{{.Status}}",
+                "{{.ID}}\t{{.Image}}\t{{.Status}}",
             ],
             universal_newlines=True,
         ).splitlines()

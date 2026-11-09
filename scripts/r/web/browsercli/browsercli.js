@@ -210,6 +210,14 @@ program
   });
 
 program
+  .command("close")
+  .description("Close the current page")
+  .action(async () => {
+    await sendCommand("close");
+    printSuccess("page closed");
+  });
+
+program
   .command("close-browser")
   .description("Close the whole browser (quits Chrome and all its tabs)")
   .action(async () => {
@@ -381,7 +389,7 @@ program
 
 program
   .command("screencast")
-  .description("Open a screencast viewer for the page")
+  .description("Open the page for manual interaction")
   .action(async () => {
     const result = await sendCommand("screencast");
     if (result) console.log(result);

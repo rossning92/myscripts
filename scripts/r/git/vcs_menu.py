@@ -14,8 +14,6 @@ from utils.menu.shellcmdmenu import ShellCmdMenu
 from utils.spinner import Spinner
 
 from git.vcs import (
-    get_amend_cmds,
-    get_commit_all_cmds,
     get_sync_cmds,
     prepend_recent_commits,
     prompt_commit_message,
@@ -28,11 +26,12 @@ def _run_shell_cmds(cmds: List[List[str]]) -> None:
 
 
 class VcsDiffView(DiffMenu):
-    """Diff view that can commit or amend every pending change."""
+    """Diff view that can commit or amend the files it shows."""
 
-    def __init__(self, vcs: str, **kwargs):
+    def __init__(self, owner: "VcsDiffMenu", filenames: List[str], **kwargs):
         super().__init__(**kwargs)
-        self.__vcs = vcs
+        self.__owner = owner
+        self.__filenames = filenames
         self.add_command(
             self.__commit, hotkey="alt+c", name="commit", show_in_hotkey_bar=True
         )
@@ -42,17 +41,17 @@ class VcsDiffView(DiffMenu):
         self.add_command(self.__amend_and_push, hotkey="alt+a", name="amend+push")
 
     def __commit(self) -> None:
-        message = prompt_commit_message()
+        message = prompt_commit_message(f"Commit {len(self.__filenames)} file(s)")
         if message is None:
             return
-        _run_shell_cmds(get_commit_all_cmds(self.__vcs, message))
+        _run_shell_cmds(self.__owner._get_commit_cmds(self.__filenames, message, stage=True))
         self._refresh()
 
     def __amend(self, push: bool = False) -> None:
-        if push and self.__vcs == "hg":
+        if push and self.__owner._vcs == "hg":
             self.set_message("amend+push is not supported for hg")
             return
-        _run_shell_cmds(get_amend_cmds(self.__vcs, push=push))
+        _run_shell_cmds(self.__owner._get_amend_cmds(self.__filenames, stage=True, push=push))
         self._refresh()
 
     def __amend_and_push(self) -> None:
@@ -182,7 +181,8 @@ class VcsDiffMenu(Menu):
     ) -> List[List[str]]:
         cmds = [[self._vcs, "add", "--"] + filenames] if stage else []
         if self._vcs == "git":
-            cmds += [["git", "commit", "--amend", "--no-edit"]]
+            # The pathspec leaves other staged files out of the commit.
+            cmds += [["git", "commit", "--amend", "--no-edit", "--"] + filenames]
             if push:
                 cmds += [["git", "push", "--force-with-lease"]]
         elif self._vcs == "hg":
@@ -213,13 +213,18 @@ class VcsDiffMenu(Menu):
     def _diff_all(self) -> None:
         raise NotImplementedError
 
-    def _open_diff(self, **kwargs) -> None:
+    def _open_diff(self, filename: Optional[str] = None, **kwargs) -> None:
         # A past commit has no pending changes, so it gets the plain viewer.
         kwargs["prompt_prefix"] = self.get_prompt()
         if self._is_readonly():
             DiffMenu(**kwargs).exec()
         else:
-            VcsDiffView(self._vcs, **kwargs).exec()
+            # Without a single file, the view shows every pending change.
+            if filename is not None:
+                filenames = [filename]
+            else:
+                filenames = [self._get_filename(item) for item in self.items]
+            VcsDiffView(self, filenames, **kwargs).exec()
         self._refresh()
 
     def set_prompt(self, prompt: str) -> None:

@@ -22,7 +22,6 @@ from git.vcs import (
     discard_all_changes,
     get_amend_cmds,
     get_commit_all_cmds,
-    get_git_recent_commits,
     get_hg_recent_commits,
     get_sync_cmds,
     get_vcs_output,
@@ -46,6 +45,8 @@ class Repo:
         self.ahead = 0
         self.behind = 0
         self.recent_commits: List[str] = []
+        self.commit_timestamp = 0.0
+        self.sort_group = 0
 
     @property
     def vcs(self) -> Optional[str]:
@@ -90,12 +91,26 @@ class Repo:
                     self.dirty = True
                     break
 
-        self.recent_commits = get_git_recent_commits(self.path)
+        # Reuse the log lookup for sorting; no extra process or file scan.
+        log = get_vcs_output(
+            "git", "log", "-5", "--format=%ct %h %as %s", cwd=self.path
+        )
+        self.recent_commits = []
+        if log:
+            lines = log.splitlines()
+            self.commit_timestamp = float(lines[0].split(" ", 1)[0])
+            self.recent_commits = [line.split(" ", 1)[1] for line in lines]
 
     def _refresh_hg(self):
-        self.branch = get_vcs_output(
-            "hg", "log", "-r", ".", "--template", "{activebookmark}", cwd=self.path
+        info = get_vcs_output(
+            "hg", "log", "-r", ".", "--template",
+            "{date|hgdate}\\n{activebookmark}", cwd=self.path
         )
+        self.branch = None
+        if info:
+            date, _, bookmark = info.partition("\n")
+            self.commit_timestamp = float(date.split()[0])
+            self.branch = bookmark
         if not self.branch:
             self.branch = (
                 get_vcs_output(
@@ -194,23 +209,22 @@ def _get_repos() -> List[Repo]:
     extra = os.environ.get("REPO_PATHS", "")
     extra_dirs += [d.strip() for d in extra.split(os.pathsep)]
 
-    def _mtime(path: str) -> float:
-        try:
-            return os.path.getmtime(path)
-        except OSError:
-            return 0.0
-
     for d in extra_dirs:
         if not d:
             continue
-        # Sort wildcard matches by directory modification time, newest first.
-        for p in sorted(glob.glob(os.path.expanduser(d)), key=_mtime, reverse=True):
+        for p in sorted(glob.glob(os.path.expanduser(d))):
             if os.path.isabs(p) and os.path.isdir(p):
                 real = os.path.realpath(p)
                 if real not in seen_paths:
                     seen_paths.add(real)
                     dirs.append(p)
-    return [Repo(d) for d in dirs]
+    repos = [Repo(d) for d in dirs]
+    # Keep myscripts first and parent directories in discovery order.
+    groups = {}
+    for repo in repos[1:]:
+        parent = os.path.realpath(os.path.dirname(repo.path))
+        repo.sort_group = groups.setdefault(parent, len(groups) + 1)
+    return repos
 
 
 def _is_linked_worktree(repo: Repo) -> bool:
@@ -496,7 +510,8 @@ class RepoMenu(Menu[Repo]):
             nonlocal repos
             repos = _get_repos()
             with ThreadPoolExecutor() as pool:
-                pool.map(Repo.refresh, repos)
+                list(pool.map(Repo.refresh, repos))
+            repos.sort(key=lambda repo: (repo.sort_group, -repo.commit_timestamp))
 
         self._refresh_thread = threading.Thread(target=worker, daemon=True)
         self._refresh_thread.start()
@@ -509,7 +524,13 @@ class RepoMenu(Menu[Repo]):
         self._refresh_thread = None
         self.set_prompt(_MODULE_NAME)
         if repos is not None:
+            selected = self.get_selected_item()
             self.items[:] = repos
+            if selected is not None:
+                for index, repo in enumerate(repos):
+                    if repo.path == selected.path:
+                        self.set_selected_row(index)
+                        break
             self.update_screen()
 
 

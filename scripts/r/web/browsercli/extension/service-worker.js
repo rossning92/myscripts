@@ -99,10 +99,19 @@ async function open(url) {
   await chrome.tabs.update(tab.id, { active: true });
 }
 
-async function withActiveDebuggee(callback) {
+async function getActiveTab() {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!activeTab?.id) throw new Error("No active tab");
+  return activeTab;
+}
 
+async function closePage() {
+  const activeTab = await getActiveTab();
+  await chrome.tabs.remove(activeTab.id);
+}
+
+async function withActiveDebuggee(callback) {
+  const activeTab = await getActiveTab();
   const target = { tabId: activeTab.id };
   await chrome.debugger.attach(target, "1.3");
   let detachFrameContexts = () => {};
@@ -215,6 +224,9 @@ async function run() {
         let result;
         if (command.command === "open") {
           await open(command.args?.url);
+          result = { ok: true };
+        } else if (command.command === "close") {
+          await closePage();
           result = { ok: true };
         } else if (command.command === "ping") {
           result = { ok: true };

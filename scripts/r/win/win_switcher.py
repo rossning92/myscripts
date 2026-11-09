@@ -20,8 +20,10 @@ from utils.window import (
 _WINDOW_CLOSE_WAIT_SECONDS = 1.0
 _AUTO_REFRESH_INTERVAL_SECONDS = 2.0
 _PROMPT = "activate window"
-# Fits current Claude window titles, so the session id column lines up.
+# Fits current Claude window titles, so the option columns line up.
 _TITLE_WIDTH = 56
+# Caps each option column so one long value (e.g. a path) can't push the rest off.
+_OPTION_WIDTH = 24
 
 _STATUS_COLOR_MAPPING: Dict[WindowStatus, str] = {
     "success": "green",
@@ -44,6 +46,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.script_status: Dict[str, str] = {}
         self.__visited_success: Set[str] = set()
         self.__pinned: Set[str] = set()
+        self.__option_widths: Dict[str, int] = {}
         self.add_command(self.__refresh_windows, hotkey="ctrl+r")
         self.add_command(self.__close_windows, hotkey="delete")
         self.add_command(
@@ -94,6 +97,11 @@ class WinSwitcherMenu(Menu[WindowItem]):
         }
         self.items = get_windows(script_status=self.script_status)
         self.items.sort(key=self.__get_sort_key)
+        names = sorted({name for w in self.items for name in w.options})
+        self.__option_widths = {
+            name: min(max(len(w.options.get(name, "")) for w in self.items), _OPTION_WIDTH)
+            for name in names
+        }
 
         current_success_titles = {
             w.title
@@ -176,15 +184,18 @@ class WinSwitcherMenu(Menu[WindowItem]):
 
     def get_item_text(self, item: WindowItem) -> str:
         title = item.title[:_TITLE_WIDTH]
-        session_id = item.session_id[:8]
-        if session_id:
+        options = "  ".join(
+            item.options.get(name, "")[:width].ljust(width)
+            for name, width in self.__option_widths.items()
+        ).rstrip()
+        if options:
             title = title.ljust(_TITLE_WIDTH)
         if (
             item.get_status(self.script_status) == "success"
             and item.title not in self.__visited_success
         ):
             title = f"\x1b[1m{title}\x1b[22m"
-        return f"{title}  {session_id}" if session_id else title
+        return f"{title}  {options}" if options else title
 
     def get_item_color(self, item: WindowItem) -> str:
         if item.title in self.__pinned:

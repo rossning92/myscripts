@@ -64,6 +64,12 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
   }
 
   function render() {
+    const fit = Math.min(
+      stage.clientWidth / canvas.width,
+      stage.clientHeight / canvas.height
+    );
+    canvas.style.width = `${canvas.width * fit}px`;
+    canvas.style.height = `${canvas.height * fit}px`;
     if (scale === 1) {
       panX = 0;
       panY = 0;
@@ -183,6 +189,7 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
   }
 
   return {
+    resize: render,
     zoomIn: () => zoomTo(scale * 1.25),
     zoomOut: () => zoomTo(scale / 1.25),
   };

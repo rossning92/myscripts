@@ -3,6 +3,7 @@ import ctypes.util
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -39,10 +40,10 @@ _WINDOW_STATUS_SYMBOLS: Dict[WindowStatus, str] = {
 }
 
 class WindowItem:
-    def __init__(self, id, title, session_id=""):
+    def __init__(self, id, title, options: Optional[Dict[str, str]] = None):
         self.id = id
         self.title = title
-        self.session_id = session_id
+        self.options = options or {}
 
     def get_status(self, script_status: Dict[str, str]) -> WindowStatus:
         if any(character in self.title for character in SPINNER_CHARS):
@@ -155,6 +156,25 @@ def _get_windows_win() -> List[WindowItem]:
     return windows
 
 
+def _tmux_pane_user_options(pane_ids: List[str]) -> Dict[str, Dict[str, str]]:
+    """Every user option (@name) set on each pane, in one tmux call."""
+    args = ["tmux"]
+    for pane_id in pane_ids:
+        args += ["display", "-p", "-t", pane_id, "#{pane_id}", ";"]
+        args += ["show", "-p", "-t", pane_id, ";"]
+    output = subprocess.check_output(args[:-1], text=True, stderr=subprocess.DEVNULL)
+    options: Dict[str, Dict[str, str]] = {}
+    pane_options: Dict[str, str] = {}
+    for line in output.splitlines():
+        if line.startswith("%"):
+            pane_options = options.setdefault(line, {})
+        elif line.startswith("@"):
+            name_value = shlex.split(line)
+            if len(name_value) == 2 and name_value[1]:
+                pane_options[name_value[0]] = name_value[1]
+    return options
+
+
 def _get_windows_tmux() -> List[WindowItem]:
     try:
         output = subprocess.check_output(
@@ -163,26 +183,22 @@ def _get_windows_tmux() -> List[WindowItem]:
                 "list-windows",
                 "-a",
                 "-F",
-                "#{window_id}\t#{window_name}\t#{@claude_session_id}",
+                "#{window_id}\t#{window_name}\t#{pane_id}",
             ],
             text=True,
             stderr=subprocess.DEVNULL,
         )
-        windows = []
-        for line in output.splitlines():
-            if line:
-                parts = line.split("\t", 2)
-                assert len(parts) == 3
-                window_id, name, session_id = parts
-                if name == "win_switcher":
-                    continue
-
-                windows.append(
-                    WindowItem(
-                        id=f"tmux:{window_id}", title=name, session_id=session_id
-                    )
-                )
-        return windows
+        rows = [line.split("\t", 2) for line in output.splitlines() if line]
+        options = _tmux_pane_user_options([pane_id for _, _, pane_id in rows])
+        return [
+            WindowItem(
+                id=f"tmux:{window_id}",
+                title=name,
+                options=options.get(pane_id, {}),
+            )
+            for window_id, name, pane_id in rows
+            if name != "win_switcher"
+        ]
     except Exception:
         return []
 

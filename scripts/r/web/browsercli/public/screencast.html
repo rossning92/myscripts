@@ -934,8 +934,10 @@
             currentFrameData = msg.params.data;
             const img = new Image();
             img.onload = () => {
+              const resized = canvas.width !== img.width || canvas.height !== img.height;
               canvas.width = img.width;
               canvas.height = img.height;
+              if (resized) zoom.resize();
               ctx.drawImage(img, 0, 0);
               shareBtn.disabled = false;
               copyBtn.disabled = false;
