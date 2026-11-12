@@ -1567,7 +1567,13 @@ class ChatMenu(Menu[Line]):
         if not super().paste():
             from PIL import Image, ImageGrab
 
-            im = ImageGrab.grabclipboard()
+            try:
+                im = ImageGrab.grabclipboard()
+            except (ChildProcessError, OSError, NotImplementedError) as e:
+                self.set_message(
+                    f"cannot read image clipboard: {e}; use Alt+A to attach a file"
+                )
+                return False
 
             if isinstance(im, Image.Image):
                 im = im.convert("RGB")

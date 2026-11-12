@@ -6,6 +6,7 @@ import sys
 from typing import Dict, List, Optional
 
 from _shutil import quote_arg, write_temp_file
+from .title import set_terminal_title
 
 _windows_vt_enabled = False
 
@@ -53,14 +54,6 @@ def get_terminal_title():
         if ret > 0:
             return title_buff.value
     return None
-
-
-def set_terminal_title(title):
-    if sys.platform == "win32":
-        ctypes.windll.kernel32.SetConsoleTitleW(title)
-    else:
-        sys.stdout.write(f"\033]0;{title}\007")
-        sys.stdout.flush()
 
 
 def hide_terminal_from_taskbar():

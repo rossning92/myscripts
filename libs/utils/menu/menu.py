@@ -336,6 +336,18 @@ def _get_ansi_color(code: int) -> int:
 _ANSI_CSI_RE = re.compile(r"\x1b\[([0-9;]*)m")
 
 
+def _pair_colors(attr: int) -> Tuple[int, int]:
+    n = curses.pair_number(attr)
+    return next((k for k, v in Menu._color_pair_map.items() if v == n), (-1, -1))
+
+
+def _set_color(attr: int, fg: Optional[int] = None, bg: Optional[int] = None) -> int:
+    # A color pair holds both colors, so setting one keeps the other.
+    cur_fg, cur_bg = _pair_colors(attr)
+    pair = Menu._get_color_pair(cur_fg if fg is None else fg, cur_bg if bg is None else bg)
+    return (attr & ~curses.A_COLOR) | pair
+
+
 def _apply_ansi_escape(
     s: str, i: int, attr: int, default_attr: int
 ) -> Optional[Tuple[int, int]]:
@@ -368,15 +380,19 @@ def _apply_ansi_escape(
             else:
                 attr &= ~curses.A_REVERSE
         elif code.isdigit() and 30 <= int(code) <= 37:
-            attr = (attr & ~curses.A_COLOR) | Menu._get_color_pair(
-                _get_ansi_color(int(code))
-            )
+            attr = _set_color(attr, fg=_get_ansi_color(int(code)))
         elif code == "38" and j + 2 < len(codes) and codes[j + 1] == "5":
             # 256-color foreground.
-            attr = (attr & ~curses.A_COLOR) | Menu._get_color_pair(int(codes[j + 2]))
+            attr = _set_color(attr, fg=int(codes[j + 2]))
             j += 2
         elif code == "39":  # Reset foreground to the default color.
-            attr = (attr & ~curses.A_COLOR) | (default_attr & curses.A_COLOR)
+            attr = _set_color(attr, fg=_pair_colors(default_attr)[0])
+        elif code == "48" and j + 2 < len(codes) and codes[j + 1] == "5":
+            # 256-color background.
+            attr = _set_color(attr, bg=int(codes[j + 2]))
+            j += 2
+        elif code == "49":  # Reset background to the default color.
+            attr = _set_color(attr, bg=_pair_colors(default_attr)[1])
         j += 1
     return attr, m.end()
 
@@ -691,7 +707,7 @@ class Menu(Generic[T]):
     def __goto(self):
         selected = self.get_selected_item()
         if selected:
-            from ext.contextmenu import ContextMenu
+            from .contextmenu import ContextMenu
 
             ContextMenu(param=str(selected)).exec()
 

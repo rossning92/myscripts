@@ -26,11 +26,11 @@ TITLE_DIVIDER = " - "
 WindowStatus = Literal["normal", "success", "waiting", "error", "running"]
 
 _WINDOW_STATUS_PRIORITY: Dict[WindowStatus, int] = {
-    "success": 0,
     "waiting": 0,
-    "error": 1,
-    "running": 2,
-    "normal": 3,
+    "success": 1,
+    "error": 2,
+    "running": 3,
+    "normal": 4,
 }
 
 _WINDOW_STATUS_SYMBOLS: Dict[WindowStatus, str] = {
@@ -429,7 +429,7 @@ def get_windows(
 
     if script_status:
         windows.sort(
-            key=lambda x: (_WINDOW_STATUS_PRIORITY.get(x.get_status(script_status), 3),)
+            key=lambda x: (_WINDOW_STATUS_PRIORITY.get(x.get_status(script_status), 4),)
         )
 
     return windows

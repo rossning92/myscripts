@@ -9,9 +9,9 @@
     var STYLE = [
         "mark.ropen-annot{background:var(--mark-bg);color:inherit;border-radius:2px;",
         "box-shadow:0 0 0 1px #b89000 inset;cursor:pointer;padding:0 1px;}",
-        "#annot-copy{display:none;align-items:center;gap:4px;padding:5px 6px;color:var(--muted);background:var(--btn-bg);",
+        "#annot-copy,#annot-btn{display:none;align-items:center;gap:4px;padding:5px 6px;color:var(--muted);background:var(--btn-bg);",
         "border:1px solid var(--border);border-radius:4px;cursor:pointer;font:12px/1 sans-serif;}",
-        "#annot-copy:hover{background:var(--btn-hover);color:var(--fg);}",
+        "#annot-copy:hover,#annot-btn:hover{background:var(--btn-hover);color:var(--fg);}",
         "#annot-copy.ok{color:#4ade80;border-color:#4ade80;}",
         "#annot-popup{position:fixed;z-index:21;display:none;width:280px;padding:10px;",
         "background:var(--btn-bg);border:1px solid var(--border);border-radius:6px;",
@@ -27,6 +27,7 @@
         "#annot-popup button.del{margin-right:auto;background:#4a1f1f;color:#ff9b9b;",
         "border-color:#5a2a2a;}",
         ".annot-key{opacity:.6;font-size:11px;margin-left:4px;}",
+        "#annot-btn{position:fixed;z-index:21;}",
     ].join("");
 
     function injectStyle() {
@@ -45,7 +46,6 @@
     var annots = [];
     var editingId = null;
     var editingNew = false; // true while the edited annotation is unsaved (drives discard-on-cancel)
-    var selectionTimer = null;
     var els = {};
 
     function storageKey() {
@@ -219,6 +219,14 @@
         return target.getBoundingClientRect();
     }
 
+    function placeNoteButton() {
+        var sel = container && els.popup.style.display !== "block" && currentSelection();
+        els.btn.style.display = sel ? "flex" : "none";
+        if (!sel) return;
+        els.btn.style.top = Math.min(sel.rect.bottom + 6, window.innerHeight - 30) + "px";
+        els.btn.style.left = Math.min(sel.rect.right, window.innerWidth - 34) + "px";
+    }
+
     function onSelectionDone() {
         if (!container || els.popup.style.display === "block") return;
         var sel = currentSelection();
@@ -335,9 +343,18 @@
             "</div>";
         document.body.appendChild(popup);
 
+        // Shown beside a selection instead of auto-opening the dialog, so the
+        // selection stays copyable.
+        var btn = document.createElement("button");
+        btn.id = "annot-btn";
+        btn.title = "Add note";
+        btn.innerHTML = icon("note");
+        document.body.appendChild(btn);
+
         els = {
             built: true,
             copy: copy,
+            btn: btn,
             popup: popup,
             input: popup.querySelector("input"),
             save: popup.querySelector(".save"),
@@ -350,11 +367,11 @@
         els.cancel.onclick = cancelPopup;
         els.del.onclick = removeCurrent;
 
-        // Selection handles emit intermediate ranges while they are being adjusted.
-        document.addEventListener("selectionchange", function () {
-            clearTimeout(selectionTimer);
-            selectionTimer = setTimeout(onSelectionDone, 1000);
-        });
+        document.addEventListener("selectionchange", placeNoteButton);
+        document.addEventListener("scroll", placeNoteButton, true);
+        // Keep the selection alive through the click.
+        btn.addEventListener("mousedown", function (e) { e.preventDefault(); });
+        btn.onclick = onSelectionDone;
         // Keep clicks on the dialog buttons from stealing focus from the input,
         // so they don't trip the blur-to-cancel below.
         popup.addEventListener("mousedown", function (e) {
@@ -407,6 +424,7 @@
             if (els.built) {
                 els.copy.style.display = "none";
                 els.popup.style.display = "none";
+                els.btn.style.display = "none";
             }
         },
     };

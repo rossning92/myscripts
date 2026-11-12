@@ -88,9 +88,12 @@ def add_keyboard_hooks(keyboard_hooks):
 def register_global_hotkeys_sxhkd(scripts: List[Script]):
     s = (
         "control+q\n"
-        "  wmctrl -a myscriptsmgr"
-        ' || alacritty --title "myscriptsmgr" -o window.dynamic_title=false'
-        ' -e "$HOME/myscripts/myscripts" -t\n\n'
+        '  if [ "$(xdotool getactivewindow getwindowname)" = "myscriptsmgr" ]; then '
+        'tmux select-window -t "=myscriptsmgr" 2>/dev/null || '
+        "tmux new-window -n myscriptsmgr myscripts; "
+        "else wmctrl -a myscriptsmgr || "
+        'alacritty --title "myscriptsmgr" -o window.dynamic_title=false '
+        '-e "$HOME/myscripts/myscripts" -t; fi\n\n'
     )
 
     replacements = {
@@ -280,9 +283,12 @@ def register_global_hotkeys_win(scripts: List[Script]):
             "START_SCRIPT": os.path.abspath("bin/start_script.py"),
             "RUN_SCRIPT": os.path.abspath("bin/run_script.py"),
             "HOTKEYS": hotkeys,
-            "MATCH_CLIPBOARD": str(match_clipboard)
-            .replace("\\\\", "\\")
-            .replace("'", '"'),
+            "MATCH_CLIPBOARD": "["
+            + ", ".join(
+                "[" + ", ".join(map(_ahk_quote, item)) + "]"
+                for item in match_clipboard
+            )
+            + "]",
         },
     )
 

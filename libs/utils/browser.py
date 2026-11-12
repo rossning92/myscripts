@@ -30,5 +30,8 @@ def open_url(url, profile_name=None):
                 return
     elif is_in_termux():
         subprocess.call(["termux-open-url", url])
+    elif sys.platform == "linux" and not os.environ.get("DISPLAY"):
+        # Opens in the local browser when running headless on the devserver.
+        subprocess.call(["ropen", url])
     else:
         webbrowser.open(url)

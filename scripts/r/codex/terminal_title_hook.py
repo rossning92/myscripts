@@ -7,6 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from utils.term.title import set_terminal_title
 
 if len(sys.argv) < 2 or not sys.argv[1]:
     raise SystemExit(2)
@@ -52,10 +53,7 @@ if "--print-title" in sys.argv[2:]:
     raise SystemExit(0)
 
 try:
-    with open(
-        os.environ.get("CODEX_TERMINAL_TTY") or "/dev/tty", "w", encoding="utf-8"
-    ) as tty:
-        tty.write(f"\033]0;{terminal_title}\007")
+    set_terminal_title(terminal_title, tty=os.environ.get("CODEX_TERMINAL_TTY") or "/dev/tty")
 except OSError:
     # Non-interactive launches may not have a terminal, or it may have closed.
     pass

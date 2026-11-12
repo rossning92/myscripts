@@ -8,12 +8,17 @@ import subprocess
 import sys
 import tempfile
 
+from utils.host_command_broker import CLIENT_PATH, MOUNT_PATH, HostCommandBroker
 from utils.term import set_terminal_title
+from utils.term.title import SOCKET_ENV, TerminalTitleRelay
 
 WRITABLE_ROOTS = (
     Path.home() / ".android",
     Path.home() / ".gradle",
     Path.home() / ".cache" / "uv",
+    Path.home() / ".config" / "godot",
+    Path.home() / ".cache" / "godot",
+    Path.home() / ".local" / "share" / "godot",
 )
 
 
@@ -28,6 +33,43 @@ def hook_command(status):
     command += "; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
     command += "; if ($result) { $Host.UI.RawUI.WindowTitle = ($result | ConvertFrom-Json).terminal_title }"
     return command + "; '{}'"
+
+
+def sandbox_command(command, broker=None):
+    """Confine the whole Codex process, including its tools and hooks."""
+    bwrap = shutil.which("bwrap")
+    if not bwrap:
+        raise RuntimeError("Install bubblewrap before running Codex on Linux")
+    workspace = Path.cwd().resolve()
+    if workspace == Path.home().resolve() or str(workspace) in {
+        "/", "/home", "/root", "/tmp", "/run", "/var", "/proc", "/dev",
+        "/sys", "/etc", "/usr", "/bin", "/sbin", "/lib", "/lib64",
+    } or any(workspace.is_relative_to(path) for path in ("/proc", "/dev", "/sys", "/run")):
+        raise RuntimeError("Choose a project directory, not home or a system directory")
+    codex_home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).resolve()
+    codex_home.mkdir(parents=True, exist_ok=True)
+    # Isolate processes, drop capabilities, share network.
+    # Host files remain readable so installed tools and launcher paths still work.
+    # Private /tmp and /run hide host sockets and temporary files.
+    sandbox = [
+        bwrap, "--unshare-all", "--share-net", "--die-with-parent",
+        "--new-session", "--cap-drop", "ALL", "--ro-bind", "/", "/",
+        "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+        "--tmpfs", "/run",
+    ]
+    # Opt in at launch with CODEX_GPU=1; keep GPU devices hidden by default.
+    if os.environ.get("CODEX_GPU") == "1":
+        for path in (Path("/dev/dri"), *sorted(Path("/dev").glob("nvidia*"))):
+            if path.exists() and (path.is_dir() or path.is_char_device()):
+                sandbox.extend(["--dev-bind", str(path), str(path)])
+    for path in (workspace, codex_home, *WRITABLE_ROOTS):
+        if path.exists():
+            sandbox.extend(["--bind", str(path), str(path)])
+    if broker is not None:
+        sandbox.extend(["--ro-bind", str(broker.endpoint), MOUNT_PATH])
+        sandbox.extend(["--setenv", SOCKET_ENV, MOUNT_PATH + "/title.sock"])
+    sandbox.extend(["--setenv", "TMPDIR", "/tmp", "--chdir", str(workspace), "--"])
+    return sandbox + command
 
 
 def main():
@@ -58,7 +100,6 @@ def main():
         if args[1]:
             developer_instructions += "\n\n" + args[1]
         args = args[2:]
-    config.append("developer_instructions=" + json.dumps(developer_instructions))
 
     os.chdir(Path(__file__).resolve().parents[3])
     if os.environ.get("CODEX_PROJECT_DIR"):
@@ -90,8 +131,20 @@ def main():
         process_root = os.readlink("/proc/self/root")
     except OSError:
         process_root = ""
-    if fnmatch.fnmatch(process_root, "*/com.termux/files/usr/var/lib/proot-distro/containers/*/rootfs"):
+    use_external_sandbox = sys.platform == "linux" and not fnmatch.fnmatch(
+        process_root, "*/com.termux/files/usr/var/lib/proot-distro/containers/*/rootfs"
+    )
+    if use_external_sandbox:
         command = [codex, "--dangerously-bypass-approvals-and-sandbox"]
+        developer_instructions += (
+            "\n\nYou run inside Bubblewrap. For a command that needs host access, use "
+            f'{CLIENT_PATH} --reason "why host access is needed" '
+            '-- command arg... . The host opens an approval pane in the originating tmux window. '
+            "Never approve your own request or interact with the approval pane. "
+            "Each request needs approval; denial means do not retry without new user direction. "
+            "Use --timeout SECONDS before -- for commands longer than 300 seconds (max 3600). "
+            "Shell syntax requires an explicit bash -c argument. Host commands have no interactive stdin."
+        )
     else:
         command = [codex, "--sandbox", "workspace-write", "--ask-for-approval", "on-request"]
         config += [
@@ -100,6 +153,7 @@ def main():
             "sandbox_workspace_write.writable_roots="
             + json.dumps([str(path) for path in WRITABLE_ROOTS]),
         ]
+    config.append("developer_instructions=" + json.dumps(developer_instructions))
 
     try:
         os.environ["CODEX_TERMINAL_TTY"] = os.ttyname(sys.stdin.fileno())
@@ -130,7 +184,13 @@ def main():
     set_terminal_title("Codex (new)")
     if sys.platform == "win32":
         return subprocess.call(command)
-    os.execv(codex, command)
+    if use_external_sandbox:
+        with HostCommandBroker() as broker:
+            with TerminalTitleRelay(
+                broker.endpoint / "title.sock", os.environ["CODEX_TERMINAL_TTY"] or "/dev/tty"
+            ):
+                return subprocess.call(sandbox_command(command, broker))
+    os.execv(command[0], command)
 
 
 if __name__ == "__main__":

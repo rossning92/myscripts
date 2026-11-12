@@ -34,4 +34,4 @@
     font-size: 12px;
 }
 .tbtn:hover { background: var(--btn-hover); color: var(--fg); }
-.tbtn svg, #annot-copy svg { width: 14px; height: 14px; }
+.tbtn svg, #annot-copy svg, #annot-btn svg { width: 14px; height: 14px; }
