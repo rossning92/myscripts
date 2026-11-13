@@ -809,9 +809,9 @@ def _main():
 
     args = parser.parse_args()
 
-    if args.tmux and not is_in_tmux() and has_tmux_session():
-        print("Attaching to existing tmux session...")
-        subprocess.check_call(["tmux", "attach"])
+    if args.tmux and not is_in_tmux() and has_tmux_session("myscripts"):
+        print("Attaching to tmux session myscripts...")
+        subprocess.check_call(["tmux", "attach", "-t", "=myscripts"])
         return
 
     # Output if an instance is already running.
@@ -870,6 +870,8 @@ def _main():
                 "-f",
                 os.path.join(MYSCRIPT_ROOT, "settings", "tmux", ".tmux.conf"),
                 "new",
+                "-s",
+                "myscripts",
                 "-n",
                 "myscriptsmgr",
                 sys.executable,

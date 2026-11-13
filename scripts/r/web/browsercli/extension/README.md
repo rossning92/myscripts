@@ -9,8 +9,9 @@
    Chrome. Subsequent commands control that tab. Follow it with `browsercli snapshot`
    or `browsercli screenshot`.
 
-`browsercli open --extension https://example.com` remains available as a
-shortcut that selects the extension backend and navigates in one command.
+`open` uses the saved backend, initially a headless browser. Backend choices persist
+across daemon restarts. Named sessions use the managed browser and do not support
+extension mode.
 
 The bridge only listens on localhost. An **ON** badge appears while the extension is
 connected. Chrome may suspend extensions that have been idle; browsercli waits

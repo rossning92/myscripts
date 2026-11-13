@@ -4,7 +4,7 @@ cat >~/.config/autostart/myscripts.desktop <<EOF
 [Desktop Entry]
 Type=Application
 Name=myscripts
-Exec=alacritty --title "myscriptsmgr" -o window.dynamic_title=false -e $HOME/myscripts/myscripts -t
+Exec=alacritty --title "myscriptsmgr" -o window.dynamic_title=false -e $HOME/myscripts/myscripts --startup
 StartupNotify=false
 Terminal=false
 EOF

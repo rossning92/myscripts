@@ -88,12 +88,9 @@ def add_keyboard_hooks(keyboard_hooks):
 def register_global_hotkeys_sxhkd(scripts: List[Script]):
     s = (
         "control+q\n"
-        '  if [ "$(xdotool getactivewindow getwindowname)" = "myscriptsmgr" ]; then '
-        'tmux select-window -t "=myscriptsmgr" 2>/dev/null || '
-        "tmux new-window -n myscriptsmgr myscripts; "
-        "else wmctrl -a myscriptsmgr || "
-        'alacritty --title "myscriptsmgr" -o window.dynamic_title=false '
-        '-e "$HOME/myscripts/myscripts" -t; fi\n\n'
+        "  wmctrl -a myscriptsmgr"
+        ' || alacritty --title "myscriptsmgr" -o window.dynamic_title=false'
+        ' -e "$HOME/myscripts/myscripts"\n\n'
     )
 
     replacements = {

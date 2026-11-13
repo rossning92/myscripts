@@ -141,22 +141,8 @@ program
   .addHelpText(
     "after",
     `
-Agent workflow:
-  $ browsercli open https://example.com
-  $ browsercli snapshot
-  $ browsercli click --ref @e0
-  $ browsercli fill --ref @e1 "search terms"
-  $ browsercli press Enter
-  $ browsercli snapshot
-
-Isolated browser session:
-  $ export BROWSERCLI_SESSION=session-1
-  $ browsercli open https://example.com
-  $ browsercli snapshot
-
-Use snapshot refs for actions, then snapshot again after the page changes.
-Prefer clicking links found in the current page over opening their URLs directly.
-Use open for the initial page or when the destination has no clickable link.
+open uses the saved backend (initially a headless browser).
+BROWSERCLI_SESSION=<name> selects a separate managed browser instance.
 Use back/forward for history; open starts a new navigation.
 Run browsercli help COMMAND for command options.`,
   );
@@ -165,14 +151,9 @@ program
   .command("open")
   .description("Open a URL")
   .argument("<url>", "URL to open")
-  .option(
-    "--extension",
-    "Open in a new tab of Chrome running the browsercli extension"
-  )
-  .action(async (url, options) => {
+  .action(async (url) => {
     const status = await sendCommand("open", {
       url,
-      extension: options.extension,
     });
     if (status) {
       if (status.mode === "extension") {
@@ -189,9 +170,12 @@ program
 
 program
   .command("connect")
-  .description("Explicitly select a browser backend.")
+  .description("Select a browser backend")
   .argument("<backend>", "Backend to use: browser or extension")
   .option("--headed", "Open the managed browser in headed mode")
+  .addHelpText("after", `
+connect saves the default backend across restarts; open uses that saved backend.
+Named sessions use the managed browser and do not support extension mode.`)
   .action(async (backend, options) => {
     const status = await sendCommand("connect", {
       backend,

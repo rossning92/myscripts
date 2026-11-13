@@ -90,18 +90,7 @@ async function serveStatic(pathname, res) {
 }
 
 const commands = {
-  async open({ url, headed, extension }) {
-    if (extension) {
-      if (currentSession()) {
-        throw new Error(
-          "Named sessions are only supported by the managed browser backend",
-        );
-      }
-      await extensionBridge.send("open", { url });
-      defaultBackend = "extension";
-      await saveBackendPreference(defaultBackend);
-      return { mode: "extension", backend: activeBackend() };
-    }
+  async open({ url, headed }) {
     if (activeBackend() === "extension") {
       await extensionBridge.send("open", { url });
       return { mode: "extension", backend: activeBackend() };
