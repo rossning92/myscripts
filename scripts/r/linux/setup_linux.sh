@@ -89,7 +89,7 @@ install_picom=${INSTALL_PICOM:-0}
 
 common_packages=(acpi alacritty curl fzf git less neovim playerctl unzip usbutils wmctrl xclip zip
     bluez pulseaudio pavucontrol alsa-utils udisks2 udiskie
-    fcitx5 fcitx5-chinese-addons pqiv awesome sxhkd zathura flameshot xsecurelock xss-lock)
+    fcitx5 fcitx5-chinese-addons pqiv awesome sxhkd zathura xsecurelock xss-lock)
 if [[ $install_picom == 1 ]]; then
     common_packages+=(picom)
 fi
@@ -267,7 +267,6 @@ while IFS= read -r mime_type; do
 done < <(sed -n 's/^MimeType=//p' /usr/share/applications/pqiv.desktop | tr ';' '\n')
 xdg-mime default org.pwmt.zathura.desktop application/pdf
 
-append_line_dedup "$HOME/.xinitrc" 'flameshot &'
 replace_managed_block "$HOME/.xinitrc" xsecurelock <<'XSECURELOCK'
 export XSECURELOCK_SHOW_DATETIME=1
 export XSECURELOCK_DATETIME_FORMAT='%m-%d  %H:%M'

@@ -119,10 +119,12 @@ async function getActivePage(browser) {
 export async function getOrOpenPage(browser, url) {
   let page;
   if (url) {
-    const pages = await browser.pages();
-    page = await browser.newPage();
+    // Reuse the active tab to preserve Back/Forward history. Close only other
+    // tabs so links and popups do not accumulate across successive opens.
+    page = (await getActivePage(browser)) || (await browser.newPage());
+    const otherPages = (await browser.pages()).filter((p) => p !== page);
     await Promise.race([
-      Promise.all(pages.map((p) => p.close().catch((_e) => {}))),
+      Promise.all(otherPages.map((p) => p.close().catch(() => {}))),
       new Promise((resolve) => setTimeout(resolve, 2000)),
     ]);
 

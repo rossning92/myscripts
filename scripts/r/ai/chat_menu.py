@@ -32,7 +32,7 @@ from ai.utils.session import Session, load_session, save_session
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolResult, ToolUse
 from ai.utils.usagemetadata import UsageMetadata
-from utils.clip import set_clip
+from utils.clip import get_clip, set_clip
 from utils.dateutil import format_timestamp
 from utils.editor import edit_text
 from utils.encode_image_base64 import encode_image_base64
@@ -1564,7 +1564,19 @@ class ChatMenu(Menu[Line]):
         return False
 
     def paste(self) -> bool:
-        if not super().paste():
+        text = get_clip()
+        if text:
+            path = text.strip()
+            if len(path) >= 2 and path[0] == path[-1] and path[0] in "\"'":
+                path = path[1:-1]
+            path = os.path.expanduser(path)
+            if _is_image_file(path) and os.path.isfile(path):
+                self.__add_file_path(path)
+            else:
+                self.insert_text(text)
+                self.update_screen()
+            return True
+        else:
             from PIL import Image, ImageGrab
 
             try:

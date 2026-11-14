@@ -17,19 +17,31 @@ import time
 OUTPUT_LIMIT = 1024 * 1024
 MOUNT_PATH = "/run/host-command-broker"
 CLIENT_PATH = MOUNT_PATH + "/host-command"
-APPROVAL_PROMPT = "Press Enter to approve, or type anything to deny: "
+APPROVAL_PROMPT = "<Enter> Approve  <Esc> Cancel"
 
 # Copied into a private host directory before the agent starts. The pane gets its
 # own terminal; the sandboxed agent cannot approve through its stdin or tools.
 APPROVAL = r'''
-import json, pathlib, sys
+import json, os, pathlib, sys, termios, tty
 request = json.loads(pathlib.Path(sys.argv[1]).read_text())
 for line in request["lines"]:
     print(line)
+approved = False
+fd = sys.stdin.fileno()
+settings = termios.tcgetattr(fd)
 try:
-    approved = input(request["prompt"]) == ""
-except (EOFError, KeyboardInterrupt):
-    approved = False
+    tty.setcbreak(fd)
+    print(request["prompt"], end="", flush=True)
+    while True:
+        key = os.read(fd, 1)
+        if key in (b"", b"\x1b", b"\r", b"\n"):
+            approved = key in (b"\r", b"\n")
+            break
+except KeyboardInterrupt:
+    pass
+finally:
+    termios.tcsetattr(fd, termios.TCSADRAIN, settings)
+    print()
 receipt = pathlib.Path(sys.argv[2])
 pending = receipt.with_suffix(".pending")
 pending.write_text("approved" if approved else "denied")

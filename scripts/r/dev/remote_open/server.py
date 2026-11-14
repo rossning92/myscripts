@@ -99,7 +99,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # The URL is the file path, so relative refs inside a viewed file resolve
         # natively. Page loads get the viewer, subresource loads get raw bytes.
-        if self.headers.get("Sec-Fetch-Dest") == "document" and url.query != "raw":
+        # Plain HTTP on a LAN address may omit Sec-Fetch-Dest.
+        wants_html = "text/html" in self.headers.get("Accept", "").lower()
+        if (
+            self.headers.get("Sec-Fetch-Dest") == "document" or wants_html
+        ) and "raw" not in urllib.parse.parse_qs(url.query, keep_blank_values=True):
             return self._serve_static("view.html")
         self._serve_file(path)
 

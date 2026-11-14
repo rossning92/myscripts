@@ -295,7 +295,7 @@
         </svg>
       </button>
       <div id="sessionPicker">
-        <button id="sessionBtn" title="Session" aria-label="Session" aria-haspopup="menu" aria-expanded="false">default</button>
+        <button id="sessionBtn" title="Profile (Alt+S)" aria-label="Profile" aria-keyshortcuts="Alt+S" aria-haspopup="menu" aria-expanded="false">default</button>
         <div id="sessionMenu" role="menu" aria-label="Sessions" hidden></div>
       </div>
       <input
@@ -701,6 +701,7 @@
       });
 
       const shortcuts = {
+        KeyS: () => sessionBtn.click(),
         KeyV: () => viewportBtn.click(),
         KeyA: () => {
           closeViewportMenu();

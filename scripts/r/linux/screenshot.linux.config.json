@@ -1,5 +1,6 @@
 {
   "globalHotkey": "f1",
   "newWindow": false,
-  "packages": "flameshot"
+  "packages": "python-tk xclip",
+  "packages.pip": "Pillow"
 }

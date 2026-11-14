@@ -809,7 +809,26 @@ def _main():
 
     args = parser.parse_args()
 
-    if args.tmux and not is_in_tmux() and has_tmux_session("myscripts"):
+    if args.tmux and has_tmux_session("myscripts"):
+        if is_in_tmux():
+            result = subprocess.run(
+                ["tmux", "switch-client", "-t", "=myscripts"],
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            if result.returncode:
+                if "no current client" in result.stderr:
+                    print(
+                        "Cannot switch to myscripts: TMUX is set, but there is "
+                        "no current tmux client. The variable may be stale or inherited.\n"
+                        f"TMUX={os.environ['TMUX']}\n"
+                        "Run: env -u TMUX s -t",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(result.stderr.rstrip(), file=sys.stderr)
+                sys.exit(result.returncode)
+            return
         print("Attaching to tmux session myscripts...")
         subprocess.check_call(["tmux", "attach", "-t", "=myscripts"])
         return

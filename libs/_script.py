@@ -1503,7 +1503,8 @@ class Script:
                         if self.cfg["dynamicTitle"]:
                             # OSC 0/2 title sequences update tmux's pane title.
                             # Make only this newly-created window follow the
-                            # active pane title instead of enabling it globally.
+                            # first pane title (not the active pane, so it stays
+                            # stable when switching panes).
                             arg_list += [
                                 ";",
                                 "set-window-option",
@@ -1516,7 +1517,7 @@ class Script:
                                 ";",
                                 "set-window-option",
                                 "automatic-rename-format",
-                                "#{pane_title}",
+                                "#{P:#{?#{==:#{pane_index},#{pane-base-index}},#{pane_title},}}",
                             ]
 
                     elif sys.platform == "win32":

@@ -1,0 +1,7 @@
+{
+  "agent": true,
+  "dynamicTitle": true,
+  "instanceMode": "multiple",
+  "termux.proot": true,
+  "title": "Claude (new)"
+}

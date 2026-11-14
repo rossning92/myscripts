@@ -145,6 +145,10 @@ async def complete_chat(
             extra_payload["image_config"] = {
                 "resolution": selected_model.image_resolution
             }
+        if selected_model.image_quality:
+            extra_payload.setdefault("image_config", {})["quality"] = (
+                selected_model.image_quality
+            )
         if selected_model.reasoning_effort:
             extra_payload.setdefault("extra_body", {})["reasoning"] = {
                 "effort": selected_model.reasoning_effort

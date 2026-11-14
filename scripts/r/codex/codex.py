@@ -1,24 +1,17 @@
-import fnmatch
 import json
 import os
 from pathlib import Path
 import shlex
-import shutil
-import subprocess
 import sys
-import tempfile
 
-from utils.host_command_broker import CLIENT_PATH, MOUNT_PATH, HostCommandBroker
-from utils.term import set_terminal_title
-from utils.term.title import SOCKET_ENV, TerminalTitleRelay
-
-WRITABLE_ROOTS = (
-    Path.home() / ".android",
-    Path.home() / ".gradle",
-    Path.home() / ".cache" / "uv",
-    Path.home() / ".config" / "godot",
-    Path.home() / ".cache" / "godot",
-    Path.home() / ".local" / "share" / "godot",
+from utils.agent_cli import (
+    HOST_ACCESS_INSTRUCTIONS,
+    WRITABLE_ROOTS,
+    external_sandbox_enabled,
+    prepare_cli,
+    run_cli,
+    take_context,
+    terminal_tty,
 )
 
 
@@ -35,45 +28,12 @@ def hook_command(status):
     return command + "; '{}'"
 
 
-def sandbox_command(command, broker=None):
-    """Confine the whole Codex process, including its tools and hooks."""
-    bwrap = shutil.which("bwrap")
-    if not bwrap:
-        raise RuntimeError("Install bubblewrap before running Codex on Linux")
-    workspace = Path.cwd().resolve()
-    if workspace == Path.home().resolve() or str(workspace) in {
-        "/", "/home", "/root", "/tmp", "/run", "/var", "/proc", "/dev",
-        "/sys", "/etc", "/usr", "/bin", "/sbin", "/lib", "/lib64",
-    } or any(workspace.is_relative_to(path) for path in ("/proc", "/dev", "/sys", "/run")):
-        raise RuntimeError("Choose a project directory, not home or a system directory")
-    codex_home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).resolve()
-    codex_home.mkdir(parents=True, exist_ok=True)
-    # Isolate processes, drop capabilities, share network.
-    # Host files remain readable so installed tools and launcher paths still work.
-    # Private /tmp and /run hide host sockets and temporary files.
-    sandbox = [
-        bwrap, "--unshare-all", "--share-net", "--die-with-parent",
-        "--new-session", "--cap-drop", "ALL", "--ro-bind", "/", "/",
-        "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
-        "--tmpfs", "/run",
-    ]
-    # Opt in at launch with CODEX_GPU=1; keep GPU devices hidden by default.
-    if os.environ.get("CODEX_GPU") == "1":
-        for path in (Path("/dev/dri"), *sorted(Path("/dev").glob("nvidia*"))):
-            if path.exists() and (path.is_dir() or path.is_char_device()):
-                sandbox.extend(["--dev-bind", str(path), str(path)])
-    for path in (workspace, codex_home, *WRITABLE_ROOTS):
-        if path.exists():
-            sandbox.extend(["--bind", str(path), str(path)])
-    if broker is not None:
-        sandbox.extend(["--ro-bind", str(broker.endpoint), MOUNT_PATH])
-        sandbox.extend(["--setenv", SOCKET_ENV, MOUNT_PATH + "/title.sock"])
-    sandbox.extend(["--setenv", "TMPDIR", "/tmp", "--chdir", str(workspace), "--"])
-    return sandbox + command
-
-
 def main():
-    args = sys.argv[1:]
+    try:
+        context, args = take_context(sys.argv[1:])
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 2
     developer_instructions = (
         "Skills under ~/.codex/skills/ may be symlinks into the current workspace. "
         "When asked to update one, resolve the link and edit it directly without "
@@ -93,22 +53,10 @@ def main():
         'check_for_update_on_startup=false',
         'features.hooks=true',
     ]
-    if args[:1] == ["--context"]:
-        if len(args) < 2:
-            sys.stderr.write("--context requires a value\n")
-            return 2
-        if args[1]:
-            developer_instructions += "\n\n" + args[1]
-        args = args[2:]
+    if context:
+        developer_instructions += "\n\n" + context
 
-    os.chdir(Path(__file__).resolve().parents[3])
-    if os.environ.get("CODEX_PROJECT_DIR"):
-        os.chdir(os.environ["CODEX_PROJECT_DIR"])
-
-    npm_prefix = Path.home() / ".npm-global"
-    npm_bin = npm_prefix if sys.platform == "win32" else npm_prefix / "bin"
-    os.environ["PATH"] = str(npm_bin) + os.pathsep + os.environ.get("PATH", "")
-    os.environ["NPM_CONFIG_CACHE"] = str(Path(tempfile.gettempdir()) / "npm-cache")
+    codex = prepare_cli("codex", "@openai/codex", project_dir_env="CODEX_PROJECT_DIR")
     # Codex sanitizes PATH for shell commands, so preserve the launcher's PATH
     # and npm cache to keep myscripts tools available without writing to ~/.npm.
     config.append(
@@ -118,33 +66,10 @@ def main():
         "shell_environment_policy.set.NPM_CONFIG_CACHE="
         + json.dumps(os.environ["NPM_CONFIG_CACHE"])
     )
-    codex = shutil.which("codex")
-    if not codex:
-        subprocess.check_call(
-            [shutil.which("npm") or "npm", "install", "-g", "--prefix", str(npm_prefix), "@openai/codex"]
-        )
-        codex = shutil.which("codex")
-        if not codex:
-            raise RuntimeError("Codex was not found after npm installation")
-
-    try:
-        process_root = os.readlink("/proc/self/root")
-    except OSError:
-        process_root = ""
-    use_external_sandbox = sys.platform == "linux" and not fnmatch.fnmatch(
-        process_root, "*/com.termux/files/usr/var/lib/proot-distro/containers/*/rootfs"
-    )
+    use_external_sandbox = external_sandbox_enabled()
     if use_external_sandbox:
         command = [codex, "--dangerously-bypass-approvals-and-sandbox"]
-        developer_instructions += (
-            "\n\nYou run inside Bubblewrap. For a command that needs host access, use "
-            f'{CLIENT_PATH} --reason "why host access is needed" '
-            '-- command arg... . The host opens an approval pane in the originating tmux window. '
-            "Never approve your own request or interact with the approval pane. "
-            "Each request needs approval; denial means do not retry without new user direction. "
-            "Use --timeout SECONDS before -- for commands longer than 300 seconds (max 3600). "
-            "Shell syntax requires an explicit bash -c argument. Host commands have no interactive stdin."
-        )
+        developer_instructions += "\n\n" + HOST_ACCESS_INSTRUCTIONS
     else:
         command = [codex, "--sandbox", "workspace-write", "--ask-for-approval", "on-request"]
         config += [
@@ -155,10 +80,7 @@ def main():
         ]
     config.append("developer_instructions=" + json.dumps(developer_instructions))
 
-    try:
-        os.environ["CODEX_TERMINAL_TTY"] = os.ttyname(sys.stdin.fileno())
-    except (AttributeError, OSError, ValueError):
-        os.environ["CODEX_TERMINAL_TTY"] = ""
+    os.environ["CODEX_TERMINAL_TTY"] = terminal_tty()
     for event, status, matcher in [
         ("UserPromptSubmit", "⧗", None),
         ("Stop", "✓", None),
@@ -181,16 +103,13 @@ def main():
         command.extend(["-c", value])
     command.extend(args)
 
-    set_terminal_title("Codex (new)")
-    if sys.platform == "win32":
-        return subprocess.call(command)
-    if use_external_sandbox:
-        with HostCommandBroker() as broker:
-            with TerminalTitleRelay(
-                broker.endpoint / "title.sock", os.environ["CODEX_TERMINAL_TTY"] or "/dev/tty"
-            ):
-                return subprocess.call(sandbox_command(command, broker))
-    os.execv(command[0], command)
+    return run_cli(
+        command,
+        title="Codex (new)",
+        agent_home=os.environ.get("CODEX_HOME", str(Path.home() / ".codex")),
+        gpu_env="CODEX_GPU",
+        use_external_sandbox=use_external_sandbox,
+    )
 
 
 if __name__ == "__main__":
