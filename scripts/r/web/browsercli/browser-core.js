@@ -67,6 +67,11 @@ async function launchDetachedChrome(headed = false) {
     !headed &&
     (process.platform === "linux" || process.platform === "android")
   ) {
+    // Xvfb's default OpenGL path can select llvmpipe. ANGLE's Vulkan
+    // backend can reach the hardware GPU directly.
+    if (process.platform === "linux" && process.env.BROWSERCLI_XVFB_VULKAN !== "0") {
+      chromeArgs.push("--use-angle=vulkan");
+    }
     const chromeProcess = await new Promise((resolve, reject) => {
       const child = spawn(
         "xvfb-run",

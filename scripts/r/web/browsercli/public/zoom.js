@@ -17,6 +17,10 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
       "--visual-viewport-height",
       `${height}px`
     );
+    document.documentElement.style.setProperty(
+      "--visual-viewport-top",
+      `${viewport ? viewport.offsetTop : 0}px`
+    );
   }
 
   syncVisualViewport();

@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import time
 import unicodedata
 from itertools import zip_longest
@@ -7,7 +8,7 @@ from typing import Optional
 
 from utils.strutil import strip_ansi
 
-from .menu import Menu
+from .menu import GUTTER_SIZE, Menu
 
 _CODE_BG = "\x1b[48;5;236m"
 
@@ -94,16 +95,26 @@ def _table_separator(line: str) -> bool:
     )
 
 
+def _fit_widths(natural: list[int], available: int) -> list[int]:
+    # Narrow columns keep their natural width. Wide ones split what is left evenly.
+    widths = natural[:]
+    remaining = available
+    cols = sorted(range(len(natural)), key=lambda col: natural[col])
+    for index, col in enumerate(cols):
+        widths[col] = max(1, min(natural[col], remaining // (len(cols) - index)))
+        remaining -= widths[col]
+    return widths
+
+
 def _render_table(rows: list[list[str]], alignments: list[str], max_width: int):
     rows = [[strip_ansi(_format_markdown(cell)) for cell in row] for row in rows]
-    widths = [
-        min(max_width, max(1, max(_text_width(row[col]) for row in rows)))
+    natural = [
+        max(1, max(_text_width(row[col]) for row in rows))
         for col in range(len(alignments))
     ]
-    segments = ["\u2500" * width for width in widths]
-    top = "\u250c" + "\u252c".join(segments) + "\u2510"
-    divider = "\u251c" + "\u253c".join(segments) + "\u2524"
-    bottom = "\u2514" + "\u2534".join(segments) + "\u2518"
+    gap = "  "
+    widths = _fit_widths(natural, max_width - 1 - len(gap) * (len(natural) - 1))
+    divider = " " + "\u2500" * (sum(widths) + len(gap) * (len(widths) - 1))
     rendered_rows = []
     for row in rows:
         wrapped = [_wrap_cell(cell, width) for cell, width in zip(row, widths)]
@@ -116,10 +127,10 @@ def _render_table(rows: list[list[str]], alignments: list[str], max_width: int):
                 if alignment.startswith(":") and alignment.endswith(":"):
                     left = padding // 2
                 padded.append(" " * left + cell + " " * (padding - left))
-            rendered = "\u2502" + "\u2502".join(padded) + "\u2502"
-            rendered_lines.append(rendered)
+            rendered_lines.append((" " + gap.join(padded)).rstrip())
         rendered_rows.append(rendered_lines)
-    return top, divider, bottom, rendered_rows
+    rendered_rows[0] = [f"\x1b[36m{line}\x1b[39m" for line in rendered_rows[0]]
+    return f"\x1b[36m{divider}\x1b[39m", rendered_rows
 
 
 class TextMenu(Menu[str]):
@@ -129,7 +140,6 @@ class TextMenu(Menu[str]):
         file: Optional[str] = None,
         wrap_text=True,
         markdown=False,
-        max_column_width=24,
         **kwargs,
     ):
         super().__init__(
@@ -142,9 +152,7 @@ class TextMenu(Menu[str]):
         )
         self.__keyword = ""
         self.__markdown = markdown
-        if max_column_width < 2:
-            raise ValueError("max_column_width must be at least 2")
-        self.__max_column_width = max_column_width
+        self.__table_width = 0
         self.__in_fence = False
         self.__file = os.path.abspath(file) if file else None
         if self.__file and (self.timeout_sec < 0 or self.timeout_sec > 1):
@@ -186,9 +194,8 @@ class TextMenu(Menu[str]):
         except (OSError, UnicodeError):
             # Keep the current view while an editor replaces or rewrites the file.
             return
-        self.__load_text(text)
         self.__file_version = version
-        self.refresh()
+        self.set_text(text)
 
     def __mark_code(self, line: str) -> str:
         # Tags lines inside a ``` fence, since styling sees one line at a time.
@@ -197,6 +204,10 @@ class TextMenu(Menu[str]):
         elif self.__in_fence:
             return _CodeLine(line)
         return line
+
+    def set_text(self, text: str):
+        self.__load_text(text)
+        self.refresh()
 
     def append_item(self, item: str):
         super().append_item(self.__mark_code(item))
@@ -220,6 +231,7 @@ class TextMenu(Menu[str]):
             str(item) if isinstance(item, _TableLine) else item
             for item in self.items if not isinstance(item, _TableExtraLine)
         ]
+        self.__table_width = shutil.get_terminal_size().columns
         items = []
         i = 0
         while i < len(source):
@@ -249,19 +261,22 @@ class TextMenu(Menu[str]):
                     break
                 rows.append(cells)
                 end += 1
-            top, divider, bottom, rendered_rows = _render_table(
-                rows, alignments, self.__max_column_width
-            )
-            items.append(_TableExtraLine("", top))
+            max_width = self.__table_width - len(str(len(source))) - GUTTER_SIZE
+            divider, rendered_rows = _render_table(rows, alignments, max_width)
             source_rows = [source[i], *source[i + 2:end]]
             for row_index, (original, lines) in enumerate(zip(source_rows, rendered_rows)):
                 items.append(_TableLine(original, lines[0]))
                 items.extend(_TableExtraLine("", line) for line in lines[1:])
                 if row_index == 0:
                     items.append(_TableLine(source[i + 1], divider))
-            items.append(_TableExtraLine("", bottom))
             i = end
         self.items[:] = items
+
+    def _update_screen(self):
+        if self.__markdown and shutil.get_terminal_size().columns != self.__table_width:
+            self.__format_tables()
+            self.refresh()
+        super()._update_screen()
 
     def item_wrap(self, item: str) -> bool:
         return False if isinstance(item, _TableLine) else super().item_wrap(item)

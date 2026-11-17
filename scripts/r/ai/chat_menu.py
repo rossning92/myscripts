@@ -445,11 +445,15 @@ class ChatMenu(Menu[Line]):
         if self.__native_file_picker_state == "waiting_for_focus":
             self.__native_file_picker_state = "cancelled"
 
-    def __add_file_path(self, file: str, detect_image_content: bool = False):
+    def __add_file_path(
+        self,
+        file: str,
+        detect_image_content: bool = False,
+        image_mime_type: Optional[str] = None,
+    ) -> bool:
         try:
-            image_mime_type = (
-                _detect_image_mime_type(file) if detect_image_content else None
-            )
+            if detect_image_content:
+                image_mime_type = _detect_image_mime_type(file)
             if image_mime_type:
                 with open(file, "rb") as f:
                     encoded = base64.b64encode(f.read()).decode("utf-8")
@@ -475,8 +479,9 @@ class ChatMenu(Menu[Line]):
                     )
         except (OSError, UnicodeError, ValueError) as e:
             self.set_message(f"failed to add file: {e}")
-            return
+            return False
         self.__update_prompt()
+        return True
 
     def __copy_block(self, index: int):
         # Check if it's in the code block; if so, copy all the code.
@@ -1564,6 +1569,10 @@ class ChatMenu(Menu[Line]):
         return False
 
     def paste(self) -> bool:
+        termux = is_termux()
+        if termux and self.__paste_termux_image():
+            return True
+
         text = get_clip()
         if text:
             path = text.strip()
@@ -1576,7 +1585,7 @@ class ChatMenu(Menu[Line]):
                 self.insert_text(text)
                 self.update_screen()
             return True
-        else:
+        elif not termux:
             from PIL import Image, ImageGrab
 
             try:
@@ -1606,6 +1615,28 @@ class ChatMenu(Menu[Line]):
                     os.remove(temp_path)
 
         return False
+
+    def __paste_termux_image(self) -> bool:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, "clipboard")
+            try:
+                subprocess.run(
+                    ["clip_image", path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True,
+                )
+                mime_type = _detect_image_mime_type(path)
+                if mime_type is None:
+                    mime_type = subprocess.check_output(
+                        ["file", "-b", "--mime-type", "--", path], text=True
+                    ).strip()
+            except (OSError, subprocess.CalledProcessError):
+                return False
+
+            if not mime_type.startswith("image/"):
+                return False
+            return self.__add_file_path(path, image_mime_type=mime_type)
 
 
 def _is_image_file(path: str) -> bool:

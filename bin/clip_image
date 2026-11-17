@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec bash "$(dirname -- "${BASH_SOURCE[0]}")/../scripts/r/android/termux/clip_image/clip_image.sh" "$@"
