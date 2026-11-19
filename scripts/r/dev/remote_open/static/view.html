@@ -163,7 +163,7 @@ function renderMarkdown(v, text) {
             loadStyle(CDN + "highlight.js/styles/" + Theme.hljsStyle());
             return window.hljs
                 ? Promise.resolve()
-                : loadScript(CDN + "highlight.js/lib/common.min.js").catch(function () {});
+                : loadScript(CDN + "@highlightjs/cdn-assets/highlight.min.js").catch(function () {});
         })
         .then(function () {
             if (window.hljs) {

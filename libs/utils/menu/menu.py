@@ -524,9 +524,10 @@ class _TextInput:
         elif ch == curses.ascii.ctrl("u"):
             self.clear()
         elif ch == curses.ascii.ctrl("w"):
-            position_after_last_space = max(0, self.text.rstrip().rfind(" ") + 1)
-            self.text = self.text[:position_after_last_space]
-            self.caret_pos = len(self.text)
+            before_caret = self.text[: self.caret_pos]
+            word_start = before_caret.rstrip().rfind(" ") + 1
+            self.text = before_caret[:word_start] + self.text[self.caret_pos :]
+            self.caret_pos = word_start
         elif ch == curses.ascii.ctrl("a"):
             self.caret_pos = 0
         # HACK: Workaround for single and double quote on Windows

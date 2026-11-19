@@ -279,7 +279,7 @@ class TextMenu(Menu[str]):
         super()._update_screen()
 
     def item_wrap(self, item: str) -> bool:
-        return False if isinstance(item, _TableLine) else super().item_wrap(item)
+        return False if isinstance(item, (_TableLine, _CodeLine)) else super().item_wrap(item)
 
     def get_item_text(self, item: str) -> str:
         if isinstance(item, _TableLine):
