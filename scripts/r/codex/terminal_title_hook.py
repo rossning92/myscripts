@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -24,6 +25,25 @@ session_id = hook_input.get("session_id")
 if not isinstance(session_id, str) or not hook_input.get("transcript_path"):
     raise SystemExit(0)
 
+if hook_input.get("hook_event_name") == "Stop":
+    pane = os.environ.get("TMUX_PANE", "")
+    message = hook_input.get("last_assistant_message")
+    if re.fullmatch(r"%\d+", pane) and isinstance(message, str):
+        line = next((line for line in message.splitlines() if line.strip()), "")
+        reply = re.sub(r"[\s\x00-\x1f\x7f-\x9f]+", " ", line).strip()
+        if reply:
+            # tmux treats a trailing semicolon in an argv value as a separator.
+            if reply.endswith(";"):
+                reply = reply[:-1] + r"\;"
+            try:
+                subprocess.run(
+                    ["tmux", "set-option", "-p", "-t", pane, "@activity", reply],
+                    capture_output=True,
+                    timeout=1,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+
 state_file = Path(tempfile.gettempdir()) / "codex-terminal-title-v2" / session_id
 state_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -31,13 +51,13 @@ try:
     title = state_file.read_text(encoding="utf-8")
 except OSError:
     title = hook_input.get("prompt")
-    if not isinstance(title, str) or not title.strip():
-        raise SystemExit(0)
-    state_file.write_text(title, encoding="utf-8")
+    if isinstance(title, str) and title.strip():
+        state_file.write_text(title, encoding="utf-8")
 
 # Prefer the title Codex summarized for this session, once it exists.
+codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
 try:
-    with open(Path.home() / ".codex" / "session_index.jsonl", encoding="utf-8") as index:
+    with (codex_home / "session_index.jsonl").open(encoding="utf-8") as index:
         for line in index:
             entry = json.loads(line)
             if entry.get("id") == session_id and entry.get("thread_name"):
@@ -45,8 +65,11 @@ try:
 except (OSError, json.JSONDecodeError):
     pass
 
+if not isinstance(title, str) or not title.strip():
+    raise SystemExit(0)
+
 title = re.sub(r"[\s\x00-\x1f\x7f]+", " ", title).strip()[:120]
-terminal_title = f"Codex {status} {title}"
+terminal_title = f"{status} {title}"
 if "--print-title" in sys.argv[2:]:
     # Keep the transport ASCII so Windows pipe encodings preserve Unicode.
     sys.stdout.write(json.dumps({"terminal_title": terminal_title}))

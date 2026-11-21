@@ -1,6 +1,6 @@
 import TurndownService from "turndown";
-import { withActivePageCdp } from "./browser-cdp.js";
-import { evaluatePageContent } from "./extension/shared/evaluate-page-content.js";
+import { withActivePageCdp } from "../browser/active-page-cdp.js";
+import { evaluatePageContent } from "../extension/shared/evaluate-page-content.js";
 
 export function htmlToMarkdown(html) {
   const turndownService = new TurndownService({

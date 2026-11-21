@@ -2,8 +2,8 @@ import { randomUUID } from "crypto";
 import { writeFile } from "fs/promises";
 import path from "path";
 import os from "os";
-import { withActivePageCdp } from "./browser-cdp.js";
-import { captureScreenshot } from "./extension/shared/screenshot.js";
+import { withActivePageCdp } from "../browser/active-page-cdp.js";
+import { captureScreenshot } from "../extension/shared/screenshot.js";
 
 function temporaryScreenshotPath() {
   return path.join(

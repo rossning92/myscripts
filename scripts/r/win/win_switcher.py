@@ -1,9 +1,12 @@
+import os
+import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Dict, Optional, Set
 
 from _pkgmanager import require_package
+from utils.markdown import strip_markdown
 from utils.menu import Menu
 from utils.notify import get_notifications
 from utils.term import hide_terminal_from_taskbar, set_terminal_title
@@ -20,9 +23,9 @@ from utils.window import (
 _WINDOW_CLOSE_WAIT_SECONDS = 1.0
 _AUTO_REFRESH_INTERVAL_SECONDS = 2.0
 _PROMPT = "activate window"
-# Fits current Claude window titles, so the option columns line up.
-_TITLE_WIDTH = 56
-# Caps each option column so one long value (e.g. a path) can't push the rest off.
+_MAX_TITLE_CHARS = 40
+_COLUMN_SEPARATOR = " | "
+# Caps option columns that have another column to their right.
 _OPTION_WIDTH = 24
 
 _STATUS_COLOR_MAPPING: Dict[WindowStatus, str] = {
@@ -46,6 +49,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.script_status: Dict[str, str] = {}
         self.__visited_success: Set[str] = set()
         self.__pinned: Set[str] = set()
+        self.__title_chars = 0
         self.__option_widths: Dict[str, int] = {}
         self.add_command(self.__refresh_windows, hotkey="ctrl+r")
         self.add_command(self.__close_windows, hotkey="delete")
@@ -58,7 +62,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.add_command(self.__toggle_pin, hotkey="ctrl+t", name="pin/unpin")
 
     def on_created(self):
-        self.__refresh_windows()
+        self.on_focus_gained()
 
     def __toggle_pin(self):
         titles = {item.title for item in self.get_selected_items()}
@@ -85,7 +89,9 @@ class WinSwitcherMenu(Menu[WindowItem]):
             return 3
         return 4
 
-    def __refresh_windows(self, message: Optional[str] = None):
+    def __refresh_windows(
+        self, message: Optional[str] = None, *, select_id: Optional[str] = None
+    ):
         begin, end = self.get_selected_row_range()
         selected = self.get_selected_item() if begin == end else None
 
@@ -96,12 +102,20 @@ class WinSwitcherMenu(Menu[WindowItem]):
             if isinstance(n, dict) and isinstance(n.get("app"), str)
         }
         self.items = get_windows(script_status=self.script_status)
+        for window in self.items:
+            activity = window.options.get("@activity")
+            if activity:
+                window.options["@activity"] = next(
+                    iter(strip_markdown(activity).splitlines()), ""
+                )
         self.items.sort(key=self.__get_sort_key)
         names = sorted({name for w in self.items for name in w.options})
         self.__option_widths = {
-            name: min(max(len(w.options.get(name, "")) for w in self.items), _OPTION_WIDTH)
+            name: max(len(w.options.get(name, "")) for w in self.items)
             for name in names
         }
+        for name in names[:-1]:
+            self.__option_widths[name] = min(self.__option_widths[name], _OPTION_WIDTH)
 
         current_success_titles = {
             w.title
@@ -114,11 +128,12 @@ class WinSwitcherMenu(Menu[WindowItem]):
             self.set_message(message)
         self.refresh()
 
-        if selected:
-            for row, i in enumerate(self.get_item_indices()):
-                if self.items[i].id == selected.id:
-                    self.set_selected_row(row)
-                    break
+        rows = {self.items[i].id: row for row, i in enumerate(self.get_item_indices())}
+        if select_id in rows:
+            self.set_multi_select(False)
+            self.set_selected_row(rows[select_id])
+        elif selected and selected.id in rows:
+            self.set_selected_row(rows[selected.id])
 
     def __activate_window(self, win_id):
         error = activate_window(win_id)
@@ -169,7 +184,25 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.clear_input()
 
     def on_focus_gained(self):
-        self.__refresh_windows()
+        previous_id = None
+        if is_in_tmux() and (pane := os.environ.get("TMUX_PANE")):
+            result = subprocess.run(
+                [
+                    "tmux",
+                    "list-windows",
+                    "-t",
+                    pane,
+                    "-f",
+                    "#{window_last_flag}",
+                    "-F",
+                    "#{window_id}",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 and (window_id := result.stdout.strip()):
+                previous_id = f"tmux:{window_id}"
+        self.__refresh_windows(select_id=previous_id)
         self.__auto_refresh_enabled = True
 
     def on_focus_lost(self):
@@ -182,20 +215,30 @@ class WinSwitcherMenu(Menu[WindowItem]):
     def on_escape_pressed(self):
         self.clear_input()
 
+    def _update_screen(self):
+        longest_title = max(
+            (len(self.items[i].title) for i in self.get_item_indices()), default=0
+        )
+        self.__title_chars = min(longest_title, _MAX_TITLE_CHARS)
+        super()._update_screen()
+
     def get_item_text(self, item: WindowItem) -> str:
-        title = item.title[:_TITLE_WIDTH]
-        options = "  ".join(
+        title = item.title[:_MAX_TITLE_CHARS]
+        columns = [
             item.options.get(name, "")[:width].ljust(width)
             for name, width in self.__option_widths.items()
-        ).rstrip()
+        ]
+        while columns and not columns[-1].strip():
+            columns.pop()
+        options = _COLUMN_SEPARATOR.join(columns).rstrip()
         if options:
-            title = title.ljust(_TITLE_WIDTH)
+            title = title.ljust(self.__title_chars)
         if (
             item.get_status(self.script_status) == "success"
             and item.title not in self.__visited_success
         ):
             title = f"\x1b[1m{title}\x1b[22m"
-        return f"{title}  {options}" if options else title
+        return f"{title}{_COLUMN_SEPARATOR}{options}" if options else title
 
     def get_item_color(self, item: WindowItem) -> str:
         if item.title in self.__pinned:

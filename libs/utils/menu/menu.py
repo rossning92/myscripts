@@ -356,7 +356,6 @@ def _apply_ansi_escape(
     m = _ANSI_CSI_RE.match(s, i)
     if not m:
         return None
-    reverse_initial = bool(default_attr & curses.A_REVERSE)
     codes = m.group(1).split(";")
     j = 0
     while j < len(codes):
@@ -367,18 +366,16 @@ def _apply_ansi_escape(
             attr |= curses.A_BOLD
         elif code == "2":
             attr |= curses.A_DIM
+        elif code == "4":
+            attr |= curses.A_UNDERLINE
         elif code == "7":
-            if reverse_initial:
-                attr &= ~curses.A_REVERSE
-            else:
-                attr |= curses.A_REVERSE
+            attr |= curses.A_REVERSE
         elif code == "22":
             attr &= ~(curses.A_BOLD | curses.A_DIM)
+        elif code == "24":
+            attr &= ~curses.A_UNDERLINE
         elif code == "27":
-            if reverse_initial:
-                attr |= curses.A_REVERSE
-            else:
-                attr &= ~curses.A_REVERSE
+            attr &= ~curses.A_REVERSE
         elif code.isdigit() and 30 <= int(code) <= 37:
             attr = _set_color(attr, fg=_get_ansi_color(int(code)))
         elif code == "38" and j + 2 < len(codes) and codes[j + 1] == "5":
@@ -1650,7 +1647,7 @@ class Menu(Generic[T]):
         scroll_x=0,
         bold=False,
         dim=False,
-        reverse=False,
+        fill_background=False,
     ) -> DrawTextResult:
         """_summary_
 
@@ -1676,9 +1673,11 @@ class Menu(Generic[T]):
             default_attr |= curses.A_BOLD
         if dim:
             default_attr |= curses.A_DIM
-        if reverse:
-            default_attr |= curses.A_REVERSE
         attr = default_attr
+
+        filled_y = row
+        if fill_background:
+            Menu._stdscr.hline(row, 0, " ", self.__width, default_attr)
 
         # Draw left arrow
         if scroll_x > 0:
@@ -1714,13 +1713,18 @@ class Menu(Generic[T]):
                 i += 1
                 continue
 
-            if not _addstr(Menu._stdscr, y, x, ch, attr):
-                break
-
+            if fill_background and y != filled_y:
+                Menu._stdscr.hline(y, 0, " ", self.__width, default_attr)
+                filled_y = y
             last_y = y
-
-            # Get current cursor position
-            y, x = Menu._stdscr.getyx()  # type: ignore
+            if fill_background and wrap_text and ch == "\n":
+                # Writing a newline through curses clears the row's background.
+                last_row_index = y
+                y, x = y + 1, col
+            else:
+                if not _addstr(Menu._stdscr, y, x, ch, attr):
+                    break
+                y, x = Menu._stdscr.getyx()
             if wrap_text:
                 if y >= ymax:
                     # If text overflows outside of the screen, set last_row_index to screen height.
@@ -1878,7 +1882,11 @@ class Menu(Generic[T]):
             else:
                 raise ValueError(f"Invalid item color: {item_color}")
             fg: int = _to_curses_color(fg_color)
-            bg: int = _to_curses_color(bg_color)
+            selection_bg = -1
+            if is_item_selected and curses.COLORS > 0:
+                selection_bg = _to_curses_color(
+                    "darkgray" if curses.COLORS >= 256 else "blue"
+                )
 
             # If a highlight is specified
             if self.__highlight is not None:
@@ -1893,8 +1901,8 @@ class Menu(Generic[T]):
                 item_text,
                 wrap_text=self.item_wrap(item),
                 fg=fg,
-                bg=bg,
-                reverse=is_item_selected,
+                bg=selection_bg if selection_bg != -1 else _to_curses_color(bg_color),
+                fill_background=is_item_selected,
                 scroll_x=self.__scroll_x,
                 ymax=item_y_max,
             )
@@ -1914,6 +1922,7 @@ class Menu(Generic[T]):
                     0,
                     line_number_text.rjust(line_number_width) + (" " * GUTTER_SIZE),
                     fg=gutter_fg,
+                    bg=selection_bg,
                     bold=gutter_bold,
                     ymax=item_y_max,
                 )
@@ -1927,6 +1936,7 @@ class Menu(Generic[T]):
                         0,
                         " " * (line_number_width + GUTTER_SIZE),
                         fg=gutter_fg,
+                        bg=selection_bg,
                         ymax=item_y_max,
                     )
 

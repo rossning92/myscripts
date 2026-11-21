@@ -17,25 +17,67 @@ import time
 OUTPUT_LIMIT = 1024 * 1024
 MOUNT_PATH = "/run/host-command-broker"
 CLIENT_PATH = MOUNT_PATH + "/host-command"
-APPROVAL_PROMPT = "<Enter> Approve  <Esc> Cancel"
+
+
+def approval_text(value):
+    return "".join(char if " " <= char <= "~" else ascii(char)[1:-1] for char in value)
+
 
 # Copied into a private host directory before the agent starts. The pane gets its
 # own terminal; the sandboxed agent cannot approve through its stdin or tools.
 APPROVAL = r'''
-import json, os, pathlib, sys, termios, tty
+import json, os, pathlib, select, sys, termios, tty
+
+
+def read_escape_suffix(fd):
+    # Terminals send Escape as the first byte of arrows and other special keys.
+    if not select.select([fd], [], [], 0.05)[0]:
+        return b""
+    suffix = os.read(fd, 1)
+    if suffix in (b"[", b"O"):
+        while select.select([fd], [], [], 0.05)[0]:
+            byte = os.read(fd, 1)
+            if not byte or 0x40 <= byte[0] <= 0x7e:
+                break
+    return suffix
+
+
+def highlight(text):
+    return f"\x1b[1;36m{text}\x1b[0m"
+
+
+def render_field(label, value, width, rows):
+    text = f"{label} {value}"
+    limit = width * rows
+    if len(text) > limit:
+        text = text[:limit - 3] + "..."
+    wrapped = "\r\n".join(text[start:start + width] for start in range(0, len(text), width))
+    return highlight(label) + wrapped[len(label):]
+
+
 request = json.loads(pathlib.Path(sys.argv[1]).read_text())
-for line in request["lines"]:
-    print(line)
-approved = False
 fd = sys.stdin.fileno()
+size = os.get_terminal_size(fd)
+width = size.columns - 1
+command_rows = size.lines - 2
+if width < len("enter Approve  esc Cancel") or command_rows < 1:
+    sys.exit("Approval pane is too small.")
+
+reason = render_field("reason:", request["reason"], width, 1)
+command = render_field("command:", request["command"], width, command_rows)
+prompt = f"{highlight('enter')} Approve  {highlight('esc')} Cancel"
+
+approved = False
 settings = termios.tcgetattr(fd)
 try:
-    tty.setcbreak(fd)
-    print(request["prompt"], end="", flush=True)
+    tty.setraw(fd)
+    print("\r\n".join((reason, command, prompt)), end="", flush=True)
     while True:
         key = os.read(fd, 1)
-        if key in (b"", b"\x1b", b"\r", b"\n"):
-            approved = key in (b"\r", b"\n")
+        if key == b"\r":
+            approved = True
+            break
+        if not key or (key == b"\x1b" and not read_escape_suffix(fd)):
             break
 except KeyboardInterrupt:
     pass
@@ -142,9 +184,8 @@ class HostCommandBroker:
                 or type(timeout) is not int or not 1 <= timeout <= 3600):
             raise ValueError("Invalid command, directory, reason, or timeout (1-3600 seconds)")
         approval_request = {
-            "lines": ["Reason: " + ascii(reason), "Directory: " + ascii(cwd),
-                      "Command: " + ascii(shlex.join(argv)), ""],
-            "prompt": APPROVAL_PROMPT,
+            "reason": approval_text(reason),
+            "command": approval_text(shlex.join(argv)),
         }
         request_path = self.root / "request.json"
         request_path.write_text(json.dumps(approval_request))
@@ -155,7 +196,7 @@ class HostCommandBroker:
         ])
         approved = self.ask_approval(
             approval_command, receipt,
-            [*approval_request["lines"], approval_request["prompt"]],
+            len("command: ") + len(approval_request["command"]),
         )
         if not approved or self.closed.is_set():
             return {"returncode": 1, "stderr": "Host command denied.\n"}
@@ -186,7 +227,7 @@ class HostCommandBroker:
             capture_output=True, text=True, timeout=5,
         )
 
-    def ask_approval(self, command, receipt, lines):
+    def ask_approval(self, command, receipt, command_length):
         dimensions = self.tmux(
             "display-message", "-p", "-t", self.origin_pane,
             "#{pane_width} #{pane_height}",
@@ -194,9 +235,10 @@ class HostCommandBroker:
         if dimensions.returncode:
             return False
         width, available = map(int, dimensions.stdout.split())
-        if width < 1 or available < 3:
+        width -= 1
+        if width < 1 or available < 5:
             return False
-        height = sum(max(1, (len(line) + width - 1) // width) for line in lines)
+        height = 2 + (command_length + width - 1) // width
         # Leave room for the divider and the original pane.
         height = min(height, available - 2)
         # Select the new pane within the originating window, without changing windows.

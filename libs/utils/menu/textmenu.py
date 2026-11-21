@@ -28,6 +28,10 @@ class _CodeLine(str):
     pass
 
 
+class _DiffLine(_CodeLine):
+    pass
+
+
 class _TableLine(str):
     rendered: str
 
@@ -153,7 +157,7 @@ class TextMenu(Menu[str]):
         self.__keyword = ""
         self.__markdown = markdown
         self.__table_width = 0
-        self.__in_fence = False
+        self.__fence_language = None
         self.__file = os.path.abspath(file) if file else None
         if self.__file and (self.timeout_sec < 0 or self.timeout_sec > 1):
             self.timeout_sec = 1.0
@@ -171,7 +175,7 @@ class TextMenu(Menu[str]):
         return stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino
 
     def __load_text(self, text: str):
-        self.__in_fence = False
+        self.__fence_language = None
         self.items.clear()
         for line in text.splitlines():
             self.items.append(self.__mark_code(line))
@@ -200,8 +204,12 @@ class TextMenu(Menu[str]):
     def __mark_code(self, line: str) -> str:
         # Tags lines inside a ``` fence, since styling sees one line at a time.
         if self.__markdown and line.startswith("```"):
-            self.__in_fence = not self.__in_fence
-        elif self.__in_fence:
+            self.__fence_language = (
+                line[3:].strip() if self.__fence_language is None else None
+            )
+        elif self.__fence_language is not None:
+            if self.__fence_language == "diff" and line.startswith(("+", "-")):
+                return _DiffLine(line)
             return _CodeLine(line)
         return line
 
@@ -216,7 +224,7 @@ class TextMenu(Menu[str]):
             self.refresh()
 
     def clear_items(self):
-        self.__in_fence = False
+        self.__fence_language = None
         super().clear_items()
 
     def search_by_input(self, save_search_history=True) -> bool:
@@ -284,6 +292,9 @@ class TextMenu(Menu[str]):
     def get_item_text(self, item: str) -> str:
         if isinstance(item, _TableLine):
             item = item.rendered
+        elif isinstance(item, _DiffLine):
+            color = "\x1b[32m" if item.startswith("+") else "\x1b[31m"
+            item = f"{_CODE_BG}{color}{item}\x1b[39;49m"
         elif isinstance(item, _CodeLine):
             item = f"{_CODE_BG}{item}\x1b[49m"
         elif self.__markdown:

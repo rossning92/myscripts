@@ -289,9 +289,8 @@ class CsvMenu(Menu[CsvRow]):
         selected_row = self.get_selected_item()
         if not self._select_row and selected_row is item:
             cells[self._selected_column] = (
-                "\x1b[27m" + cells[self._selected_column] + "\x1b[7m"
+                "\x1b[1;33m" + cells[self._selected_column] + "\x1b[0m"
             )
-            return "\x1b[7m" + COLUMN_SEPARATOR.join(cells) + "\x1b[27m"
         return COLUMN_SEPARATOR.join(cells)
 
     def __add_column(self):

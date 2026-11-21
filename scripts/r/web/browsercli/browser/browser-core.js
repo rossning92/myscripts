@@ -7,12 +7,49 @@ import {
   profileDir,
   WINDOW_HEIGHT,
   WINDOW_WIDTH,
-} from "./config.js";
-import { normalizeUrl } from "./extension/shared/navigation.js";
+} from "../config.js";
+import { normalizeUrl } from "../extension/shared/navigation.js";
 import { CdpBrowser } from "./cdp-browser.js";
 import { getViewport } from "./viewport.js";
+import { prepareBrowserAudioEnv } from "../screencast/audio.js";
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Apply Chromium's navigation blocklist before the external protocol handler runs.
+function blockExternalProtocols(userDataDir) {
+  fs.mkdirSync(userDataDir, { recursive: true });
+  const profiles = new Set(["Default"]);
+  for (const entry of fs.readdirSync(userDataDir, { withFileTypes: true })) {
+    if (
+      entry.isDirectory() &&
+      fs.existsSync(path.join(userDataDir, entry.name, "Preferences"))
+    ) {
+      profiles.add(entry.name);
+    }
+  }
+
+  for (const profile of profiles) {
+    const directory = path.join(userDataDir, profile);
+    const filename = path.join(directory, "Preferences");
+    fs.mkdirSync(directory, { recursive: true });
+    const preferences = fs.existsSync(filename)
+      ? JSON.parse(fs.readFileSync(filename, "utf8"))
+      : {};
+    const policy = preferences.policy ?? {};
+    preferences.policy = {
+      ...policy,
+      url_blocklist: [...new Set([...(policy.url_blocklist ?? []), "*"])],
+      url_allowlist: [
+        "http://*", "https://*", "file://*", "about:*", "data:*", "blob:*",
+        "javascript:*", "chrome://*", "chrome-untrusted://*", "chrome-extension://*",
+        "devtools://*", "view-source:*",
+      ],
+    };
+    const temporaryFile = path.join(directory, `Preferences.browsercli-${process.pid}`);
+    fs.writeFileSync(temporaryFile, JSON.stringify(preferences), { mode: 0o600 });
+    fs.renameSync(temporaryFile, filename);
+  }
+}
 
 export const getExecutablePath = () => {
   const defaults = {
@@ -48,9 +85,11 @@ export const getExecutablePath = () => {
 
 async function launchDetachedChrome(headed = false) {
   const executablePath = getExecutablePath();
+  const userDataDir = profileDir();
+  blockExternalProtocols(userDataDir);
   const chromeArgs = [
     `--remote-debugging-port=${debugPort()}`,
-    `--user-data-dir=${profileDir()}`,
+    `--user-data-dir=${userDataDir}`,
     "--remote-allow-origins=*",
     "--no-first-run",
     `--window-size=${WINDOW_WIDTH},${WINDOW_HEIGHT}`,
@@ -72,6 +111,7 @@ async function launchDetachedChrome(headed = false) {
     if (process.platform === "linux" && process.env.BROWSERCLI_XVFB_VULKAN !== "0") {
       chromeArgs.push("--use-angle=vulkan");
     }
+    const env = await prepareBrowserAudioEnv();
     const chromeProcess = await new Promise((resolve, reject) => {
       const child = spawn(
         "xvfb-run",
@@ -84,6 +124,7 @@ async function launchDetachedChrome(headed = false) {
         {
           detached: true,
           stdio: "ignore",
+          env,
         }
       );
       child.once("spawn", () => resolve(child));

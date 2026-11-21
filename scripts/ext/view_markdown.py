@@ -18,5 +18,6 @@ if __name__ == "__main__":
     TextMenu(
         file=args.file,
         markdown=args.markdown,
+        line_number=not args.markdown,
         prompt=Path(args.file).name,
     ).exec()

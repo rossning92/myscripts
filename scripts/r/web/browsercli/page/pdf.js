@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
-import { withActivePageCdp } from "./browser-cdp.js";
+import { withActivePageCdp } from "../browser/active-page-cdp.js";
 
 function temporaryPdfPath() {
   return path.join(os.tmpdir(), `browsercli-${randomUUID()}.pdf`);
