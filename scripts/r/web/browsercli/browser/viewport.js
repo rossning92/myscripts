@@ -1,4 +1,4 @@
-import { currentSession, WINDOW_HEIGHT, WINDOW_WIDTH } from "./config.js";
+import { currentSession, WINDOW_HEIGHT, WINDOW_WIDTH } from "../config.js";
 
 const VIEWPORT_PATTERN = /^(\d+)\s*[xX×]\s*(\d+)$/;
 

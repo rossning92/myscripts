@@ -201,6 +201,22 @@
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
       }
+      #audioBtn[aria-pressed="true"] .sound-on,
+      #audioBtn[aria-pressed="false"] .sound-off {
+        display: none;
+      }
+      #mediaStatus {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        z-index: 1;
+        background: var(--chrome-toolbar);
+        padding: 6px 10px;
+        border-radius: 6px;
+        color: #fff;
+        font-size: 13px;
+        pointer-events: none;
+      }
       #hiddenInput {
         position: absolute;
         top: 0;
@@ -288,6 +304,9 @@
         position: relative;
         display: flex;
       }
+      .shortcutControl:has(> button[hidden]) {
+        display: none;
+      }
       .shortcutAddress {
         flex: 1 1 auto;
         min-width: 0;
@@ -321,7 +340,7 @@
         opacity: 0.55;
       }
       @media (max-width: 480px) {
-        #toolbar:has(#shortcutHelp:not([hidden])) :is(#reloadBtn, #shareBtn, #copyBtn, #pipBtn) {
+        #toolbar:has(#shortcutHelp:not([hidden])) :is(#reloadBtn, #shareBtn) {
           display: none;
         }
         #toolbar #sessionBtn {
@@ -423,31 +442,48 @@
           <path d="M8.2 10.8l7.6-4.5M8.2 13.2l7.6 4.5" />
         </svg>
       </button>
-      <button
-        id="copyBtn"
-        title="Copy image"
-        aria-label="Copy current screencast image"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="8" y="8" width="11" height="11" rx="2" />
-          <path d="M16 8V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1" />
-        </svg>
-      </button>
-      <button
-        id="pipBtn"
-        title="Picture in picture"
-        aria-label="Open picture in picture"
-        aria-pressed="false"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="5" width="18" height="14" rx="2" />
-          <rect x="11" y="11" width="8" height="6" rx="1" />
-        </svg>
-      </button>
+      <div class="shortcutControl">
+        <button
+          id="copyBtn"
+          title="Copy image (Ctrl+A, then C)"
+          aria-label="Copy current screencast image"
+          disabled
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="8" y="8" width="11" height="11" rx="2" />
+            <path d="M16 8V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1" />
+          </svg>
+        </button>
+        <kbd class="shortcutBadge" aria-hidden="true">C</kbd>
+      </div>
+      <div class="shortcutControl">
+        <button
+          id="pipBtn"
+          title="Picture in picture (Ctrl+A, then P)"
+          aria-label="Open picture in picture"
+          aria-pressed="false"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <rect x="11" y="11" width="8" height="6" rx="1" />
+          </svg>
+        </button>
+        <kbd class="shortcutBadge" aria-hidden="true">P</kbd>
+      </div>
+      <div class="shortcutControl">
+        <button type="button" id="audioBtn" aria-label="Mute audio" title="Mute (Ctrl+A, then M)" aria-pressed="false" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M11 5 6 9H3v6h3l5 4V5z" />
+            <path class="sound-on" d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12" />
+            <path class="sound-off" d="m16 9 5 6m0-6-5 6" />
+          </svg>
+        </button>
+        <kbd class="shortcutBadge" aria-hidden="true">M</kbd>
+      </div>
     </div>
     <div id="stage">
       <canvas id="screen"></canvas>
+      <div id="mediaStatus" role="status" hidden></div>
       <div id="fileChooser" role="dialog" aria-modal="true" aria-labelledby="fileChooserTitle" hidden>
         <div id="fileChooserPanel">
           <h2 id="fileChooserTitle">Choose files to upload</h2>
@@ -508,6 +544,7 @@
       import { setupPictureInPicture } from "/static/pip.js";
       import { forwardPaste, isPasteShortcut } from "/static/keyboard-input.js";
       import { setupScreencastZoom } from "/static/zoom.js";
+      import { setupScreencastPlayer } from "/static/screencast-player.js";
       import { setupVirtualKeys } from "/static/virtual-keys.js";
 
       const canvas = document.getElementById("screen");
@@ -539,6 +576,10 @@
       const sessionMenu = document.getElementById("sessionMenu");
       const searchParams = new URLSearchParams(location.search);
       const currentSession = searchParams.get("session") ?? "";
+      const audioBtn = document.getElementById("audioBtn");
+      const mediaStatus = document.getElementById("mediaStatus");
+      let closePlayer;
+      let mediaRetryTimer;
       let sessionsKey = null;
       let closingSession = false;
       sessionBtn.textContent = currentSession || "default";
@@ -689,10 +730,9 @@
       zoomOutBtn.addEventListener("click", zoom.zoomOut);
       zoomInBtn.addEventListener("click", zoom.zoomIn);
 
-      let currentFrameData = null;
-
       function currentFrameFile() {
-        const binary = atob(currentFrameData);
+        const jpeg = canvas.toDataURL("image/jpeg").split(",")[1];
+        const binary = atob(jpeg);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         return new File([bytes], `screencast-${Date.now()}.jpg`, {
@@ -701,7 +741,7 @@
       }
 
       function shareCurrentImage() {
-        if (!currentFrameData) return;
+        if (shareBtn.disabled) return;
         const file = currentFrameFile();
         return navigator.share({
           files: [file],
@@ -744,7 +784,7 @@
             ]);
             copyBtn.title = "Copied";
             setTimeout(() => {
-              copyBtn.title = "Copy image";
+              copyBtn.title = "Copy image (Ctrl+A, then C)";
             }, 1500);
           } catch (error) {
             console.error(error);
@@ -798,6 +838,9 @@
       const shortcuts = {
         KeyS: () => sessionBtn.click(),
         KeyV: () => viewportBtn.click(),
+        KeyC: () => { if (!copyBtn.hidden) copyBtn.click(); },
+        KeyP: () => { if (!pipBtn.hidden) pipBtn.click(); },
+        KeyM: () => audioBtn.click(),
         KeyA: () => {
           closeViewportMenu();
           closeSessionMenu();
@@ -1019,30 +1062,95 @@
         if (e.key === "Enter") go();
       });
 
-      function startScreencast() {
-        send("Page.startScreencast", {
-          format: "jpeg",
-          everyNthFrame: 1,
-        });
+      function drawFrame(source, width, height) {
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+          zoom.resize();
+        }
+        ctx.drawImage(source, 0, 0);
+        shareBtn.disabled = false;
+        copyBtn.disabled = false;
+        pictureInPicture.refreshVideo();
+      }
+
+      function stopMedia() {
+        clearTimeout(mediaRetryTimer);
+        closePlayer?.();
+        closePlayer = undefined;
+      }
+
+      function startMedia(wsUrl) {
+        stopMedia();
+        if (
+          !("RTCPeerConnection" in window) ||
+          !("requestVideoFrameCallback" in HTMLVideoElement.prototype)
+        ) {
+          mediaStatus.textContent = "WebRTC unsupported";
+          mediaStatus.hidden = false;
+          return;
+        }
+        function retryMedia() {
+          mediaStatus.textContent = "Reconnecting...";
+          mediaStatus.hidden = false;
+          mediaRetryTimer = setTimeout(() => startMedia(wsUrl), 3000);
+        }
+        try {
+          closePlayer = setupScreencastPlayer({
+            button: audioBtn,
+            session: currentSession,
+            targetId: new URL(wsUrl).pathname.split("/").at(-1),
+            draw(video, width, height) {
+              mediaStatus.hidden = true;
+              pageWidth = width;
+              pageHeight = height;
+              drawFrame(video, width, height);
+            },
+            onFailure: retryMedia,
+          });
+        } catch {
+          retryMedia();
+        }
+      }
+
+      function disconnectControls() {
+        ws = null;
+        currentWsUrl = null;
+        stopMedia();
+        mediaStatus.hidden = true;
+        for (const request of pending.values()) {
+          request.reject(new Error("CDP connection closed"));
+        }
+        pending.clear();
+        fileUpload.close();
       }
 
       function connect(wsUrl) {
         if (ws) {
           ws.onclose = null;
           ws.close();
+          disconnectControls();
         }
         currentWsUrl = wsUrl;
         document.title = "browsercli screencast";
-        ws = new WebSocket(wsUrl);
+        const socket = new WebSocket(wsUrl);
+        ws = socket;
 
-        ws.onopen = async () => {
-          await send("Page.enable");
-          await send("Page.setInterceptFileChooserDialog", { enabled: true });
-          startScreencast();
-          refreshNav();
+        socket.onopen = async () => {
+          try {
+            await send("Page.enable");
+            if (ws !== socket) return;
+            await send("Page.setInterceptFileChooserDialog", { enabled: true });
+            if (ws !== socket) return;
+            startMedia(wsUrl);
+            await refreshNav();
+          } catch {
+            socket.close();
+          }
         };
 
-        ws.onmessage = (e) => {
+        socket.onmessage = (e) => {
+          if (ws !== socket) return;
           const msg = JSON.parse(e.data);
           // Resolve awaited command responses.
           if (msg.id !== undefined && pending.has(msg.id)) {
@@ -1067,44 +1175,12 @@
             msg.params.frame &&
             !msg.params.frame.parentId
           ) {
-            refreshNav();
-          }
-          if (msg.method === "Page.screencastFrame") {
-            const meta = msg.params.metadata;
-            pageWidth = meta.deviceWidth;
-            pageHeight = meta.deviceHeight;
-            currentFrameData = msg.params.data;
-            const img = new Image();
-            img.onload = () => {
-              const resized = canvas.width !== img.width || canvas.height !== img.height;
-              canvas.width = img.width;
-              canvas.height = img.height;
-              if (resized) zoom.resize();
-              ctx.drawImage(img, 0, 0);
-              shareBtn.disabled = false;
-              copyBtn.disabled = false;
-              pictureInPicture.refreshVideo();
-            };
-            img.src = "data:image/jpeg;base64," + msg.params.data;
-            send("Page.screencastFrameAck", {
-              sessionId: msg.params.sessionId,
-            });
+            refreshNav().catch(console.error);
           }
         };
 
-        ws.onclose = () => {
-          currentWsUrl = null;
-          for (const request of pending.values()) {
-            request.reject(new Error("CDP connection closed"));
-          }
-          pending.clear();
-          fileUpload.close();
-        };
+        socket.onclose = disconnectControls;
       }
-
-      document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) startScreencast();
-      });
 
       // Single poll loop handles initial connection, disconnects, and tab switches
       async function poll() {
@@ -1118,7 +1194,7 @@
           if (activeWs && activeWs !== currentWsUrl) {
             connect(activeWs);
           } else if (ws && ws.readyState === WebSocket.OPEN) {
-            refreshNav();
+            await refreshNav();
           }
         } catch (e) {}
       }

@@ -20,9 +20,9 @@ from utils.window import (
 _WINDOW_CLOSE_WAIT_SECONDS = 1.0
 _AUTO_REFRESH_INTERVAL_SECONDS = 2.0
 _PROMPT = "activate window"
-# Fits current Claude window titles, so the option columns line up.
-_TITLE_WIDTH = 56
-# Caps each option column so one long value (e.g. a path) can't push the rest off.
+_MAX_TITLE_CHARS = 40
+_COLUMN_SEPARATOR = " | "
+# Caps option columns that have another column to their right.
 _OPTION_WIDTH = 24
 
 _STATUS_COLOR_MAPPING: Dict[WindowStatus, str] = {
@@ -46,6 +46,7 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.script_status: Dict[str, str] = {}
         self.__visited_success: Set[str] = set()
         self.__pinned: Set[str] = set()
+        self.__title_chars = 0
         self.__option_widths: Dict[str, int] = {}
         self.add_command(self.__refresh_windows, hotkey="ctrl+r")
         self.add_command(self.__close_windows, hotkey="delete")
@@ -99,9 +100,11 @@ class WinSwitcherMenu(Menu[WindowItem]):
         self.items.sort(key=self.__get_sort_key)
         names = sorted({name for w in self.items for name in w.options})
         self.__option_widths = {
-            name: min(max(len(w.options.get(name, "")) for w in self.items), _OPTION_WIDTH)
+            name: max(len(w.options.get(name, "")) for w in self.items)
             for name in names
         }
+        for name in names[:-1]:
+            self.__option_widths[name] = min(self.__option_widths[name], _OPTION_WIDTH)
 
         current_success_titles = {
             w.title
@@ -182,20 +185,30 @@ class WinSwitcherMenu(Menu[WindowItem]):
     def on_escape_pressed(self):
         self.clear_input()
 
+    def _update_screen(self):
+        longest_title = max(
+            (len(self.items[i].title) for i in self.get_item_indices()), default=0
+        )
+        self.__title_chars = min(longest_title, _MAX_TITLE_CHARS)
+        super()._update_screen()
+
     def get_item_text(self, item: WindowItem) -> str:
-        title = item.title[:_TITLE_WIDTH]
-        options = "  ".join(
+        title = item.title[:_MAX_TITLE_CHARS]
+        columns = [
             item.options.get(name, "")[:width].ljust(width)
             for name, width in self.__option_widths.items()
-        ).rstrip()
+        ]
+        while columns and not columns[-1].strip():
+            columns.pop()
+        options = _COLUMN_SEPARATOR.join(columns).rstrip()
         if options:
-            title = title.ljust(_TITLE_WIDTH)
+            title = title.ljust(self.__title_chars)
         if (
             item.get_status(self.script_status) == "success"
             and item.title not in self.__visited_success
         ):
             title = f"\x1b[1m{title}\x1b[22m"
-        return f"{title}  {options}" if options else title
+        return f"{title}{_COLUMN_SEPARATOR}{options}" if options else title
 
     def get_item_color(self, item: WindowItem) -> str:
         if item.title in self.__pinned:

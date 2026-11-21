@@ -93,7 +93,7 @@ export function setupPictureInPicture({
   function setButtonState(active) {
     const action = active ? "Close" : "Open";
     button.setAttribute("aria-pressed", String(active));
-    button.title = active ? "Close picture in picture" : "Picture in picture";
+    button.title = `${active ? "Close picture in picture" : "Picture in picture"} (Ctrl+A, then P)`;
     button.setAttribute("aria-label", `${action} picture in picture`);
   }
 

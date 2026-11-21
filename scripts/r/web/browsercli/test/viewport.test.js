@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseViewport } from "../viewport.js";
+import { parseViewport } from "../browser/viewport.js";
 
 test("parseViewport accepts common separators and whitespace", () => {
   assert.deepEqual(parseViewport(" 1280x720 "), { width: 1280, height: 720 });

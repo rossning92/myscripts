@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
-import { getExecutablePath, withActivePage } from "./browser-core.js";
-import { currentSession, DAEMON_PORT, sessionQuery } from "./config.js";
+import { getExecutablePath, withActivePage } from "../browser/browser-core.js";
+import { currentSession, DAEMON_PORT, sessionQuery } from "../config.js";
 
 export async function screencast() {
   await withActivePage(() => {});

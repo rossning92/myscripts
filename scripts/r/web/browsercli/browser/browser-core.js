@@ -7,10 +7,11 @@ import {
   profileDir,
   WINDOW_HEIGHT,
   WINDOW_WIDTH,
-} from "./config.js";
-import { normalizeUrl } from "./extension/shared/navigation.js";
+} from "../config.js";
+import { normalizeUrl } from "../extension/shared/navigation.js";
 import { CdpBrowser } from "./cdp-browser.js";
 import { getViewport } from "./viewport.js";
+import { prepareBrowserAudioEnv } from "../screencast/audio.js";
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -72,6 +73,7 @@ async function launchDetachedChrome(headed = false) {
     if (process.platform === "linux" && process.env.BROWSERCLI_XVFB_VULKAN !== "0") {
       chromeArgs.push("--use-angle=vulkan");
     }
+    const env = await prepareBrowserAudioEnv();
     const chromeProcess = await new Promise((resolve, reject) => {
       const child = spawn(
         "xvfb-run",
@@ -84,6 +86,7 @@ async function launchDetachedChrome(headed = false) {
         {
           detached: true,
           stdio: "ignore",
+          env,
         }
       );
       child.once("spawn", () => resolve(child));

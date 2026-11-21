@@ -367,6 +367,8 @@ def _apply_ansi_escape(
             attr |= curses.A_BOLD
         elif code == "2":
             attr |= curses.A_DIM
+        elif code == "4":
+            attr |= curses.A_UNDERLINE
         elif code == "7":
             if reverse_initial:
                 attr &= ~curses.A_REVERSE
@@ -374,6 +376,8 @@ def _apply_ansi_escape(
                 attr |= curses.A_REVERSE
         elif code == "22":
             attr &= ~(curses.A_BOLD | curses.A_DIM)
+        elif code == "24":
+            attr &= ~curses.A_UNDERLINE
         elif code == "27":
             if reverse_initial:
                 attr |= curses.A_REVERSE
