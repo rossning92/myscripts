@@ -14,7 +14,7 @@ def convert_audio_to_text(file: str, prompt: str = DEFAULT_PROMPT) -> str:
     url = "https://api.openai.com/v1/audio/transcriptions"
     headers = {"Authorization": "Bearer " + os.environ["OPENAI_API_KEY"]}
     payload = {
-        "model": "gpt-4o-mini-transcribe",
+        "model": "gpt-transcribe",
         "prompt": prompt,
     }
     with open(file, "rb") as f:

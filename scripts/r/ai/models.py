@@ -58,13 +58,11 @@ MODELS: List[Model] = [
         "claude-sonnet-4-5",
         api_type="anthropic_messages",
     ),
-    Model("openai", "gpt-4.1-nano"),
-    Model("openai", "gpt-4.1-mini"),
-    Model("openai", "gpt-4.1"),
     Model("openai", "gpt-5.6-sol"),
     Model("openai", "gpt-5.6-terra"),
     Model("openai", "gpt-5.6-luna"),
     Model("openai", "gpt-5.6-luna", reasoning_effort="low"),
+    Model("openai", "gpt-6.2-sol", reasoning_effort="medium"),
     Model(
         "cliproxy",
         "gpt-5.6-sol",
@@ -229,7 +227,7 @@ MODELS: List[Model] = [
 
 MODELS_BY_ID: Dict[str, Model] = {model.id: model for model in MODELS}
 MODEL_IDS = list(MODELS_BY_ID)
-DEFAULT_MODEL = "openai:gpt-5.6-terra"
+DEFAULT_MODEL = "openai:gpt-6.2-sol-medium"
 
 
 def get_model(model_id: Optional[str]) -> Model:

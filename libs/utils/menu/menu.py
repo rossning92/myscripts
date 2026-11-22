@@ -316,6 +316,7 @@ def _to_curses_color(color: Union[str, int]) -> int:
         "darkgray": 240 if has_256 else curses.COLOR_BLACK,
         "brightblack": 8 if has_256 else curses.COLOR_BLACK,
         "darkblue": 17 if has_256 else curses.COLOR_BLUE,
+        "teal": 30 if has_256 else -1,
         "orange": 208 if has_256 else curses.COLOR_YELLOW,
     }.get(color.lower(), -1)
 
@@ -458,8 +459,7 @@ class _TextInput:
         _addstr(stdscr, y, x, " ")  # Add a space between label and text input
         y, x = Menu._stdscr.getyx()  # type: ignore
 
-        # Draw text before caret with dark gray background
-        attr = Menu._get_color_pair("white", "darkgray")
+        attr = Menu._get_color_pair("white")
         _addstr(stdscr, y, x, self.text[: self.caret_pos], attr)
         cursor_y, cursor_x = Menu._stdscr.getyx()  # type: ignore
 
@@ -467,7 +467,6 @@ class _TextInput:
         if show_enter_symbol:
             s += " [↵]"
 
-        # Draw text after caret with dark gray background
         _addstr(stdscr, cursor_y, cursor_x, s, attr)
         last_y, last_x = Menu._stdscr.getyx()  # type: ignore
 

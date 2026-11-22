@@ -811,16 +811,16 @@ class ChatMenu(Menu[Line]):
             return
         self.__terminal_title_state = state
         status = {"idle": "", "generating": "⧗", "done": "✓"}[state]
-        title = self.__title
-        if status:
-            title += " " + status
+        session_title = None
         if self.__messages:
             session_title = self.__session_title or self.__session.get("title")
             if not session_title:
                 first_prompt = self.__messages[0].get("text", "")
                 session_title = get_fallback_title(first_prompt)
-            if session_title:
-                title += " " + session_title
+        if session_title:
+            title = f"{status} {session_title}" if status else session_title
+        else:
+            title = f"{self.__title} {status}" if status else self.__title
         set_terminal_title(title)
 
     def __start_title_summary(self, prompt: str):
@@ -973,7 +973,7 @@ class ChatMenu(Menu[Line]):
             return " " * len(line_number_text)
 
     def get_item_color(self, item: Line) -> Union[str, Tuple[str, str]]:
-        return "white" if item.role == "assistant" else ("white", "darkgray")
+        return "white" if item.role == "assistant" else ("white", "teal")
 
     def item_wrap(self, item: Line) -> bool:
         return super().item_wrap(item) if item.text else False

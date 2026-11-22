@@ -3,7 +3,6 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
   let panX = 0;
   let panY = 0;
   let pinch = null;
-  let panTouch = null;
 
   canvas.style.transformOrigin = "0 0";
   canvas.style.willChange = "transform";
@@ -103,20 +102,12 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
         const stageRect = stage.getBoundingClientRect();
         const mid = midpoint(event.touches[0], event.touches[1]);
         pinch = {
-          distance: distance(event.touches[0], event.touches[1]),
+          distance: Math.max(1, distance(event.touches[0], event.touches[1])),
           scale,
           contentX:
             (mid.x - stageRect.left - canvas.offsetLeft - panX) / scale,
           contentY:
             (mid.y - stageRect.top - canvas.offsetTop - panY) / scale,
-        };
-        panTouch = null;
-      } else if (event.touches.length === 1 && scale > 1) {
-        panTouch = {
-          x: event.touches[0].clientX,
-          y: event.touches[0].clientY,
-          panX,
-          panY,
         };
       }
     },
@@ -149,15 +140,6 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
           canvas.offsetTop -
           pinch.contentY * scale;
         render();
-      } else if (
-        event.touches.length === 1 &&
-        panTouch &&
-        scale > 1
-      ) {
-        event.preventDefault();
-        panX = panTouch.panX + event.touches[0].clientX - panTouch.x;
-        panY = panTouch.panY + event.touches[0].clientY - panTouch.y;
-        render();
       }
     },
     { passive: false }
@@ -165,21 +147,10 @@ export function setupScreencastZoom(stage, canvas, { maxScale = 4 } = {}) {
 
   stage.addEventListener("touchend", (event) => {
     if (event.touches.length < 2) pinch = null;
-    if (event.touches.length === 1 && scale > 1) {
-      panTouch = {
-        x: event.touches[0].clientX,
-        y: event.touches[0].clientY,
-        panX,
-        panY,
-      };
-    } else if (event.touches.length === 0) {
-      panTouch = null;
-    }
   });
 
   stage.addEventListener("touchcancel", () => {
     pinch = null;
-    panTouch = null;
   });
 
   // Safari exposes this separately even with a restrictive viewport.

@@ -36,7 +36,7 @@ def _complete_chat_oai(payload: dict, api_key: str) -> dict:
 
 def _fix_text(text: str, api_key: str) -> str:
     payload = {
-        "model": "gpt-4o-mini",
+        "model": "gpt-6-luna",
         "messages": [
             {
                 "role": "user",
@@ -48,7 +48,7 @@ def _fix_text(text: str, api_key: str) -> str:
                 ),
             }
         ],
-        "temperature": 0,
+        "reasoning_effort": "low",
     }
     result = _complete_chat_oai(payload, api_key)
     return result["choices"][0]["message"]["content"].strip()

@@ -11,12 +11,13 @@ from typing import (
 )
 
 import aiohttp
+from ai.models import get_model
 from ai.utils.message import Message
 from ai.utils.tooluse import ToolDefinition, ToolUse
 from ai.utils.usagemetadata import UsageMetadata
 from utils.http import check_for_status, iter_lines
 
-DEFAULT_MODEL = "gpt-4o"
+DEFAULT_MODEL = get_model(None)
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,9 @@ async def complete_chat(
 
     payload: Dict[str, Any] = {}
 
+    if not model and reasoning_effort is None:
+        reasoning_effort = DEFAULT_MODEL.reasoning_effort
+
     if reasoning_effort:
         payload["reasoning"] = {"effort": reasoning_effort}
     elif model:
@@ -124,7 +128,7 @@ async def complete_chat(
 
     payload.update(
         {
-            "model": model if model else DEFAULT_MODEL,
+            "model": model if model else DEFAULT_MODEL.model,
             "input": _to_openai_responses_api_input(messages),
             "stream": True,
         }

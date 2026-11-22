@@ -27,7 +27,7 @@ export function setupScreencastPlayer({ button, session, targetId, draw, onBitra
     clearTimeout(deadline);
     clearTimeout(disconnectTimeout);
     clearTimeout(bitrateTimer);
-    onBitrate(null);
+    onBitrate?.(null);
     if (frameRequest !== undefined) video.cancelVideoFrameCallback(frameRequest);
     button.removeEventListener("click", toggleMute);
     button.disabled = true;
@@ -47,7 +47,7 @@ export function setupScreencastPlayer({ button, session, targetId, draw, onBitra
     if (!ready) {
       ready = true;
       clearTimeout(deadline);
-      sampleBitrate();
+      if (onBitrate) sampleBitrate();
     }
     draw(video, video.videoWidth, video.videoHeight);
     frameRequest = video.requestVideoFrameCallback(render);

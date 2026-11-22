@@ -199,6 +199,7 @@
         max-width: 100%;
         max-height: 100%;
         cursor: pointer;
+        touch-action: none;
         -webkit-tap-highlight-color: transparent;
       }
       #audioBtn[aria-pressed="true"]:enabled {
@@ -506,17 +507,6 @@
     </div>
     <input id="localFileInput" type="file" hidden />
     <div id="virtualKeys" role="group" aria-label="Remote keyboard controls">
-      <button
-        type="button"
-        id="keyboardBtn"
-        title="Toggle keyboard"
-        aria-label="Toggle keyboard"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="6" width="18" height="12" rx="2" />
-          <path d="M6 10h1M10 10h1M14 10h1M18 10h0M6 13h1M10 13h1M14 13h1M18 13h0M7 16h10" />
-        </svg>
-      </button>
       <button type="button" data-key="Escape" data-code="Escape" data-key-code="27">Esc</button>
       <button type="button" data-key="Home" data-code="Home" data-key-code="36">Home</button>
       <button type="button" data-key="ArrowUp" data-code="ArrowUp" data-key-code="38" aria-label="Arrow up">&#8593;</button>
@@ -528,6 +518,12 @@
           <path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6" />
         </svg>
       </button>
+      <button type="button" id="mouseModeBtn" title="Mouse mode" aria-label="Mouse mode" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="6" y="3" width="12" height="18" rx="6" />
+          <path d="M12 7v4" />
+        </svg>
+      </button>
       <button type="button" data-key="Tab" data-code="Tab" data-key-code="9">Tab</button>
       <button type="button" data-key="ArrowLeft" data-code="ArrowLeft" data-key-code="37" aria-label="Arrow left">&#8592;</button>
       <button type="button" data-key="ArrowDown" data-code="ArrowDown" data-key-code="40" aria-label="Arrow down">&#8595;</button>
@@ -537,6 +533,12 @@
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="10.5" cy="10.5" r="6.5" />
           <path d="M15.5 15.5L21 21M7.5 10.5h6" />
+        </svg>
+      </button>
+      <button type="button" id="keyboardBtn" title="Toggle keyboard" aria-label="Toggle keyboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <path d="M6 10h1M10 10h1M14 10h1M18 10h0M6 13h1M10 13h1M14 13h1M18 13h0M7 16h10" />
         </svg>
       </button>
     </div>
@@ -557,14 +559,16 @@
       import { setupVirtualKeys } from "/static/virtual-keys.js";
 
       const canvas = document.getElementById("screen");
+      const stage = document.getElementById("stage");
       const ctx = canvas.getContext("2d");
-      const zoom = setupScreencastZoom(document.getElementById("stage"), canvas);
+      const zoom = setupScreencastZoom(stage, canvas);
 
       let id = 1;
       let pageWidth = 1,
         pageHeight = 1;
       let ws = null;
       let currentWsUrl = null;
+      let activeTouch = null;
       // Pending CDP command responses, keyed by request id.
       const pending = new Map();
 
@@ -585,6 +589,7 @@
       const sessionMenu = document.getElementById("sessionMenu");
       const searchParams = new URLSearchParams(location.search);
       const currentSession = searchParams.get("session") ?? "";
+      const showBitrate = searchParams.get("debug") === "1";
       const audioBtn = document.getElementById("audioBtn");
       const mediaStatus = document.getElementById("mediaStatus");
       const mediaBitrate = document.getElementById("mediaBitrate");
@@ -728,7 +733,6 @@
       const shareBtn = document.getElementById("shareBtn");
       const copyBtn = document.getElementById("copyBtn");
       const pipBtn = document.getElementById("pipBtn");
-      const stage = document.getElementById("stage");
       const zoomOutBtn = document.getElementById("zoomOutBtn");
       const zoomInBtn = document.getElementById("zoomInBtn");
       const fileChooser = document.getElementById("fileChooser");
@@ -1116,13 +1120,7 @@
               pageHeight = height;
               drawFrame(video, width, height);
             },
-            onBitrate(bitsPerSecond) {
-              mediaBitrate.hidden = bitsPerSecond === null;
-              if (bitsPerSecond === null) return;
-              mediaBitrate.textContent = bitsPerSecond >= 1_000_000
-                ? `${(bitsPerSecond / 1_000_000).toFixed(2)} Mbps`
-                : `${Math.round(bitsPerSecond / 1000)} kbps`;
-            },
+            onBitrate: showBitrate ? updateBitrate : undefined,
             onFailure: retryMedia,
           });
         } catch {
@@ -1130,8 +1128,17 @@
         }
       }
 
+      function updateBitrate(bitsPerSecond) {
+        mediaBitrate.hidden = bitsPerSecond === null;
+        if (bitsPerSecond === null) return;
+        mediaBitrate.textContent = bitsPerSecond >= 1_000_000
+          ? `${(bitsPerSecond / 1_000_000).toFixed(2)} Mbps`
+          : `${Math.round(bitsPerSecond / 1000)} kbps`;
+      }
+
       function disconnectControls() {
         ws = null;
+        activeTouch = null;
         currentWsUrl = null;
         stopMedia();
         mediaStatus.hidden = true;
@@ -1144,6 +1151,7 @@
 
       function connect(wsUrl) {
         if (ws) {
+          cancelTouch();
           ws.onclose = null;
           ws.close();
           disconnectControls();
@@ -1225,6 +1233,108 @@
         return { x, y };
       }
 
+      const mouseButtonMask = { left: 1, right: 2, middle: 4, none: 0 };
+      const touchDragThreshold = 5;
+      const mouseModeBtn = document.getElementById("mouseModeBtn");
+
+      mouseModeBtn.addEventListener("click", () => {
+        const enabled = mouseModeBtn.getAttribute("aria-pressed") === "true";
+        mouseModeBtn.setAttribute("aria-pressed", String(!enabled));
+      });
+
+      function sendPointerInput(method, params) {
+        const socket = ws;
+        send(method, params).catch((error) => {
+          if (ws === socket) console.error(error);
+        });
+      }
+
+      function sendMouse(type, coords, button, clickCount) {
+        sendPointerInput("Input.dispatchMouseEvent", {
+          type,
+          ...coords,
+          button,
+          buttons: type === "mouseReleased" ? 0 : mouseButtonMask[button],
+          clickCount,
+        });
+      }
+
+      function sendTouch(type, touch) {
+        const touchPoints = touch
+          ? [{ ...toPageCoords(touch), id: touch.identifier }]
+          : [];
+        sendPointerInput("Input.dispatchTouchEvent", { type, touchPoints });
+      }
+
+      function cancelTouch() {
+        const touch = activeTouch;
+        activeTouch = null;
+        if (!touch) return;
+        if (!touch.asMouse) {
+          sendTouch("touchCancel");
+          return;
+        }
+        if (!touch.last) return;
+        send("Input.dispatchDragEvent", {
+          type: "dragCancel",
+          ...touch.last,
+          data: { items: [], dragOperationsMask: 0 },
+        }).catch(() => {});
+        sendMouse("mouseReleased", touch.last, "left", 0);
+      }
+
+      document.addEventListener(
+        "touchstart",
+        (e) => {
+          if (e.touches.length > 1) {
+            cancelTouch();
+            return;
+          }
+          if (e.target !== canvas) return;
+          // Suppress the compatibility mouse events generated by a tap.
+          e.preventDefault();
+          if (ws?.readyState !== WebSocket.OPEN) return;
+          const start = e.changedTouches[0];
+          const asMouse = mouseModeBtn.getAttribute("aria-pressed") === "true";
+          activeTouch = { start, asMouse, origin: toPageCoords(start), last: null };
+          if (!asMouse) sendTouch("touchStart", start);
+        },
+        { capture: true, passive: false }
+      );
+
+      canvas.addEventListener("touchmove", (e) => {
+        const touch = e.changedTouches[0];
+        if (touch.identifier !== activeTouch?.start.identifier) return;
+        const { start, asMouse, origin, last } = activeTouch;
+        if (!asMouse) {
+          sendTouch("touchMove", touch);
+          return;
+        }
+        if (!last) {
+          // A second finger can join before the first one starts a page drag.
+          const distance = Math.hypot(touch.clientX - start.clientX, touch.clientY - start.clientY);
+          if (distance < touchDragThreshold) return;
+          sendMouse("mousePressed", origin, "left", 1);
+        }
+        activeTouch.last = toPageCoords(touch);
+        sendMouse("mouseMoved", activeTouch.last, "left");
+      });
+
+      canvas.addEventListener("touchend", (e) => {
+        const touch = e.changedTouches[0];
+        if (touch.identifier !== activeTouch?.start.identifier) return;
+        const { asMouse, origin, last } = activeTouch;
+        activeTouch = null;
+        if (!asMouse) {
+          sendTouch("touchEnd");
+          return;
+        }
+        if (!last) sendMouse("mousePressed", origin, "left", 1);
+        sendMouse("mouseReleased", last ? toPageCoords(touch) : origin, "left", 1);
+      });
+
+      canvas.addEventListener("touchcancel", cancelTouch);
+
       function mouseButton(e) {
         return ["left", "middle", "right"][e.button] || "left";
       }
@@ -1232,34 +1342,12 @@
       // Track which button is currently held so drags carry button state.
       let pressedButton = null;
 
-      function buttonsMask() {
-        if (pressedButton === "left") return 1;
-        if (pressedButton === "right") return 2;
-        if (pressedButton === "middle") return 4;
-        return 0;
-      }
-
       function sendMove(e) {
-        const { x, y } = toPageCoords(e);
-        send("Input.dispatchMouseEvent", {
-          type: "mouseMoved",
-          x,
-          y,
-          button: pressedButton || "none",
-          buttons: buttonsMask(),
-        });
+        sendMouse("mouseMoved", toPageCoords(e), pressedButton ?? "none");
       }
 
       function onWindowMouseUp(e) {
-        const { x, y } = toPageCoords(e);
-        send("Input.dispatchMouseEvent", {
-          type: "mouseReleased",
-          x,
-          y,
-          button: mouseButton(e),
-          buttons: 0,
-          clickCount: 1,
-        });
+        sendMouse("mouseReleased", toPageCoords(e), mouseButton(e), 1);
         pressedButton = null;
         window.removeEventListener("mousemove", sendMove);
         window.removeEventListener("mouseup", onWindowMouseUp);
@@ -1272,16 +1360,8 @@
 
       canvas.addEventListener("mousedown", (e) => {
         if (document.activeElement === hiddenInput) e.preventDefault();
-        const { x, y } = toPageCoords(e);
         pressedButton = mouseButton(e);
-        send("Input.dispatchMouseEvent", {
-          type: "mousePressed",
-          x,
-          y,
-          button: pressedButton,
-          buttons: buttonsMask(),
-          clickCount: 1,
-        });
+        sendMouse("mousePressed", toPageCoords(e), pressedButton, 1);
         // Follow the drag on window so it continues even off the canvas.
         window.addEventListener("mousemove", sendMove);
         window.addEventListener("mouseup", onWindowMouseUp);
@@ -1297,7 +1377,7 @@
         (e) => {
           e.preventDefault();
           const { x, y } = toPageCoords(e);
-          send("Input.dispatchMouseEvent", {
+          sendPointerInput("Input.dispatchMouseEvent", {
             type: "mouseWheel",
             x,
             y,

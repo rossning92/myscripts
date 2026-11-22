@@ -32,7 +32,7 @@ async def complete_chat(
     }
 
     payload: dict = {
-        "model": model or os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
+        "model": model or os.environ.get("OPENROUTER_MODEL", "openai/gpt-6-luna"),
         "messages": [],
         "stream": True,
         "stream_options": {"include_usage": True},
