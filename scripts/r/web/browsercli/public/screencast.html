@@ -210,7 +210,6 @@
       #audioBtn[aria-pressed="false"] .sound-off {
         display: none;
       }
-      #mediaStatus,
       #mediaBitrate {
         position: absolute;
         top: 8px;
@@ -492,7 +491,6 @@
     </div>
     <div id="stage">
       <canvas id="screen"></canvas>
-      <div id="mediaStatus" role="status" hidden></div>
       <div id="mediaBitrate" hidden></div>
       <div id="fileChooser" role="dialog" aria-modal="true" aria-labelledby="fileChooserTitle" hidden>
         <div id="fileChooserPanel">
@@ -512,10 +510,10 @@
       <button type="button" data-key="ArrowUp" data-code="ArrowUp" data-key-code="38" aria-label="Arrow up">&#8593;</button>
       <button type="button" data-key="End" data-code="End" data-key-code="35">End</button>
       <button type="button" data-key="PageUp" data-code="PageUp" data-key-code="33">PgUp</button>
-      <button type="button" id="zoomInBtn" aria-label="Zoom in">
+      <button type="button" id="copyTextBtn" title="Copy text" aria-label="Copy text">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="10.5" cy="10.5" r="6.5" />
-          <path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6" />
+          <rect x="8" y="8" width="12" height="12" rx="2" />
+          <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
         </svg>
       </button>
       <button type="button" id="mouseModeBtn" title="Mouse mode" aria-label="Mouse mode" aria-pressed="false">
@@ -529,10 +527,10 @@
       <button type="button" data-key="ArrowDown" data-code="ArrowDown" data-key-code="40" aria-label="Arrow down">&#8595;</button>
       <button type="button" data-key="ArrowRight" data-code="ArrowRight" data-key-code="39" aria-label="Arrow right">&#8594;</button>
       <button type="button" data-key="PageDown" data-code="PageDown" data-key-code="34">PgDn</button>
-      <button type="button" id="zoomOutBtn" aria-label="Zoom out">
+      <button type="button" id="pasteBtn" title="Paste text" aria-label="Paste text">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="10.5" cy="10.5" r="6.5" />
-          <path d="M15.5 15.5L21 21M7.5 10.5h6" />
+          <rect x="8" y="3" width="8" height="4" rx="1" />
+          <path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M8 12h8m-8 4h8" />
         </svg>
       </button>
       <button type="button" id="keyboardBtn" title="Toggle keyboard" aria-label="Toggle keyboard">
@@ -542,6 +540,21 @@
         </svg>
       </button>
     </div>
+    <dialog id="copyTextDialog" aria-labelledby="copyTextLabel">
+      <form method="dialog">
+        <label id="copyTextLabel" for="copyText">Select and copy this text</label>
+        <p><textarea id="copyText" rows="4" readonly></textarea></p>
+        <button type="submit">Done</button>
+      </form>
+    </dialog>
+    <dialog id="pasteDialog" aria-labelledby="pasteLabel">
+      <form method="dialog">
+        <label id="pasteLabel" for="pasteText">Paste from your phone or computer</label>
+        <p><textarea id="pasteText" rows="4"></textarea></p>
+        <button type="submit" value="cancel">Cancel</button>
+        <button type="submit" value="insert">Insert</button>
+      </form>
+    </dialog>
     <input
       id="hiddenInput"
       type="text"
@@ -591,10 +604,8 @@
       const currentSession = searchParams.get("session") ?? "";
       const showBitrate = searchParams.get("debug") === "1";
       const audioBtn = document.getElementById("audioBtn");
-      const mediaStatus = document.getElementById("mediaStatus");
       const mediaBitrate = document.getElementById("mediaBitrate");
       let closePlayer;
-      let mediaRetryTimer;
       let sessionsKey = null;
       let closingSession = false;
       sessionBtn.textContent = currentSession || "default";
@@ -733,16 +744,12 @@
       const shareBtn = document.getElementById("shareBtn");
       const copyBtn = document.getElementById("copyBtn");
       const pipBtn = document.getElementById("pipBtn");
-      const zoomOutBtn = document.getElementById("zoomOutBtn");
-      const zoomInBtn = document.getElementById("zoomInBtn");
       const fileChooser = document.getElementById("fileChooser");
       const fileChooserDescription = document.getElementById("fileChooserDescription");
       const chooseFilesBtn = document.getElementById("chooseFilesBtn");
       const cancelFilesBtn = document.getElementById("cancelFilesBtn");
       const localFileInput = document.getElementById("localFileInput");
       setupVirtualKeys(virtualKeys, send);
-      zoomOutBtn.addEventListener("click", zoom.zoomOut);
-      zoomInBtn.addEventListener("click", zoom.zoomIn);
 
       function currentFrameFile() {
         const jpeg = canvas.toDataURL("image/jpeg").split(",")[1];
@@ -1003,6 +1010,75 @@
         hiddenInput.focus({ preventScroll: true });
       }
 
+      const copyTextDialog = document.getElementById("copyTextDialog");
+      const copyText = document.getElementById("copyText");
+      document.getElementById("copyTextBtn").addEventListener("click", async () => {
+        try {
+          const response = await send("Runtime.evaluate", {
+            expression: `(() => {
+              const field = document.activeElement;
+              if (field?.type === "password") return "";
+              if (typeof field?.selectionStart === "number") {
+                return field.value.slice(field.selectionStart, field.selectionEnd);
+              }
+              return window.getSelection()?.toString() ?? "";
+            })()`,
+            returnByValue: true,
+          });
+          const text = response?.result?.result?.value;
+          if (!text) {
+            alert("Select text in the remote page first.");
+            return;
+          }
+          if (navigator.clipboard?.writeText) {
+            try {
+              await navigator.clipboard.writeText(text);
+              return;
+            } catch {
+              // Use the browser's native Copy menu when clipboard access fails.
+            }
+          }
+          copyText.value = text;
+          copyTextDialog.showModal();
+          copyText.select();
+        } catch (error) {
+          console.error(error);
+          alert("Could not copy text.");
+        }
+      });
+      copyTextDialog.addEventListener("close", () => {
+        copyText.value = "";
+      });
+
+      const pasteDialog = document.getElementById("pasteDialog");
+      const pasteText = document.getElementById("pasteText");
+      document.getElementById("pasteBtn").addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        try {
+          const text = await navigator.clipboard?.readText?.().catch(() => undefined);
+          if (text === undefined) {
+            pasteDialog.showModal();
+            pasteText.focus();
+          } else if (text) {
+            await send("Input.insertText", { text });
+          }
+        } catch (error) {
+          console.error(error);
+          alert("Could not paste text into the remote page.");
+        } finally {
+          button.disabled = false;
+        }
+      });
+      pasteDialog.querySelector("form").addEventListener("submit", (event) => {
+        if (event.submitter?.value === "insert" && pasteText.value) {
+          send("Input.insertText", { text: pasteText.value });
+        }
+      });
+      pasteDialog.addEventListener("close", () => {
+        pasteText.value = "";
+      });
+
       keyboardBtn.addEventListener("click", () => {
         if (document.activeElement === hiddenInput) {
           hiddenInput.blur();
@@ -1077,6 +1153,8 @@
       });
 
       function drawFrame(source, width, height) {
+        pageWidth = width;
+        pageHeight = height;
         if (canvas.width !== width || canvas.height !== height) {
           canvas.width = width;
           canvas.height = height;
@@ -1089,9 +1167,15 @@
       }
 
       function stopMedia() {
-        clearTimeout(mediaRetryTimer);
         closePlayer?.();
         closePlayer = undefined;
+        send("Page.stopScreencast").catch(() => {});
+      }
+
+      // Draw CDP JPEG frames directly when WebRTC (needed for audio) is unavailable or fails. No server-side decode.
+      function startJpegScreencast() {
+        stopMedia();
+        send("Page.startScreencast", { format: "jpeg", everyNthFrame: 1 }).catch(() => {});
       }
 
       function startMedia(wsUrl) {
@@ -1100,31 +1184,20 @@
           !("RTCPeerConnection" in window) ||
           !("requestVideoFrameCallback" in HTMLVideoElement.prototype)
         ) {
-          mediaStatus.textContent = "WebRTC unsupported";
-          mediaStatus.hidden = false;
+          startJpegScreencast();
           return;
-        }
-        function retryMedia() {
-          mediaStatus.textContent = "Reconnecting...";
-          mediaStatus.hidden = false;
-          mediaRetryTimer = setTimeout(() => startMedia(wsUrl), 3000);
         }
         try {
           closePlayer = setupScreencastPlayer({
             button: audioBtn,
             session: currentSession,
             targetId: new URL(wsUrl).pathname.split("/").at(-1),
-            draw(video, width, height) {
-              mediaStatus.hidden = true;
-              pageWidth = width;
-              pageHeight = height;
-              drawFrame(video, width, height);
-            },
+            draw: drawFrame,
             onBitrate: showBitrate ? updateBitrate : undefined,
-            onFailure: retryMedia,
+            onFailure: startJpegScreencast,
           });
         } catch {
-          retryMedia();
+          startJpegScreencast();
         }
       }
 
@@ -1141,7 +1214,6 @@
         activeTouch = null;
         currentWsUrl = null;
         stopMedia();
-        mediaStatus.hidden = true;
         for (const request of pending.values()) {
           request.reject(new Error("CDP connection closed"));
         }
@@ -1188,6 +1260,13 @@
             } else {
               request.resolve(msg);
             }
+            return;
+          }
+          if (msg.method === "Page.screencastFrame") {
+            send("Page.screencastFrameAck", { sessionId: msg.params.sessionId }).catch(() => {});
+            const img = new Image();
+            img.onload = () => drawFrame(img, img.width, img.height);
+            img.src = "data:image/jpeg;base64," + msg.params.data;
             return;
           }
           if (msg.method === "Page.fileChooserOpened") {

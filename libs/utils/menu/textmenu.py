@@ -23,6 +23,13 @@ _MARKDOWN = [
     (re.compile(r"^(>|```).*"), "\x1b[38;5;244m\\g<0>\x1b[39m"),
 ]
 
+# Backslash escapes (e.g. "\_", "\[") are handled before the rules above, so an
+# escaped character cannot start emphasis or a link. Code spans keep their
+# backslashes. Escaped punctuation becomes a private-use placeholder until the end.
+_ESCAPE = re.compile(r"(`[^`]+`)|\\([!-/:-@\[-`{-~])")
+_PLACEHOLDER_BASE = 0xE000
+_PLACEHOLDER = re.compile(r"[\ue021-\ue07e]")
+
 
 class _CodeLine(str):
     pass
@@ -46,9 +53,12 @@ class _TableExtraLine(_TableLine):
 
 
 def _format_markdown(text: str) -> str:
+    text = _ESCAPE.sub(
+        lambda m: m.group(1) or chr(_PLACEHOLDER_BASE + ord(m.group(2))), text
+    )
     for patt, repl in _MARKDOWN:
         text = patt.sub(repl, text)
-    return text
+    return _PLACEHOLDER.sub(lambda m: chr(ord(m.group()) - _PLACEHOLDER_BASE), text)
 
 
 def _table_cells(line: str) -> list[str]:
@@ -119,8 +129,9 @@ def _render_table(rows: list[list[str]], alignments: list[str], max_width: int):
     gap = "  "
     widths = _fit_widths(natural, max_width - 1 - len(gap) * (len(natural) - 1))
     divider = " " + "\u2500" * (sum(widths) + len(gap) * (len(widths) - 1))
+    table_width = len(divider)
     rendered_rows = []
-    for row in rows:
+    for row_index, row in enumerate(rows):
         wrapped = [_wrap_cell(cell, width) for cell, width in zip(row, widths)]
         rendered_lines = []
         for line in zip_longest(*wrapped, fillvalue=""):
@@ -131,7 +142,11 @@ def _render_table(rows: list[list[str]], alignments: list[str], max_width: int):
                 if alignment.startswith(":") and alignment.endswith(":"):
                     left = padding // 2
                 padded.append(" " * left + cell + " " * (padding - left))
-            rendered_lines.append((" " + gap.join(padded)).rstrip())
+            line = " " + gap.join(padded)
+            # Shades every other body row so a wrapped row reads as one block.
+            if row_index % 2 == 0 and row_index > 0:
+                line = f"\x1b[48;5;236m{line}{' ' * (table_width - _text_width(line))}\x1b[49m"
+            rendered_lines.append(line.rstrip())
         rendered_rows.append(rendered_lines)
     rendered_rows[0] = [f"\x1b[36m{line}\x1b[39m" for line in rendered_rows[0]]
     return f"\x1b[36m{divider}\x1b[39m", rendered_rows
