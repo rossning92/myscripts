@@ -1,14 +1,12 @@
-import os
 import subprocess
 import sys
 
 from PIL import Image
 
 # Open an idle right pane, then draw into its terminal directly.
+pane = subprocess.check_output(["run_script", "ext/open_side_pane.sh", "read"], text=True).strip()
 tty, cols, rows = subprocess.check_output(
-    ["tmux", "split-window", "-h", "-d", "-t", os.environ["TMUX_PANE"], "-P", "-F",
-     "#{pane_tty} #{pane_width} #{pane_height}", "read"],
-    text=True,
+    ["tmux", "display", "-p", "-t", pane, "#{pane_tty} #{pane_width} #{pane_height}"], text=True
 ).split()
 img = Image.open(sys.argv[1]).convert("RGB")
 # Each text cell shows two pixels (upper half block fg + bg), so double the rows.

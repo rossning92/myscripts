@@ -148,6 +148,8 @@ class BackgroundProcessOutputType(IntEnum):
 
 BG_PROCESS_OUTPUT_TYPE = BackgroundProcessOutputType.REDIRECT_TO_FILE
 
+_MAX_SCRIPT_LOG_BYTES = 1024 * 1024
+
 
 SUPPORT_GNU_SCREEN = False
 
@@ -805,6 +807,20 @@ class Script:
         log_file = os.path.join(log_dir, slugify(self.get_window_title())) + ".log"
         return log_file
 
+    def open_script_log_file(self):
+        log_file = self.get_script_log_file()
+        # Keep past runs but trim to the newest half once over the cap, so the log never grows unbounded.
+        if os.path.exists(log_file) and os.path.getsize(log_file) > _MAX_SCRIPT_LOG_BYTES:
+            with open(log_file, "rb") as f:
+                f.seek(-_MAX_SCRIPT_LOG_BYTES // 2, os.SEEK_END)
+                tail = f.read()
+            with open(log_file, "wb") as f:
+                f.write(tail[tail.find(b"\n") + 1 :])
+        fd = open(log_file, "a")
+        fd.write(f"\n===== {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
+        fd.flush()
+        return fd
+
     def __get_terminal(self) -> str:
         assert isinstance(self.cfg["terminal"], str)
         return self.cfg["terminal"]
@@ -1461,9 +1477,10 @@ class Script:
                     BG_PROCESS_OUTPUT_TYPE
                     == BackgroundProcessOutputType.REDIRECT_TO_FILE
                 ):
-                    fd = open(
-                        (out_to_file if out_to_file else self.get_script_log_file()),
-                        "w",
+                    fd = (
+                        open(out_to_file, "w")
+                        if out_to_file
+                        else self.open_script_log_file()
                     )
                     popen_extra_args["stdin"] = subprocess.DEVNULL
                     popen_extra_args["stdout"] = fd
@@ -1770,7 +1787,7 @@ class Script:
 
             else:
                 if redirect_output_to_log and not (background or out_to_file):
-                    foreground_log_fd = open(self.get_script_log_file(), "w")
+                    foreground_log_fd = self.open_script_log_file()
                     popen_extra_args["stdin"] = subprocess.DEVNULL
                     popen_extra_args["stdout"] = foreground_log_fd
                     popen_extra_args["stderr"] = foreground_log_fd

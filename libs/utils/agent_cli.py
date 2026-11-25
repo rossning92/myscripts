@@ -17,6 +17,7 @@ WRITABLE_ROOTS = (
     Path.home() / ".android",
     Path.home() / ".gradle",
     Path.home() / ".cache" / "uv",
+    # Godot
     Path.home() / ".config" / "godot",
     Path.home() / ".cache" / "godot",
     Path.home() / ".local" / "share" / "godot",
@@ -93,11 +94,11 @@ def sandbox_command(command, *, agent_home, gpu_env, broker=None):
     agent_home.mkdir(parents=True, exist_ok=True)
     # Isolate processes, drop capabilities, share network.
     # Host files remain readable so installed tools and launcher paths still work.
-    # Share the host's /tmp and keep /run private.
+    # Keep /tmp and /run private so host sockets stay outside the sandbox.
     sandbox = [
         bwrap, "--unshare-all", "--share-net", "--die-with-parent",
         "--new-session", "--cap-drop", "ALL", "--ro-bind", "/", "/",
-        "--proc", "/proc", "--dev", "/dev", "--bind", "/tmp", "/tmp",
+        "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
         "--tmpfs", "/run",
     ]
     # Keep GPU devices hidden unless the wrapper opts in.

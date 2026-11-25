@@ -46,26 +46,19 @@ def highlight(text):
     return f"\x1b[1;36m{text}\x1b[0m"
 
 
-def render_field(label, value, width, rows):
+def render_field(label, value, width):
     text = f"{label} {value}"
-    limit = width * rows
-    if len(text) > limit:
-        text = text[:limit - 3] + "..."
-    wrapped = "\r\n".join(text[start:start + width] for start in range(0, len(text), width))
-    return highlight(label) + wrapped[len(label):]
+    if len(text) > width:
+        text = text[:max(0, width - 3)] + "..."[:width]
+    return highlight(text[:len(label)]) + text[len(label):]
 
 
 request = json.loads(pathlib.Path(sys.argv[1]).read_text())
 fd = sys.stdin.fileno()
-size = os.get_terminal_size(fd)
-width = size.columns - 1
-command_rows = size.lines - 2
-if width < len("enter Approve  esc Cancel") or command_rows < 1:
-    sys.exit("Approval pane is too small.")
-
-reason = render_field("reason:", request["reason"], width, 1)
-command = render_field("command:", request["command"], width, command_rows)
-prompt = f"{highlight('enter')} Approve  {highlight('esc')} Cancel"
+width = os.get_terminal_size(fd).columns - 1
+reason = render_field("reason:", request["reason"], width)
+command = render_field("command:", request["command"], width)
+prompt = f"{highlight('enter')} approve  {highlight('esc')} cancel"
 
 approved = False
 settings = termios.tcgetattr(fd)
@@ -194,10 +187,7 @@ class HostCommandBroker:
         approval_command = shlex.join([
             sys.executable, "-I", str(self.approval), str(request_path), str(receipt),
         ])
-        approved = self.ask_approval(
-            approval_command, receipt,
-            len("command: ") + len(approval_request["command"]),
-        )
+        approved = self.ask_approval(approval_command, receipt)
         if not approved or self.closed.is_set():
             return {"returncode": 1, "stderr": "Host command denied.\n"}
         # No shell expansion, inherited stdin, or sandbox-supplied environment.
@@ -227,23 +217,10 @@ class HostCommandBroker:
             capture_output=True, text=True, timeout=5,
         )
 
-    def ask_approval(self, command, receipt, command_length):
-        dimensions = self.tmux(
-            "display-message", "-p", "-t", self.origin_pane,
-            "#{pane_width} #{pane_height}",
-        )
-        if dimensions.returncode:
-            return False
-        width, available = map(int, dimensions.stdout.split())
-        width -= 1
-        if width < 1 or available < 5:
-            return False
-        height = 2 + (command_length + width - 1) // width
-        # Leave room for the divider and the original pane.
-        height = min(height, available - 2)
+    def ask_approval(self, command, receipt):
         # Select the new pane within the originating window, without changing windows.
         result = self.tmux(
-            "split-window", "-v", "-l", str(height), "-t",
+            "split-window", "-v", "-l", "3", "-t",
             self.origin_pane, "-P", "-F", "#{pane_id}", command,
         )
         pane = result.stdout.strip()

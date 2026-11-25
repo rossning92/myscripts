@@ -280,7 +280,12 @@ class RepoMenu(Menu[Repo]):
             display_path = f"{item.display_path:<{path_width}}"
             if item.dirty:
                 display_path = f"\x1b[33m{display_path}\x1b[0m"
-            return f"{status}  {display_path}  {vcs_info}"
+            date = (
+                time.strftime("%Y-%m-%d", time.localtime(item.commit_timestamp))
+                if item.commit_timestamp
+                else " " * 10
+            )
+            return f"{status}  {display_path}  {date}  {vcs_info}"
         return f"{' ' * (self._max_status_width() + 2)}{item.display_path}"
 
     def _max_status_width(self) -> int:

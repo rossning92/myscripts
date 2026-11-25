@@ -105,7 +105,7 @@ def _table_separator(line: str) -> bool:
         not isinstance(line, _CodeLine)
         and "|" in line
         and bool(cells)
-        and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
+        and all(re.fullmatch(r":?-+:?", cell) for cell in cells)
     )
 
 
@@ -223,7 +223,7 @@ class TextMenu(Menu[str]):
                 line[3:].strip() if self.__fence_language is None else None
             )
         elif self.__fence_language is not None:
-            if self.__fence_language == "diff" and line.startswith(("+", "-")):
+            if self.__fence_language in ("diff", "text") and line.startswith(("+", "-")):
                 return _DiffLine(line)
             return _CodeLine(line)
         return line

@@ -24,7 +24,7 @@ _WINDOW_CLOSE_WAIT_SECONDS = 1.0
 _AUTO_REFRESH_INTERVAL_SECONDS = 2.0
 _PROMPT = "activate window"
 _MAX_TITLE_CHARS = 40
-_COLUMN_SEPARATOR = " | "
+_COLUMN_SEPARATOR = " ❘ "
 # Caps option columns that have another column to their right.
 _OPTION_WIDTH = 24
 
@@ -81,10 +81,8 @@ class WinSwitcherMenu(Menu[WindowItem]):
         if w.title in self.__pinned:
             return 2
         status = w.get_status(self.script_status)
-        if status == "waiting":
+        if status in ("waiting", "success"):
             return 0
-        if status == "success":
-            return 0 if w.title not in self.__visited_success else 1
         if status == "running":
             return 3
         return 4
