@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+from copy import copy as shallow_copy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
@@ -216,7 +217,7 @@ class FileMenu(Menu[_File]):
             self.__config.load(self.__config_file)
 
         self.__files: List[_File] = []
-        self.__last_copy_to_path: Optional[str] = None
+        self.__last_dest_dir = ""
         self.__prompt: Optional[str] = prompt
         self.__select_mode: int = FileMenu.SELECT_MODE_NONE
         self.__selected_file_dict: Dict[str, str] = {}
@@ -469,18 +470,17 @@ class FileMenu(Menu[_File]):
             files = self.get_selected_files()
 
         if len(files) > 0:
+            dest_dir = self.__last_dest_dir
             filemgr = FileMenu(
-                goto=(
-                    self.__last_copy_to_path
-                    if self.__last_copy_to_path is not None
-                    else self.get_cur_dir()
-                ),
+                goto=dest_dir if os.path.isdir(dest_dir) else self.get_cur_dir(),
                 prompt=self._submenu_prompt("copy to" if copy else "move to"),
-                config=self.__config,
+                sort_by=self.__config.sort_by,
+                # Share path history while keeping picker navigation local.
+                config=shallow_copy(self.__config),
             )
             dest_dir = filemgr.select_directory()
             if dest_dir is not None:
-                self.__last_copy_to_path = dest_dir
+                self.__last_dest_dir = dest_dir
                 copy_jobs: List[tuple[str, str]] = []
                 for src in files:
                     dest = os.path.join(dest_dir, os.path.basename(src))

@@ -23,10 +23,16 @@ def prompt_commit_message(label: str = "Commit message") -> Optional[str]:
     return commit_message_or_default(message)
 
 
-def run_vcs(cmd: str, *args: str, cwd: Optional[str] = None):
+def run_vcs(
+    cmd: str,
+    *args: str,
+    cwd: Optional[str] = None,
+    check: bool = False,
+    timeout: Optional[float] = None,
+):
     """Run a VCS action without allowing output to corrupt the active TUI."""
     return subprocess.run(
-        [cmd, *args], cwd=cwd, capture_output=True, text=True
+        [cmd, *args], cwd=cwd, capture_output=True, text=True, check=check, timeout=timeout
     )
 
 
@@ -39,13 +45,7 @@ def discard_all_changes(cwd: str, vcs: str) -> None:
 
 def get_vcs_output(cmd: str, *args: str, cwd: Optional[str] = None) -> Optional[str]:
     try:
-        r = subprocess.run(
-            [cmd, *args],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        r = run_vcs(cmd, *args, cwd=cwd, timeout=10)
         return r.stdout.strip() if r.returncode == 0 else None
     except Exception:
         return None

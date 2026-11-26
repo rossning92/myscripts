@@ -66,13 +66,14 @@ class VcsDiffMenu(Menu):
         super().__init__(close_on_selection=False, quick_select=True)
         self.__prompt_prefix = prompt_prefix
         self.__last_refresh_time = 0.0
+        self.__browsing_files = False
         self.__refresh_thread: Optional[threading.Thread] = None
         self.__spinner = Spinner()
         self.__base_prompt = os.path.basename(os.getcwd())
         self.__recent_commits: List[str] = []
         self._is_clean: bool = False
         self.add_command(
-            self._diff_all, hotkey="alt+d", name="diff all", show_in_hotkey_bar=True
+            self.show_diff, hotkey="alt+d", name="diff all", show_in_hotkey_bar=True
         )
         self.add_command(
             self.__edit_file,
@@ -108,7 +109,11 @@ class VcsDiffMenu(Menu):
         self.set_prompt(os.path.basename(os.getcwd()))
 
     def on_created(self) -> None:
+        self.__browsing_files = True
         self._refresh()
+
+    def on_close(self) -> None:
+        self.__browsing_files = False
 
     def _init_extra_commands(self) -> None:
         pass
@@ -210,6 +215,13 @@ class VcsDiffMenu(Menu):
         # (filenames, label, needs_staging).
         return selected_filenames, "selected", True
 
+    def show_diff(self) -> None:
+        if not self.__browsing_files:
+            items, self._is_clean = self._get_status_items()
+            self.items[:] = items
+            self.set_prompt(self._get_vcs_prompt(self._is_clean))
+        self._diff_all()
+
     def _diff_all(self) -> None:
         raise NotImplementedError
 
@@ -225,7 +237,8 @@ class VcsDiffMenu(Menu):
             else:
                 filenames = [self._get_filename(item) for item in self.items]
             VcsDiffView(self, filenames, **kwargs).exec()
-        self._refresh()
+        if self.__browsing_files:
+            self._refresh()
 
     def set_prompt(self, prompt: str) -> None:
         if self.__prompt_prefix:

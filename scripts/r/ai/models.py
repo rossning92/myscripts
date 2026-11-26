@@ -38,6 +38,7 @@ class Model:
     image_resolution: Optional[ImageResolution] = None
     image_quality: Optional[ImageQuality] = None
     supports_image_input: bool = True
+    image_aspect_ratio: Optional[str] = None
 
     @property
     def id(self) -> str:
@@ -90,11 +91,6 @@ MODELS: List[Model] = [
     ),
     Model(
         "gemini",
-        "gemini-3-flash-preview",
-        api_type="gemini_generate_content",
-    ),
-    Model(
-        "gemini",
         "gemini-3.8-flash",
         api_type="gemini_generate_content",
     ),
@@ -108,11 +104,6 @@ MODELS: List[Model] = [
         "gemini-3.1-flash-image",
         api_type="gemini_generate_content",
     ),
-    Model(
-        "gemini",
-        "gemini-3.1-flash-lite-preview",
-        api_type="gemini_generate_content",
-    ),
     Model("openai", "gpt-image-2", api_type="openai_images"),
     Model(
         "openrouter",
@@ -123,7 +114,14 @@ MODELS: List[Model] = [
     ),
     Model(
         "openrouter",
-        "google/gemini-3-flash-preview",
+        "google/gemini-3.1-flash-lite-image",
+        api_type="openai_chat_completions",
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+    ),
+    Model(
+        "openrouter",
+        "google/gemini-3.1-flash-image",
         api_type="openai_chat_completions",
         base_url="https://openrouter.ai/api/v1",
         api_key=os.environ.get("OPENROUTER_API_KEY"),
@@ -198,6 +196,27 @@ MODELS: List[Model] = [
     Model(
         "openrouter",
         "openai/gpt-image-2.6-sunburst",
+        api_type="openai_images",
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+    ),
+    Model(
+        "openrouter",
+        "bytedance-seed/seedream-5-5",
+        api_type="openai_images",
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+    ),
+    Model(
+        "openrouter",
+        "meta/muse-image",
+        api_type="openai_images",
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("OPENROUTER_API_KEY"),
+    ),
+    Model(
+        "openrouter",
+        "tencent/hy-image-v3.5-preview",
         api_type="openai_images",
         base_url="https://openrouter.ai/api/v1",
         api_key=os.environ.get("OPENROUTER_API_KEY"),

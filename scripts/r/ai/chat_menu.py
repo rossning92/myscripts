@@ -973,7 +973,9 @@ class ChatMenu(Menu[Line]):
             return " " * len(line_number_text)
 
     def get_item_color(self, item: Line) -> Union[str, Tuple[str, str]]:
-        return "white" if item.role == "assistant" else ("white", "teal")
+        if item.role == "user" and not item.tool_result:
+            return ("white", "teal")
+        return "white"
 
     def item_wrap(self, item: Line) -> bool:
         return super().item_wrap(item) if item.text else False

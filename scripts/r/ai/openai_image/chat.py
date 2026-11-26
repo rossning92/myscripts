@@ -20,6 +20,7 @@ async def complete_chat(
     usage: Optional[UsageMetadata] = None,
     endpoint_url: str = "https://api.openai.com/v1/images/generations",
     api_key: Optional[str] = None,
+    aspect_ratio: str = "auto",
 ) -> AsyncIterator[str]:
     api_key = api_key or os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -46,7 +47,7 @@ async def complete_chat(
     if endpoint_url.endswith("/images/generations"):
         payload.update(n=1, size="1024x1024", quality="auto", output_format="png")
     else:
-        payload["aspect_ratio"] = "auto"
+        payload["aspect_ratio"] = aspect_ratio
         references = [
             {"type": "image_url", "image_url": {"url": url}}
             for message in messages

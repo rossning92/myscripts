@@ -178,12 +178,13 @@ class TextMenu(Menu[str]):
             self.timeout_sec = 1.0
         self.__file_version = None
         self.__last_file_check = 0.0
-        assert file or text, "Either file or text needs to be provided"
+        assert file or text or kwargs.get("items") is not None, "Expected file, text, or items"
         if self.__file:
             with open(self.__file, "r", encoding="utf-8") as f:
                 self.__file_version = self.__version(os.fstat(f.fileno()))
                 text = f.read()
-        self.__load_text(text)
+        if text is not None:
+            self.__load_text(text)
 
     @staticmethod
     def __version(stat):

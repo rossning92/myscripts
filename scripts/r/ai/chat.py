@@ -130,6 +130,7 @@ async def complete_chat(
                 else "https://api.openai.com/v1/images/generations"
             ),
             api_key=selected_model.api_key,
+            aspect_ratio=selected_model.image_aspect_ratio or "auto",
         )
     elif selected_model.api_type == "openai_chat_completions":
         if not selected_model.base_url:

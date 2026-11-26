@@ -27,6 +27,7 @@ from git.vcs import (
     get_vcs_output,
     prepend_recent_commits,
     prompt_commit_message,
+    run_vcs,
 )
 
 _MODULE_NAME = "repos"
@@ -248,15 +249,19 @@ class RepoMenu(Menu[Repo]):
         self._last_refresh_time = 0.0
         self._focused = True
         self._git_identity_ready = False
-        self.add_command(self._sync, hotkey="ctrl+s", name="sync", show_in_hotkey_bar=True)
-        self.add_command(self._amend, hotkey="alt+a", name="amend", show_in_hotkey_bar=True)
-        self.add_command(self._commit, hotkey="alt+c", name="commit", show_in_hotkey_bar=True)
-        self.add_command(self._push, hotkey="alt+p", name="push", show_in_hotkey_bar=True)
-        self.add_command(self._discard, hotkey="ctrl+d", name="discard", show_in_hotkey_bar=True)
-        self.add_command(self._delete, hotkey="ctrl+k", name="delete", show_in_hotkey_bar=True)
+        self.add_command(self._sync, hotkey="ctrl+s", show_in_hotkey_bar=True)
+        self.add_command(self._amend, hotkey="alt+a", show_in_hotkey_bar=True)
+        self.add_command(self._commit, hotkey="alt+c", show_in_hotkey_bar=True)
+        self.add_command(self._push, hotkey="alt+p", show_in_hotkey_bar=True)
+        self.add_command(
+            self._merge_worktree, hotkey="alt+m", show_in_hotkey_bar=True
+        )
+        self.add_command(self._diff, hotkey="alt+d", show_in_hotkey_bar=True)
+        self.add_command(self._discard, hotkey="ctrl+d", show_in_hotkey_bar=True)
+        self.add_command(self._delete, hotkey="ctrl+k", show_in_hotkey_bar=True)
         self.add_command(self._amend_and_push, hotkey="alt+a", name="amend+push")
         self.add_command(self._commit_and_sync, hotkey="alt+c", name="commit+sync")
-        self.add_command(self._refresh, hotkey="ctrl+r", name="refresh", show_in_hotkey_bar=True)
+        self.add_command(self._refresh, hotkey="ctrl+r", show_in_hotkey_bar=True)
         self.add_command(
             self._terminal,
             hotkey="ctrl+t",
@@ -315,17 +320,29 @@ class RepoMenu(Menu[Repo]):
                 self.set_message(error.stderr.strip() or error.stdout.strip() or str(error))
                 return
             item.is_git = True
+        self._open_repo(item)
+
+    def _diff(self):
+        repo = self.get_selected_item()
+        if repo is not None and repo.vcs:
+            self._open_repo(repo, diff=True)
+
+    def _open_repo(self, repo: Repo, *, diff: bool = False):
         saved_cwd = os.getcwd()
         try:
-            os.chdir(item.path)
-            if item.is_git:
+            os.chdir(repo.path)
+            if repo.is_git:
                 from git.git_menu import GitMenu
 
-                GitMenu(prompt_prefix=_MODULE_NAME).exec()
-            elif item.is_hg:
+                menu = GitMenu(prompt_prefix=_MODULE_NAME)
+            else:
                 from git.hg_menu import HgMenu
 
-                HgMenu(prompt_prefix=_MODULE_NAME).exec()
+                menu = HgMenu(prompt_prefix=_MODULE_NAME)
+            if diff:
+                menu.show_diff()
+            else:
+                menu.exec()
         finally:
             os.chdir(saved_cwd)
         self._refresh()
@@ -415,6 +432,84 @@ class RepoMenu(Menu[Repo]):
             self._run_cmds(["git", "push"])
         elif repo.is_hg:
             self._run_cmds(["hg", "push"])
+
+    def _merge_worktree(self):
+        repo = self.get_selected_item()
+        if repo is None or not repo.is_git:
+            self.set_message("Select a Git checkout to merge")
+            return
+
+        def git(path: str, *args: str):
+            return run_vcs("git", "-C", path, *args, check=True)
+
+        failure = "Merge stopped"
+        try:
+            branch = git(repo.path, "branch", "--show-current").stdout.strip()
+            if not branch or branch in ("main", "master"):
+                self.set_message("Select a feature branch to merge")
+                return
+
+            listing = git(repo.path, "worktree", "list", "--porcelain", "-z").stdout
+            target_path = listing.split("\0", 1)[0].removeprefix("worktree ")
+            if os.path.realpath(repo.path) == os.path.realpath(target_path):
+                self.set_message("Select a linked feature worktree")
+                return
+
+            target = git(target_path, "branch", "--show-current").stdout.strip()
+            if target not in ("main", "master"):
+                self.set_message("Check out main or master in the primary checkout first")
+                return
+
+            if not confirm(
+                f"Merge {branch} into {target} and remove its worktree and branch?"
+            ):
+                return
+
+            for path, expected_branch in ((repo.path, branch), (target_path, target)):
+                current_branch = git(path, "branch", "--show-current").stdout.strip()
+                if current_branch != expected_branch:
+                    self.set_message(f"Branch changed in {path}. Run merge again.")
+                    return
+
+                git_dir = git(path, "rev-parse", "--absolute-git-dir").stdout.rstrip("\n")
+                dirty = git(path, "status", "--porcelain", "--untracked-files=all").stdout
+                # A paused Git operation can have a clean working tree.
+                operation_markers = (
+                    "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge",
+                    "rebase-apply", "sequencer", "BISECT_START",
+                )
+                if dirty or any(
+                    os.path.exists(os.path.join(git_dir, marker))
+                    for marker in operation_markers
+                ):
+                    self.set_message(f"Finish outstanding changes or operations in {path}")
+                    return
+
+            git(
+                repo.path, "-c", "rebase.updateRefs=false", "rebase", "--quiet", "--no-autostash",
+                f"refs/heads/{target}",
+            )
+            if git(target_path, "branch", "--show-current").stdout.strip() != target:
+                self.set_message("The target checkout changed. Run merge again.")
+                return
+            git(
+                target_path, "merge", "--quiet", "--ff-only", "--no-overwrite-ignore",
+                "--", f"refs/heads/{branch}",
+            )
+            failure = "Merged, but cleanup stopped"
+            if git(repo.path, "branch", "--show-current").stdout.strip() != branch:
+                self.set_message("Merged, but the feature checkout changed. Cleanup stopped.")
+                return
+            git(target_path, "worktree", "remove", "--", repo.path)
+            git(target_path, "branch", "-d", "--", branch)
+        except subprocess.CalledProcessError as error:
+            details = (error.stderr or error.stdout or "").strip().splitlines()
+            detail = details[0] if details else f"Git exited with status {error.returncode}"
+            self.set_message(f"{failure}: {detail}")
+        else:
+            self.set_message(f"Merged into {target}")
+        finally:
+            self._refresh()
 
     def _discard(self):
         repo = self.get_selected_item()

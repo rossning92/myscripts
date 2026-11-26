@@ -133,12 +133,27 @@ def _find_diff_highlight() -> Optional[str]:
     return None
 
 
+class _CommitMessageLine(str):
+    pass
+
+
 def _run_diff_cmd(cmd: List[str]) -> List[str]:
     out = subprocess.run(cmd, capture_output=True).stdout
     diff_highlight = _find_diff_highlight()
     if diff_highlight:
         out = subprocess.run([diff_highlight], input=out, capture_output=True).stdout
-    return out.decode("utf-8", errors="replace").replace("\r", "").splitlines()
+    text = out.decode("utf-8", errors="replace").replace("\r", "")
+    parts = text.split("\0", 2)
+    if len(parts) == 3:
+        header, message, patch = parts
+        if message and not message.endswith("\n"):
+            patch = patch.removeprefix("\n")
+        return [
+            *header.splitlines(),
+            *map(_CommitMessageLine, message.splitlines()),
+            *patch.splitlines(),
+        ]
+    return text.splitlines()
 
 
 def _build_git_diff_cmd(args: List[str]) -> List[str]:
@@ -199,7 +214,7 @@ class DiffMenu(TextMenu):
         prompt = f"{prompt_prefix} › diff" if prompt_prefix else "diff"
         super().__init__(
             prompt=prompt,
-            text="\n".join(lines) if lines else "(no diff)",
+            items=lines or ["(no diff)"],
             wrap_text=False,
             line_number=False,
             **kwargs,
@@ -260,6 +275,9 @@ class DiffMenu(TextMenu):
             self.__diff_lines = [strip_ansi(line) for line in lines]
             self.items[:] = lines
             self.set_message("refreshed")
+
+    def item_wrap(self, item: str) -> bool:
+        return isinstance(item, _CommitMessageLine) or super().item_wrap(item)
 
     def on_main_loop(self):
         if self.__refresh_thread is not None:
