@@ -194,11 +194,7 @@ class GitMenu(VcsDiffMenu):
     def _open_commit_diff(self, item=None):
         # show also handles the root commit, which has no parent to diff against.
         # NUL bytes delimit the message for wrapping in DiffMenu.
-        commit_format = (
-            "--format=commit %H%nAuthor: %an <%ae>%nDate:   %ad%n%n%x00%B%x00"
-            if item is None
-            else "--format="
-        )
+        commit_format = "--format=%x00%B%x00" if item is None else "--format="
         cmd = [
             "git", "-c", "core.quotePath=false", "show", commit_format,
             "--diff-merges=first-parent", "-U3", "--color", self._rev, "--",
